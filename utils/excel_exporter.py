@@ -287,3 +287,34 @@ class ExcelExporter:
         # Column widths
         ws.column_dimensions["A"].width = 3
         ws.column_dimensions["B"].width = 100
+
+
+# Helper function for easy import
+def export_to_excel(state: AgentState, output_dir: str = "outputs") -> str:
+    """
+    Helper function to export test cases to Excel
+    
+    Args:
+        state: Agent state with test cases
+        output_dir: Directory to save Excel files (default: 'outputs')
+    
+    Returns:
+        Path to generated Excel file
+    """
+    import os
+    from datetime import datetime
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Generate filename
+    ticket_id = state.get('ticket_info', {}).get('ticket_id', 'unknown')
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"test_cases_{ticket_id}_{timestamp}.xlsx"
+    output_path = os.path.join(output_dir, filename)
+    
+    # Export
+    exporter = ExcelExporter()
+    exporter.export_test_cases(state, output_path)
+    
+    return output_path

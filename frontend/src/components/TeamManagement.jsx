@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import { teamAPI } from '../services/api';
 import useAuthStore from '../store/authStore';
 
-const TeamManagement = () => {
+const TeamManagement = ({ onCancel }) => {
   const { fetchWorkspaces, getActiveWorkspaceDetails, workspaces, switchWorkspace } = useAuthStore();
   const activeWorkspace = getActiveWorkspaceDetails();
   
@@ -62,6 +62,11 @@ const TeamManagement = () => {
       // Small delay to ensure database commit completes
       await new Promise(resolve => setTimeout(resolve, 200));
       await fetchWorkspaces();
+      
+      // If onCancel is provided (inline form), close the form
+      if (onCancel) {
+        onCancel();
+      }
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Failed to create team';
       setError(errorMsg);
@@ -221,39 +226,102 @@ const TeamManagement = () => {
 
   const isAdmin = currentUserRole === 'admin';
 
+  // Show create form if in personal workspace
+  const isPersonalWorkspace = activeWorkspace?.type === 'personal';
+  const showingCreateForm = isPersonalWorkspace && onCancel;
+
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Team Management</h2>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">
-            {activeWorkspace?.type === 'team' 
-              ? 'Manage your team members and settings'
-              : 'Create and manage your teams'
-            }
-          </p>
+      {/* Header - only show when in team workspace */}
+      {!showingCreateForm && (
+        <div className="flex items-center justify-end gap-4">
+          {activeWorkspace?.type === 'team' ? (
+            <button
+              onClick={() => setShowDeleteTeamModal(true)}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center justify-center gap-2 shadow-md transition-all text-sm sm:text-base w-full sm:w-auto"
+              disabled={adminTeams.length === 0}
+            >
+              <Trash2 size={18} />
+              <span>Delete Team</span>
+            </button>
+          ) : null}
         </div>
-        {activeWorkspace?.type === 'team' ? (
-          <button
-            onClick={() => setShowDeleteTeamModal(true)}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center justify-center gap-2 shadow-md transition-all text-sm sm:text-base w-full sm:w-auto"
-            disabled={adminTeams.length === 0}
-          >
-            <Trash2 size={18} />
-            <span>Delete Team</span>
-          </button>
-        ) : (
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto text-sm sm:text-base"
-          >
-            <Plus size={18} />
-            <span>Create Team</span>
-          </button>
-        )}
-      </div>
+      )}
 
-      {activeWorkspace?.type === 'team' && (
+      {/* Create Team Form - shown in personal workspace */}
+      {showingCreateForm && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-gray-900">Create New Team</h3>
+            <button
+              onClick={onCancel}
+              className="text-gray-500 hover:text-gray-700 p-1"
+            >
+              <X size={24} />
+            </button>
+          </div>
+          
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+          
+          <form onSubmit={handleCreateTeam} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Team Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={newTeamName}
+                onChange={(e) => setNewTeamName(e.target.value)}
+                className="input"
+                placeholder="e.g., QA Team Alpha"
+                required
+                minLength={3}
+                maxLength={100}
+              />
+              <p className="text-xs text-gray-500 mt-1">3-100 characters</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description (Optional)
+              </label>
+              <textarea
+                value={newTeamDesc}
+                onChange={(e) => setNewTeamDesc(e.target.value)}
+                className="input"
+                rows={3}
+                placeholder="Brief description of the team's purpose..."
+                maxLength={500}
+              />
+              <p className="text-xs text-gray-500 mt-1">Max 500 characters</p>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                type="submit"
+                disabled={isLoading || !newTeamName.trim()}
+                className="btn-primary flex-1"
+              >
+                {isLoading ? 'Creating...' : 'Create Team'}
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="btn-secondary flex-1"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Team Management - shown only in team workspace */}
+      {!showingCreateForm && activeWorkspace?.type === 'team' && (
         <div className="card bg-primary-50 border border-primary-200">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <Users size={24} className="text-primary-600" />
@@ -369,6 +437,9 @@ const TeamManagement = () => {
         </div>
       )}
 
+      {/* Modals - only show when not in create form mode */}
+      {!showingCreateForm && (
+        <>
       {/* Create Team Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -764,6 +835,8 @@ const TeamManagement = () => {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

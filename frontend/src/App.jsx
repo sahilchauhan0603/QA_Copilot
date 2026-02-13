@@ -6,7 +6,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import Login from './components/Login';
 import Signup from './components/Signup';
-import Dashboard from './components/Dashboard';
+import Layout from './components/Layout';
+import HomePage from './pages/HomePage';
+import TestGenerationPage from './pages/TestGenerationPage';
+import TeamsPage from './pages/TeamsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import useAuthStore from './store/authStore';
 import './index.css';
@@ -50,14 +53,39 @@ function App() {
           path="/signup" 
           element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Signup />} 
         />
+        
+        {/* Protected Routes with Layout */}
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <Layout>
+                <HomePage />
+              </Layout>
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/test-generation"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <TestGenerationPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teams"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <TeamsPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
         <Route 
           path="/" 
           element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} 

@@ -52,6 +52,8 @@ class DatabaseManager:
     def save_generation(
         self,
         state: Dict[str, Any],
+        user_id: int,
+        team_id: Optional[int] = None,
         excel_file_path: Optional[str] = None
     ) -> str:
         """
@@ -59,6 +61,8 @@ class DatabaseManager:
         
         Args:
             state: Agent state containing test cases and ticket info
+            user_id: ID of the user who created the generation
+            team_id: Optional team ID (None for personal workspace)
             excel_file_path: Path to generated Excel file
         
         Returns:
@@ -77,8 +81,9 @@ class DatabaseManager:
             cursor.execute("""
                 INSERT INTO generations 
                 (id, ticket_id, ticket_title, ticket_type, ticket_description, 
-                 ticket_acceptance_criteria, timestamp, excel_file_path, status, total_test_cases, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ticket_acceptance_criteria, timestamp, excel_file_path, status, total_test_cases, metadata,
+                 user_id, team_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 generation_id,
                 ticket_info.get('ticket_id', ''),
@@ -95,7 +100,9 @@ class DatabaseManager:
                     'qa_roadmap': state.get('qa_roadmap', {}),
                     'clarification_questions': state.get('clarification_questions', []),
                     'risk_areas': state.get('risk_areas', [])
-                })
+                }),
+                user_id,
+                team_id
             ))
             
             # Save test cases
@@ -164,11 +171,13 @@ class DatabaseManager:
             logger.error(f"Failed to update Excel path: {e}")
             return False
     
-    def get_all_generations(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_all_generations(self, user_id: int, team_id: Optional[int] = None, limit: int = 100) -> List[Dict[str, Any]]:
         """
-        Get all generations ordered by timestamp (newest first)
+        Get all generations for a specific workspace ordered by timestamp (newest first)
         
         Args:
+            user_id: User ID to filter by
+            team_id: Optional team ID (None for personal workspace)
             limit: Maximum number of generations to retrieve
         
         Returns:
@@ -183,9 +192,10 @@ class DatabaseManager:
                 SELECT id, ticket_id, ticket_title, ticket_type, 
                        timestamp, total_test_cases, excel_file_path, status
                 FROM generations
+                WHERE user_id = ? AND (team_id = ? OR (team_id IS NULL AND ? IS NULL))
                 ORDER BY timestamp DESC
                 LIMIT ?
-            """, (limit,))
+            """, (user_id, team_id, team_id, limit))
             
             generations = [dict(row) for row in cursor.fetchall()]
             conn.close()
@@ -320,15 +330,19 @@ class DatabaseManager:
     
     def search_generations(
         self,
+        user_id: int,
+        team_id: Optional[int] = None,
         ticket_id: Optional[str] = None,
         ticket_type: Optional[str] = None,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Search generations with filters
+        Search generations with filters in a specific workspace
         
         Args:
+            user_id: User ID to filter by
+            team_id: Optional team ID (None for personal workspace)
             ticket_id: Filter by ticket ID (partial match)
             ticket_type: Filter by ticket type
             date_from: Filter by start date (ISO format)
@@ -346,9 +360,9 @@ class DatabaseManager:
                 SELECT id, ticket_id, ticket_title, ticket_type,
                        timestamp, total_test_cases, excel_file_path, status
                 FROM generations
-                WHERE 1=1
+                WHERE user_id = ? AND (team_id = ? OR (team_id IS NULL AND ? IS NULL))
             """
-            params = []
+            params = [user_id, team_id, team_id]
             
             if ticket_id:
                 query += " AND ticket_id LIKE ?"
@@ -378,9 +392,13 @@ class DatabaseManager:
             logger.error(f"Failed to search generations: {e}")
             return []
     
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self, user_id: int, team_id: Optional[int] = None) -> Dict[str, Any]:
         """
-        Get database statistics (only counts test cases from existing generations)
+        Get database statistics for a specific workspace
+        
+        Args:
+            user_id: User ID to filter by
+            team_id: Optional team ID (None for personal workspace)
         
         Returns:
             Dictionary with statistics
@@ -389,36 +407,42 @@ class DatabaseManager:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            workspace_filter = "WHERE user_id = ? AND (team_id = ? OR (team_id IS NULL AND ? IS NULL))"
+            workspace_params = (user_id, team_id, team_id)
+            
             # Total generations
-            cursor.execute("SELECT COUNT(*) FROM generations")
+            cursor.execute(f"SELECT COUNT(*) FROM generations {workspace_filter}", workspace_params)
             total_generations = cursor.fetchone()[0]
             
-            # Total test cases (only from existing generations)
-            cursor.execute("""
+            # Total test cases (only from existing generations in this workspace)
+            cursor.execute(f"""
                 SELECT COUNT(*) 
                 FROM test_cases tc
                 INNER JOIN generations g ON tc.generation_id = g.id
-            """)
+                {workspace_filter}
+            """, workspace_params)
             total_test_cases = cursor.fetchone()[0]
             
-            # Test cases by priority (only from existing generations)
-            cursor.execute("""
+            # Test cases by priority (only from existing generations in this workspace)
+            cursor.execute(f"""
                 SELECT tc.priority, COUNT(*) as count
                 FROM test_cases tc
                 INNER JOIN generations g ON tc.generation_id = g.id
+                {workspace_filter}
                 GROUP BY tc.priority
-            """)
+            """, workspace_params)
             by_priority = {row[0]: row[1] for row in cursor.fetchall()}
             
-            # Test cases by category (only from existing generations)
-            cursor.execute("""
+            # Test cases by category (only from existing generations in this workspace)
+            cursor.execute(f"""
                 SELECT tc.category, COUNT(*) as count
                 FROM test_cases tc
                 INNER JOIN generations g ON tc.generation_id = g.id
+                {workspace_filter}
                 GROUP BY tc.category
                 ORDER BY count DESC
                 LIMIT 10
-            """)
+            """, workspace_params)
             by_category = {row[0]: row[1] for row in cursor.fetchall()}
             
             conn.close()

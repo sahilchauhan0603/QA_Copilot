@@ -2,18 +2,23 @@
 Flask API Server
 Main API server with authentication and team management endpoints
 """
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from datetime import datetime
 import logging
 import os
 from dotenv import load_dotenv
+import traceback
 
 from database.connection import init_database
 from auth.auth_service import AuthService
 from auth.team_service import TeamService
 from auth.workspace_service import WorkspaceService
 from database.auth_models import TeamRole
+from database.db_manager import DatabaseManager
+from agents.orchestrator import AgentOrchestrator
+from agents.state import TicketInfo
+from utils.excel_exporter import export_to_excel
 from api.decorators import (
     token_required,
     team_member_required,
@@ -48,6 +53,20 @@ CORS(app, resources={
 auth_service = AuthService()
 team_service = TeamService()
 workspace_service = WorkspaceService()
+
+# Initialize database manager
+db_manager = DatabaseManager()
+
+# Initialize agent orchestrator (lazy loading - only if API key is set)
+orchestrator = None
+def get_orchestrator():
+    global orchestrator
+    if orchestrator is None:
+        google_api_key = os.getenv('GOOGLE_API_KEY')
+        if not google_api_key:
+            raise ValueError("GOOGLE_API_KEY not set in environment variables")
+        orchestrator = AgentOrchestrator(google_api_key)
+    return orchestrator
 
 
 # ============================================
@@ -415,6 +434,248 @@ def update_member_role(current_user, team_id, user_id):
     except Exception as e:
         logger.error(f"Update member role error: {e}")
         return jsonify({'error': 'Failed to update member role'}), 500
+
+
+# ============================================
+# TEST GENERATION ENDPOINTS
+# ============================================
+
+@app.route('/api/test-generation/generate', methods=['POST'])
+@token_required
+def generate_tests(current_user):
+    """Generate test cases from a ticket"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['ticket_id', 'title', 'description']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields: ticket_id, title, description'}), 400
+        
+        # Get workspace context
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+        
+        # Create ticket info
+        ticket_info = TicketInfo(
+            ticket_id=data['ticket_id'],
+            title=data['title'],
+            description=data['description'],
+            acceptance_criteria=data.get('acceptance_criteria', []),
+            ticket_type=data.get('ticket_type', 'story'),
+            priority=data.get('priority', 'P2'),
+            status=data.get('status', 'In Progress'),
+            attachments=data.get('attachments', []),
+            comments=data.get('comments', []),
+            linked_tickets=data.get('linked_tickets', [])
+        )
+        
+        # Initialize orchestrator and process ticket
+        orch = get_orchestrator()
+        
+        # Process with progress tracking
+        progress_updates = []
+        def progress_callback(agent_name, state):
+            progress_updates.append({
+                'agent': agent_name,
+                'status': 'completed',
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        final_state = orch.process_ticket(ticket_info, progress_callback=progress_callback)
+        
+        # Export to Excel
+        excel_path = None
+        try:
+            excel_path = export_to_excel(final_state)
+        except Exception as excel_error:
+            logger.warning(f"Failed to export to Excel: {excel_error}")
+        
+        # Save to database
+        generation_id = db_manager.save_generation(
+            state=final_state,
+            user_id=user_id,
+            team_id=team_id,
+            excel_file_path=excel_path
+        )
+        
+        # Get the saved generation
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        
+        return jsonify({
+            'message': 'Test cases generated successfully',
+            'generation_id': generation_id,
+            'total_test_cases': len(final_state.get('test_cases', [])),
+            'coverage_gaps': len(final_state.get('coverage_gaps', [])),
+            'excel_file': excel_path,
+            'progress': progress_updates,
+            'generation': generation_data
+        }), 201
+        
+    except ValueError as ve:
+        logger.error(f"Configuration error: {ve}")
+        return jsonify({'error': str(ve)}), 500
+    except Exception as e:
+        logger.error(f"Test generation error: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': f'Test generation failed: {str(e)}'}), 500
+
+
+@app.route('/api/test-generation/generations', methods=['GET'])
+@token_required
+def get_generations(current_user):
+    """Get all test generations for the current workspace"""
+    try:
+        # Get workspace context
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+        
+        # Get query parameters
+        limit = request.args.get('limit', 100, type=int)
+        ticket_id = request.args.get('ticket_id')
+        ticket_type = request.args.get('ticket_type')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        
+        # Search or get all
+        if any([ticket_id, ticket_type, date_from, date_to]):
+            generations = db_manager.search_generations(
+                user_id=user_id,
+                team_id=team_id,
+                ticket_id=ticket_id,
+                ticket_type=ticket_type,
+                date_from=date_from,
+                date_to=date_to
+            )
+        else:
+            generations = db_manager.get_all_generations(
+                user_id=user_id,
+                team_id=team_id,
+                limit=limit
+            )
+        
+        return jsonify(generations), 200
+        
+    except Exception as e:
+        logger.error(f"Get generations error: {e}")
+        return jsonify({'error': 'Failed to get generations'}), 500
+
+
+@app.route('/api/test-generation/generations/<generation_id>', methods=['GET'])
+@token_required
+def get_generation(current_user, generation_id):
+    """Get a specific test generation with all details"""
+    try:
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        
+        if not generation_data:
+            return jsonify({'error': 'Generation not found'}), 404
+        
+        # Verify workspace access
+        generation = generation_data['generation']
+        
+        # Check if user has access to this generation
+        if generation['user_id'] != current_user['user_id']:
+            # If it's a team generation, check team membership
+            if generation['team_id'] is not None:
+                if not team_service.is_team_member(current_user['user_id'], generation['team_id']):
+                    return jsonify({'error': 'Access denied'}), 403
+            else:
+                return jsonify({'error': 'Access denied'}), 403
+        
+        return jsonify(generation_data), 200
+        
+    except Exception as e:
+        logger.error(f"Get generation error: {e}")
+        return jsonify({'error': 'Failed to get generation'}), 500
+
+
+@app.route('/api/test-generation/generations/<generation_id>', methods=['DELETE'])
+@token_required
+def delete_generation(current_user, generation_id):
+    """Delete a test generation"""
+    try:
+        # Get generation to check ownership
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        
+        if not generation_data:
+            return jsonify({'error': 'Generation not found'}), 404
+        
+        generation = generation_data['generation']
+        
+        # Check if user owns this generation or is team admin
+        if generation['user_id'] != current_user['user_id']:
+            if generation['team_id'] is not None:
+                if not team_service.is_team_admin(current_user['user_id'], generation['team_id']):
+                    return jsonify({'error': 'Access denied: Only the owner or team admin can delete'}), 403
+            else:
+                return jsonify({'error': 'Access denied'}), 403
+        
+        # Delete generation
+        success = db_manager.delete_generation(generation_id)
+        
+        if success:
+            return jsonify({'message': 'Generation deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to delete generation'}), 500
+        
+    except Exception as e:
+        logger.error(f"Delete generation error: {e}")
+        return jsonify({'error': 'Failed to delete generation'}), 500
+
+
+@app.route('/api/test-generation/statistics', methods=['GET'])
+@token_required
+def get_test_statistics(current_user):
+    """Get test generation statistics for the current workspace"""
+    try:
+        # Get workspace context
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+        
+        stats = db_manager.get_statistics(user_id=user_id, team_id=team_id)
+        
+        return jsonify(stats), 200
+        
+    except Exception as e:
+        logger.error(f"Get statistics error: {e}")
+        return jsonify({'error': 'Failed to get statistics'}), 500
+
+
+@app.route('/api/test-generation/download/<generation_id>', methods=['GET'])
+@token_required
+def download_excel(current_user, generation_id):
+    """Download Excel file for a generation"""
+    try:
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        
+        if not generation_data:
+            return jsonify({'error': 'Generation not found'}), 404
+        
+        generation = generation_data['generation']
+        
+        # Verify workspace access
+        if generation['user_id'] != current_user['user_id']:
+            if generation['team_id'] is not None:
+                if not team_service.is_team_member(current_user['user_id'], generation['team_id']):
+                    return jsonify({'error': 'Access denied'}), 403
+            else:
+                return jsonify({'error': 'Access denied'}), 403
+        
+        excel_path = generation.get('excel_file_path')
+        if not excel_path or not os.path.exists(excel_path):
+            return jsonify({'error': 'Excel file not found'}), 404
+        
+        return send_file(
+            excel_path,
+            as_attachment=True,
+            download_name=f"test_cases_{generation_id}.xlsx",
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        logger.error(f"Download Excel error: {e}")
+        return jsonify({'error': 'Failed to download file'}), 500
 
 
 # ============================================

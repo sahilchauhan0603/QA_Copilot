@@ -4,16 +4,18 @@
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Settings, Home, FileText, Menu, X } from 'lucide-react';
+import { LogOut, Settings, Home, FileText, Menu, X, Users, TestTube } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import WorkspaceSelector from './WorkspaceSelector';
 import TeamManagement from './TeamManagement';
+import TestGeneration from './TestGeneration';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, logout, getActiveWorkspaceDetails } = useAuthStore();
   const activeWorkspace = getActiveWorkspaceDetails();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('test-generation'); // 'test-generation' or 'team-management'
 
   const handleLogout = async () => {
     await logout();
@@ -146,36 +148,67 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Team Management Section */}
-        <TeamManagement />
-
-        {/* Information Card */}
-        <div className="card mt-8 bg-gradient-to-br from-primary-50 to-primary-100 border border-primary-200">
-          <h3 className="text-lg font-semibold text-primary-900 mb-2">
-            🚀 Getting Started
-          </h3>
-          <p className="text-primary-800 mb-4">
-            Welcome to QA Copilot! Here's what you can do:
-          </p>
-          <ul className="space-y-2 text-primary-700">
-            <li className="flex items-start gap-2">
-              <span className="font-bold">✓</span>
-              <span>Create teams and invite collaborators</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-bold">✓</span>
-              <span>Switch between personal and team workspaces</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-bold">✓</span>
-              <span>Generate test cases from Jira/Azure DevOps tickets</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-bold">✓</span>
-              <span>Collaborate with your team on test case reviews</span>
-            </li>
-          </ul>
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200 mb-6">
+          <div className="flex gap-4">
+            <button
+              onClick={() => setActiveTab('test-generation')}
+              className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'test-generation'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <TestTube size={16} />
+              <span>Test Generation</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('team-management')}
+              className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'team-management'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Users size={16} />
+              <span>Team Management</span>
+            </button>
+          </div>
         </div>
+
+        {/* Tab Content */}
+        {activeTab === 'test-generation' && <TestGeneration />}
+        {activeTab === 'team-management' && <TeamManagement />}
+
+        {/* Information Card - Only show on team management tab */}
+        {activeTab === 'team-management' && (
+          <div className="card mt-8 bg-gradient-to-br from-primary-50 to-primary-100 border border-primary-200">
+            <h3 className="text-lg font-semibold text-primary-900 mb-2">
+              🚀 Getting Started
+            </h3>
+            <p className="text-primary-800 mb-4">
+              Welcome to QA Copilot! Here's what you can do:
+            </p>
+            <ul className="space-y-2 text-primary-700">
+              <li className="flex items-start gap-2">
+                <span className="font-bold">✓</span>
+                <span>Create teams and invite collaborators</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">✓</span>
+                <span>Switch between personal and team workspaces</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">✓</span>
+                <span>Generate test cases from Jira/Azure DevOps tickets</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">✓</span>
+                <span>Collaborate with your team on test case reviews</span>
+              </li>
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );

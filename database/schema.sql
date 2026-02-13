@@ -13,12 +13,17 @@ CREATE TABLE IF NOT EXISTS generations (
     status TEXT DEFAULT 'completed',
     total_test_cases INTEGER DEFAULT 0,
     metadata TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    user_id INTEGER NOT NULL,
+    team_id INTEGER DEFAULT NULL
 );
 
--- Index for faster ticket_id lookups
+-- Index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_generations_ticket_id ON generations(ticket_id);
 CREATE INDEX IF NOT EXISTS idx_generations_timestamp ON generations(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_generations_user_id ON generations(user_id);
+CREATE INDEX IF NOT EXISTS idx_generations_team_id ON generations(team_id);
+CREATE INDEX IF NOT EXISTS idx_generations_workspace ON generations(user_id, team_id);
 
 -- Table for storing individual test cases
 CREATE TABLE IF NOT EXISTS test_cases (
