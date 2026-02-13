@@ -1,0 +1,39 @@
+# Environment
+.env
+.env.example
+venv/
+env/
+*.pyc
+__pycache__/
+
+# API Cache
+.api_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Outputs
+outputs/*.xlsx
+outputs/*.json
+!outputs/sample_output.xlsx
+
+# Database
+*.db
+*.sqlite
+view_database.py
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env.local

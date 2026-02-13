@@ -1,0 +1,28 @@
+streamlit
+google-generativeai
+langchain
+langgraph
+python-dotenv
+openpyxl
+pandas
+requests
+jira
+azure-devops
+sqlalchemy
+python-dateutil
+tiktoken
+plotly
+pydantic
+
+# Authentication & Security
+flask
+flask-cors
+flask-jwt-extended
+bcrypt
+cryptography
+psycopg2-binary
+python-jose[cryptography]
+
+# API & Validation
+pydantic[email]
+email-validator
