@@ -10,6 +10,7 @@ import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import TestGenerationPage from './pages/TestGenerationPage';
 import TeamsPage from './pages/TeamsPage';
+import SettingsPage from './pages/SettingsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import useAuthStore from './store/authStore';
 import './index.css';
@@ -81,6 +82,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <TeamsPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <SettingsPage />
               </Layout>
             </ProtectedRoute>
           }

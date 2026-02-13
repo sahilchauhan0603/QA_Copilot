@@ -14,6 +14,7 @@ from database.connection import init_database
 from auth.auth_service import AuthService
 from auth.team_service import TeamService
 from auth.workspace_service import WorkspaceService
+from auth.integration_service import IntegrationService
 from database.auth_models import TeamRole
 from database.db_manager import DatabaseManager
 from agents.orchestrator import AgentOrchestrator
@@ -25,6 +26,7 @@ from api.decorators import (
     team_admin_required,
     workspace_aware
 )
+import google.generativeai as genai
 
 # Load environment variables
 load_dotenv()
@@ -40,19 +42,20 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key')
 
-# Enable CORS
-CORS(app, resources={
-    r"/api/*": {
-        "origins": os.getenv('CORS_ORIGINS', '*').split(','),
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
-    }
-})
+# Enable CORS with proper configuration
+CORS(app, 
+     resources={r"/api/*": {"origins": "*"}},
+     supports_credentials=False,
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     expose_headers=["Content-Type", "Authorization"]
+)
 
 # Initialize services
 auth_service = AuthService()
 team_service = TeamService()
 workspace_service = WorkspaceService()
+integration_service = IntegrationService()
 
 # Initialize database manager
 db_manager = DatabaseManager()
@@ -676,6 +679,262 @@ def download_excel(current_user, generation_id):
     except Exception as e:
         logger.error(f"Download Excel error: {e}")
         return jsonify({'error': 'Failed to download file'}), 500
+
+
+# ============================================
+# INTEGRATION ENDPOINTS
+# ============================================
+
+@app.route('/api/integrations/config', methods=['GET'])
+@token_required
+def get_integration_configs(current_user):
+    """Get all integration configs for the current workspace"""
+    try:
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+
+        configs = integration_service.get_all_configs(
+            user_id=user_id if not team_id else None,
+            team_id=team_id
+        )
+
+        return jsonify({'integrations': configs}), 200
+
+    except Exception as e:
+        logger.error(f"Get integration configs error: {e}")
+        return jsonify({'error': 'Failed to get integration configs'}), 500
+
+
+@app.route('/api/integrations/config/<integration_type>', methods=['GET'])
+@token_required
+def get_integration_config(current_user, integration_type):
+    """Get a specific integration config"""
+    try:
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+
+        config = integration_service.get_config(
+            integration_type=integration_type,
+            user_id=user_id if not team_id else None,
+            team_id=team_id
+        )
+
+        return jsonify(config), 200
+
+    except Exception as e:
+        logger.error(f"Get integration config error: {e}")
+        return jsonify({'error': 'Failed to get integration config'}), 500
+
+
+@app.route('/api/integrations/config', methods=['POST'])
+@token_required
+def save_integration_config(current_user):
+    """Save integration config for the current workspace"""
+    try:
+        data = request.get_json()
+
+        integration_type = data.get('integration_type')
+        if not integration_type:
+            return jsonify({'error': 'integration_type is required'}), 400
+
+        credentials = data.get('credentials', {})
+        config = data.get('config', {})
+
+        if not credentials:
+            return jsonify({'error': 'credentials are required'}), 400
+
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+
+        success, error = integration_service.save_config(
+            integration_type=integration_type,
+            credentials=credentials,
+            config=config,
+            user_id=user_id if not team_id else None,
+            team_id=team_id
+        )
+
+        if error:
+            return jsonify({'error': error}), 400
+
+        return jsonify({'message': f'{integration_type} configuration saved successfully'}), 200
+
+    except Exception as e:
+        logger.error(f"Save integration config error: {e}")
+        return jsonify({'error': 'Failed to save integration config'}), 500
+
+
+@app.route('/api/integrations/config/<integration_type>', methods=['DELETE'])
+@token_required
+def delete_integration_config(current_user, integration_type):
+    """Delete integration config"""
+    try:
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+
+        success, error = integration_service.delete_config(
+            integration_type=integration_type,
+            user_id=user_id if not team_id else None,
+            team_id=team_id
+        )
+
+        if error:
+            return jsonify({'error': error}), 400
+
+        if not success:
+            return jsonify({'error': 'Configuration not found'}), 404
+
+        return jsonify({'message': 'Configuration deleted successfully'}), 200
+
+    except Exception as e:
+        logger.error(f"Delete integration config error: {e}")
+        return jsonify({'error': 'Failed to delete integration config'}), 500
+
+
+@app.route('/api/integrations/test-connection', methods=['POST'])
+@token_required
+def test_integration_connection(current_user):
+    """Test integration connection without saving"""
+    try:
+        data = request.get_json()
+
+        integration_type = data.get('integration_type')
+        credentials = data.get('credentials', {})
+        config = data.get('config', {})
+
+        if not integration_type:
+            return jsonify({'error': 'integration_type is required'}), 400
+
+        success, message = integration_service.test_connection(
+            integration_type=integration_type,
+            credentials=credentials,
+            config=config
+        )
+
+        return jsonify({
+            'success': success,
+            'message': message
+        }), 200 if success else 400
+
+    except Exception as e:
+        logger.error(f"Test connection error: {e}")
+        return jsonify({'error': f'Connection test failed: {str(e)}'}), 500
+
+
+@app.route('/api/integrations/fetch-ticket', methods=['POST'])
+@token_required
+def fetch_integration_ticket(current_user):
+    """Fetch a ticket from Jira or Azure DevOps"""
+    try:
+        data = request.get_json()
+
+        integration_type = data.get('integration_type')
+        ticket_id = data.get('ticket_id')
+
+        if not integration_type or not ticket_id:
+            return jsonify({'error': 'integration_type and ticket_id are required'}), 400
+
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+
+        ticket_data, error = integration_service.fetch_ticket(
+            integration_type=integration_type,
+            ticket_id=ticket_id,
+            user_id=user_id if not team_id else None,
+            team_id=team_id
+        )
+
+        if error:
+            return jsonify({'error': error}), 400
+
+        return jsonify({'ticket': ticket_data}), 200
+
+    except Exception as e:
+        logger.error(f"Fetch ticket error: {e}")
+        return jsonify({'error': f'Failed to fetch ticket: {str(e)}'}), 500
+
+
+# ============================================
+# AI DESCRIPTION GENERATION
+# ============================================
+
+@app.route('/api/test-generation/ai-describe', methods=['POST'])
+@token_required
+def ai_generate_description(current_user):
+    """Generate description and acceptance criteria from a ticket title using AI"""
+    try:
+        data = request.get_json()
+
+        title = data.get('title', '').strip()
+        ticket_type = data.get('ticket_type', 'story')
+        priority = data.get('priority', 'P2')
+
+        if not title:
+            return jsonify({'error': 'Title is required'}), 400
+
+        google_api_key = os.getenv('GOOGLE_API_KEY')
+        if not google_api_key:
+            return jsonify({'error': 'AI service not configured'}), 500
+
+        genai.configure(api_key=google_api_key)
+        model = genai.GenerativeModel(os.getenv('LLM_MODEL', 'gemini-2.0-flash'))
+
+        prompt = f"""You are a senior QA engineer and business analyst. Given the following ticket information, generate a detailed description and acceptance criteria.
+
+Ticket Title: {title}
+Ticket Type: {ticket_type}
+Priority: {priority}
+
+Generate:
+1. A detailed description (2-4 paragraphs) explaining what this ticket involves, the business context, user impact, and technical considerations.
+2. A list of 4-8 specific, testable acceptance criteria.
+
+Respond in this exact JSON format:
+{{
+    "description": "The detailed description text here...",
+    "acceptance_criteria": [
+        "First acceptance criterion",
+        "Second acceptance criterion",
+        "Third acceptance criterion"
+    ]
+}}
+
+Only return valid JSON, no markdown code blocks or extra text."""
+
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.4,
+                response_mime_type="application/json"
+            )
+        )
+
+        import json
+        result = json.loads(response.text)
+
+        return jsonify({
+            'description': result.get('description', ''),
+            'acceptance_criteria': result.get('acceptance_criteria', [])
+        }), 200
+
+    except json.JSONDecodeError:
+        # Try to parse the response text manually
+        try:
+            text = response.text.strip()
+            if text.startswith('```'):
+                text = text.split('\n', 1)[1].rsplit('```', 1)[0].strip()
+            result = json.loads(text)
+            return jsonify({
+                'description': result.get('description', ''),
+                'acceptance_criteria': result.get('acceptance_criteria', [])
+            }), 200
+        except Exception:
+            return jsonify({'error': 'Failed to parse AI response'}), 500
+
+    except Exception as e:
+        logger.error(f"AI description generation error: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': f'AI generation failed: {str(e)}'}), 500
 
 
 # ============================================

@@ -163,4 +163,111 @@ export const teamAPI = {
   },
 };
 
+// ============================================
+// Integration API
+// ============================================
+
+export const integrationAPI = {
+  /** Get all configured integrations for the current workspace */
+  getConfigs: async () => {
+    const response = await apiClient.get('/integrations/config');
+    return response.data;
+  },
+
+  /** Get a specific integration config */
+  getConfig: async (integrationType) => {
+    const response = await apiClient.get(`/integrations/config/${integrationType}`);
+    return response.data;
+  },
+
+  /** Save integration config */
+  saveConfig: async (integrationType, credentials, config) => {
+    const response = await apiClient.post('/integrations/config', {
+      integration_type: integrationType,
+      credentials,
+      config,
+    });
+    return response.data;
+  },
+
+  /** Delete integration config */
+  deleteConfig: async (integrationType) => {
+    const response = await apiClient.delete(`/integrations/config/${integrationType}`);
+    return response.data;
+  },
+
+  /** Test integration connection */
+  testConnection: async (integrationType, credentials, config) => {
+    const response = await apiClient.post('/integrations/test-connection', {
+      integration_type: integrationType,
+      credentials,
+      config,
+    });
+    return response.data;
+  },
+
+  /** Fetch a ticket from an integration */
+  fetchTicket: async (integrationType, ticketId) => {
+    const response = await apiClient.post('/integrations/fetch-ticket', {
+      integration_type: integrationType,
+      ticket_id: ticketId,
+    });
+    return response.data;
+  },
+};
+
+// ============================================
+// Test Generation API
+// ============================================
+
+export const testGenAPI = {
+  /** Generate test cases */
+  generate: async (ticketData) => {
+    const response = await apiClient.post('/test-generation/generate', ticketData);
+    return response.data;
+  },
+
+  /** AI-generate description and acceptance criteria from title */
+  aiDescribe: async (title, ticketType, priority) => {
+    const response = await apiClient.post('/test-generation/ai-describe', {
+      title,
+      ticket_type: ticketType,
+      priority,
+    });
+    return response.data;
+  },
+
+  /** Get all generations */
+  getGenerations: async (params = {}) => {
+    const response = await apiClient.get('/test-generation/generations', { params });
+    return response.data;
+  },
+
+  /** Get a specific generation */
+  getGeneration: async (generationId) => {
+    const response = await apiClient.get(`/test-generation/generations/${generationId}`);
+    return response.data;
+  },
+
+  /** Delete a generation */
+  deleteGeneration: async (generationId) => {
+    const response = await apiClient.delete(`/test-generation/generations/${generationId}`);
+    return response.data;
+  },
+
+  /** Get statistics */
+  getStatistics: async () => {
+    const response = await apiClient.get('/test-generation/statistics');
+    return response.data;
+  },
+
+  /** Download Excel file */
+  downloadExcel: async (generationId) => {
+    const response = await apiClient.get(`/test-generation/download/${generationId}`, {
+      responseType: 'blob',
+    });
+    return response;
+  },
+};
+
 export default apiClient;

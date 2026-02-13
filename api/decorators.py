@@ -22,6 +22,10 @@ def token_required(f: Callable) -> Callable:
     """
     @wraps(f)
     def decorated(*args, **kwargs):
+        # Allow CORS preflight requests to pass through
+        if request.method == 'OPTIONS':
+            return f(*args, **kwargs)
+        
         token = None
         
         # Get token from Authorization header

@@ -53,11 +53,14 @@ const Login = () => {
         </div>
 
         <div className="card bg-white shadow-2xl border border-gray-100">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Login</h2>
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">Welcome Back</h2>
+            <p className="text-sm text-gray-500 mt-1">Enter your credentials to access your account</p>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="username" className="input-label">
                 Username or Email
               </label>
               <input
@@ -66,14 +69,15 @@ const Login = () => {
                 name="username"
                 value={formData.username}
                 onChange={handleChange}
-                className="input-field"
+                className="input"
+                placeholder="Enter your username or email"
                 required
                 autoFocus
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="input-label">
                 Password
               </label>
               <input
@@ -82,7 +86,8 @@ const Login = () => {
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                className="input-field"
+                className="input"
+                placeholder="Enter your password"
                 required
               />
             </div>
@@ -90,7 +95,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-6"
             >
               {isLoading ? (
                 <>
@@ -100,7 +105,7 @@ const Login = () => {
               ) : (
                 <>
                   <LogIn size={18} />
-                  Login
+                  Login to Dashboard
                 </>
               )}
             </button>

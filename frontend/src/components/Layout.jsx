@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogOut, Menu, X, Home, TestTube, Users } from 'lucide-react';
+import { LogOut, Menu, X, Home, TestTube, Users, Settings } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import WorkspaceSelector from './WorkspaceSelector';
 
@@ -25,6 +25,7 @@ const Layout = ({ children }) => {
     { path: '/dashboard', label: 'Home', icon: Home },
     { path: '/test-generation', label: 'Test Generation', icon: TestTube },
     { path: '/teams', label: 'Teams', icon: Users },
+    { path: '/settings', label: 'Settings', icon: Settings },
   ];
 
   return (
