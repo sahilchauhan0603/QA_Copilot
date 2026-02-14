@@ -78,26 +78,3 @@ To start the full application:
    ```
 
 3. Open http://localhost:3000 in your browser
-
----
-
-## First-Time Setup
-
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   cd frontend && npm install
-   ```
-
-2. Configure environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your settings
-   ```
-
-3. Run database migrations:
-   ```bash
-   python scripts/run_migration.py
-   ```
-
-4. Start the application (see Quick Start above)

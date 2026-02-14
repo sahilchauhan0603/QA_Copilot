@@ -1,219 +1,273 @@
-# Installation & Deployment Guide
+# Installation & Setup Guide
 
-## Quick Start (5 Minutes)
+## Prerequisites
 
-### Prerequisites
-- **Python 3.11 or higher**
-- Google Gemini API key (get from https://makersuite.google.com/app/apikey)
+- **Python 3.11+** - [Download](https://www.python.org/downloads/)
+- **Node.js 16+** - [Download](https://nodejs.org/)
+- **PostgreSQL 14+** - [Download](https://www.postgresql.org/download/)
+- **Google Gemini API Key** - [Get here](https://makersuite.google.com/app/apikey)
 
-**Check your Python version:**
+**Verify installations:**
 ```powershell
-python --version
+python --version    # Should be 3.11+
+node --version      # Should be 16+
+psql --version      # Should be 14+
 ```
 
-### Installation Steps
+---
 
-1. **Navigate to project**
-   ```powershell
-   cd c:\THIS_DEVICE\VS_Code\PROJECTS\QA_Copilot
-   ```
+## Installation Steps
 
-2. **Create and activate virtual environment**
-   ```powershell
-   python -m venv venv          # Creating venv
-   .\venv\Scripts\Activate.ps1  # Activate venv -> On Windows
-   ```
-   
-   **⚠️ Important:** Make sure you see `(venv)` at the start of your prompt before continuing!
+### 1. Clone & Navigate
+```powershell
+cd c:\THIS_DEVICE\VSCode\PROJECTS\TicketToTest_AI_2
+```
 
-3. **Install dependencies** (only after venv is activated)
-   ```powershell
-   # Install:
-   pip install streamlit google-generativeai langchain langgraph python-dotenv openpyxl pandas requests jira azure-devops sqlalchemy python-dateutil tiktoken plotly pydantic
-   ```
+### 2. Setup Python Environment
+```powershell
+# Create virtual environment
+python -m venv venv
 
-4. **Configure API key**
-   
-   Create a `.env` file:
-   ```powershell
-   Copy-Item .env.example .env 
-   ```
-   
-   Edit `.env` and add your credentials:
-   ```
-   GOOGLE_API_KEY=your-actual-api-key-here
-   LLM_MODEL=gemini-3-flash-preview
-   LLM_TEMPERATURE=0.3
-   .
-   .
-   .
-   ```
+# Activate (Windows)
+.\venv\Scripts\Activate.ps1
 
-5. **Test the installation**
-   ```powershell
-   python test_system.py
-   ```
+# Install dependencies
+pip install -r requirements.txt
+```
 
-6. **Run the demo**
-   ```powershell
-   python -m streamlit run app.py
-   ```
-   
-   The app will automatically open at http://localhost:8501
+**⚠️ Important:** Ensure you see `(venv)` in your terminal before installing packages.
+
+### 3. Setup PostgreSQL Database
+
+**Create database:**
+```powershell
+# Login to PostgreSQL
+psql -U postgres
+
+# Create database
+CREATE DATABASE ticket_to_test;
+
+# Exit
+\q
+```
+
+**Update connection string in `.env`:**
+```env
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/ticket_to_test
+```
+
+**Run migration:**
+```powershell
+python scripts/run_migration.py
+```
+
+### 4. Configure Environment Variables
+
+**Copy template:**
+```powershell
+Copy-Item .env.example .env
+```
+
+**Edit `.env` with your credentials:**
+```env
+# Google Gemini API
+GOOGLE_API_KEY=your-gemini-api-key-here
+LLM_MODEL=gemini-2.0-flash-exp
+LLM_TEMPERATURE=0.3
+
+# Database
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/ticket_to_test
+
+# JWT Authentication
+JWT_SECRET_KEY=change-this-to-a-secure-random-string
+JWT_EXPIRATION_HOURS=24
+
+# SMTP (Optional - for password reset)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+FROM_EMAIL=your-email@gmail.com
+APP_URL=http://localhost:3000
+
+# Jira Integration (Optional)
+JIRA_URL=https://your-domain.atlassian.net
+JIRA_EMAIL=your-email@example.com
+JIRA_API_TOKEN=your_jira_token
+
+# Azure DevOps Integration (Optional)
+AZURE_DEVOPS_ORG=https://dev.azure.com/your-org
+AZURE_DEVOPS_PAT=your_devops_token
+AZURE_DEVOPS_PROJECT=YourProject
+```
+
+**Generate secure JWT secret:**
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+### 5. Setup Frontend
+
+```powershell
+cd frontend
+npm install
+cd ..
+```
+
+### 6. Start the Application
+
+**Terminal 1 - Backend:**
+```powershell
+.\scripts\start_backend.ps1
+```
+
+**Terminal 2 - Frontend:**
+```powershell
+.\scripts\start_frontend.ps1
+```
+
+**Access:** http://localhost:3000
+
+---
+
+## First-Time Setup
+
+### Create Your Account
+1. Navigate to http://localhost:3000
+2. Click **Sign Up**
+3. Enter username, email, password
+4. Create your first team
+5. Start generating test cases!
+
+### Configure Integrations (Optional)
+
+#### Jira Setup:
+1. Go to Settings → Integrations → Jira
+2. Enter Jira URL, Email, API Token
+3. Click **Save & Test Connection**
+4. Use Integration tab to fetch tickets
+
+#### Azure DevOps Setup:
+1. Go to Settings → Integrations → Azure DevOps
+2. Enter Organization URL, PAT, Project Name
+3. Click **Save & Test Connection**
+4. Use Integration tab to fetch work items
 
 ---
 
 ## Usage Guide
 
-### Demo with Sample Tickets (Recommended)
-1. Select a sample ticket (Bug Fix / Feature / API Change)
-2. Enter your API key in the sidebar (if not in .env)
-3. Click "Generate Test Cases"
-4. Watch agents work in real-time
-5. Review generated test cases and QA roadmap
-6. Download Excel file
+### Generate Test Cases
 
-### Using Custom Tickets
-1. Switch to "Custom Input" tab
-2. Enter your ticket details (ID, title, description, acceptance criteria)
-3. Click "Generate Test Cases"
-4. Review and download results
+**Option 1: From Integration (Recommended)**
+1. Go to **Integration** tab
+2. Select Jira or Azure DevOps
+3. Enter ticket ID (e.g., `PROJ-123` or `12345`)
+4. Click **Fetch Ticket**
+5. Click **Generate Tests**
+6. Wait 4-5 minutes for AI agents to complete
+7. View results and download Excel
 
-### Using Live Integration (Jira/Azure DevOps)
+**Option 2: Manual Input**
+1. Go to **Create** tab
+2. Enter ticket details manually
+3. Click **Generate Tests**
+4. View results and download Excel
 
-**Jira Setup:**
-1. Get API token from https://id.atlassian.com/manage/api-tokens
-2. Add to `.env`:
-   ```env
-   JIRA_URL=https://your-domain.atlassian.net
-   JIRA_EMAIL=your-email@example.com
-   JIRA_API_TOKEN=your_token_here
-   ```
-3. In app → "Live Integration" tab → Select Jira → Enter ticket ID (e.g., `PROJ-123`)
+### Sync Back to Tickets
+1. After generation, open detail view
+2. Click **Sync** dropdown
+3. Choose:
+   - **Full Sync** - Excel + Comment
+   - **Attach Excel Only**
+   - **Add Comment Only**
+4. Confirm sync
 
-**Azure DevOps Setup:**
-1. Create Personal Access Token (User Settings → PAT → Work Items Read & Write)
-2. Add to `.env`:
-   ```env
-   AZURE_DEVOPS_ORG=https://dev.azure.com/your-org
-   AZURE_DEVOPS_PAT=your_token_here
-   AZURE_DEVOPS_PROJECT=YourProject
-   ```
-3. In app → "Live Integration" tab → Select Azure DevOps → Enter work item ID (e.g., `12345`)
-
-**Sync Results Back (Manual):**
-- After generating test cases, go to "Export & Sync" tab
-- Choose options: post comment, attach Excel, create subtasks
-- Click "Sync to Ticket System"
-- *Note: Automatic sync via integrated Sync Agent is planned for future*
-
-**Version History:**
-- All test generations are automatically saved to SQLite database
-- Access previous generations through the "History" tab
-- View audit trails and regenerate from saved tickets
-
----
-
-## Local Deployment
-
-### Performance Optimization
-
-**Speed up demo:**
-```env
-# Use Gemini Flash for faster results
-LLM_MODEL=gemini-2.0-flash-exp
-```
-
-**Warm up the system:**
-```powershell
-# Run once before demo to cache imports
-python -c "from agents import AgentOrchestrator; import streamlit"
-```
-
-**Close background apps:**
-- Browser tabs
-- Heavy applications
-- Background updates
-
----
-
-## Cloud Deployment (Optional)
-
-### Streamlit Cloud (Free Hosting)
-
-1. **Push to GitHub**
-   ```powershell
-   git init
-   git add .
-   git commit -m "Initial commit - QA Copilot"
-   git branch -M main
-   git remote add origin https://github.com/your-username/qa-copilot.git
-   git push -u origin main
-   ```
-
-2. **Deploy to Streamlit Cloud**
-   - Go to https://share.streamlit.io
-   - Click "New app"
-   - Connect your GitHub repo
-   - Set main file: `app.py`
-   - Add secrets (API keys) in Advanced settings
-   - Click "Deploy"
-
-3. **Configure Secrets**
-   In Streamlit Cloud dashboard, add:
-   ```toml
-   GOOGLE_API_KEY = "your-gemini-api-key-here"
-   LLM_MODEL = "gemini-3-flash-preview"
-   ```
+### View History
+- Go to **History** tab
+- View all previous generations
+- Click any row to view details
+- Download Excel from history
 
 ---
 
 ## Troubleshooting
 
-### "Module not found"
+### Database Connection Failed
 ```powershell
-# Verify virtual environment is activated
-Get-Command python | Select-Object Source
-# Should show path inside venv folder
+# Check PostgreSQL is running
+Get-Service postgresql*
+
+# Test connection
+psql -U postgres -d ticket_to_test
+```
+
+### Backend Won't Start
+```powershell
+# Kill existing Python processes
+Stop-Process -Name python -Force
+
+# Check port 5000 is free
+netstat -ano | findstr :5000
+
+# Restart backend
+.\scripts\start_backend.ps1
+```
+
+### Frontend Won't Start
+```powershell
+# Clear node_modules and reinstall
+cd frontend
+Remove-Item -Recurse -Force node_modules
+npm install
+npm run dev
+```
+
+### Module Not Found Error
+```powershell
+# Ensure venv is activated
+.\venv\Scripts\Activate.ps1
 
 # Reinstall dependencies
-pip install streamlit google-generativeai langchain langgraph python-dotenv openpyxl pandas requests jira azure-devops sqlalchemy python-dateutil tiktoken plotly pydantic --force-reinstall
+pip install -r requirements.txt --force-reinstall
 ```
-### "Streamlit won't start"
+
+### Password Reset Emails Not Sending
+- Get Gmail App Password: https://myaccount.google.com/apppasswords
+- Update SMTP credentials in `.env`
+- Restart backend
+
+### Integration Connection Failed
+- **Jira:** Verify URL includes `https://`, check API token hasn't expired
+- **Azure DevOps:** Ensure PAT has Work Items Read/Write permissions
+- Test credentials in Settings → Integrations
+
+---
+
+## Scripts Reference
+
+All utility scripts are in the `/scripts` folder:
+
+- **`start_backend.ps1`** - Start Flask API server (port 5000)
+- **`start_frontend.ps1`** - Start React dev server (port 3000)
+- **`run_migration.py`** - Run database migrations
+- **`check_database.py`** - Check database connection and data
+- **`reset_database.ps1`** - Reset database (⚠️ destructive)
+
+**Usage:**
 ```powershell
-# Kill existing Streamlit processes
-Get-Process | Where-Object {$_.ProcessName -like "*streamlit*"} | Stop-Process
-
-# Restart
-python -m streamlit run app.py
+.\scripts\start_backend.ps1
+python scripts/run_migration.py
 ```
 
-### "Agents take too long"
-- Switch to `gemini-2.0-flash-exp` in .env (faster model)
-- Check internet connection speed
-- Verify Google AI service status
+---
 
-### "Excel file won't download"
-```powershell
-# Check outputs directory exists
-New-Item -ItemType Directory -Force -Path outputs
+## Performance Tips
 
-# Check permissions
-icacls outputs
-```
+- Use `gemini-2.0-flash-exp` for faster generation (set in `.env`)
+- Close unnecessary browser tabs during generation
+- Ensure stable internet connection (agents make multiple API calls)
 
-### "Integration connection failed"
-- **Jira:** Check URL includes `https://`, verify email and API token
-- **Azure DevOps:** Verify org URL format, ensure PAT has Work Items permissions
-- **Both:** Test token hasn't expired, regenerate if needed
+---
 
-### "Ticket not found"
-- **Jira:** Use full ID format like `PROJ-123` (not just `123`)
-- **Azure DevOps:** Use numeric ID only (e.g., `12345`)
-- Verify you have permissions to view the ticket
-
-### "Pydantic V1 compatibility warning" (Python 3.14+)
-```
-UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14
-```
-**This is harmless** - the app will work fine. Some dependencies still use Pydantic V1 internally. To eliminate the warning, use Python 3.12 instead of 3.14.
+**Built for QA teams to accelerate test case creation with AI** 🚀
