@@ -21,8 +21,8 @@ const WorkspaceSelector = () => {
   const handleWorkspaceSwitch = async (workspaceId) => {
     setSwitching(true);
     await switchWorkspace(workspaceId);
-    setSwitching(false);
-    setIsOpen(false);
+    // Reload page to refresh all data for new workspace context
+    window.location.reload();
   };
 
   // Close dropdown when clicking outside

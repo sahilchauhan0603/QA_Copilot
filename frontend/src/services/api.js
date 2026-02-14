@@ -33,12 +33,13 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Don't redirect on login endpoint 401 (wrong credentials)
+    // Don't redirect on certain 401s (wrong credentials, not expired session)
     const isLoginEndpoint = error.config?.url?.includes('/auth/login');
+    const isViewCredentials = error.config?.url?.includes('/view-credentials');
     
     if (error.response?.status === 401) {
-      if (isLoginEndpoint) {
-        // Show specific login error
+      if (isLoginEndpoint || isViewCredentials) {
+        // Show specific error without redirecting
         const errorMsg = error.response?.data?.error || 'Invalid credentials';
         toast.error(errorMsg);
       } else {
@@ -214,6 +215,45 @@ export const integrationAPI = {
     });
     return response.data;
   },
+
+  /** View decrypted credentials (requires password verification) */
+  viewCredentials: async (integrationType, password) => {
+    const response = await apiClient.post(`/integrations/view-credentials/${integrationType}`, {
+      password,
+    });
+    return response.data;
+  },
+
+  /** Attach Excel file to a ticket */
+  attachExcel: async (integrationType, ticketId, generationId) => {
+    const response = await apiClient.post('/integrations/sync/attach-excel', {
+      integration_type: integrationType,
+      ticket_id: ticketId,
+      generation_id: generationId,
+    });
+    return response.data;
+  },
+
+  /** Add test summary comment to a ticket */
+  addComment: async (integrationType, ticketId, generationId, comment = null) => {
+    const response = await apiClient.post('/integrations/sync/add-comment', {
+      integration_type: integrationType,
+      ticket_id: ticketId,
+      generation_id: generationId,
+      comment,
+    });
+    return response.data;
+  },
+
+  /** Full sync: attach Excel + add comment to ticket */
+  fullSync: async (integrationType, ticketId, generationId) => {
+    const response = await apiClient.post('/integrations/sync/full-sync', {
+      integration_type: integrationType,
+      ticket_id: ticketId,
+      generation_id: generationId,
+    });
+    return response.data;
+  },
 };
 
 // ============================================
@@ -221,10 +261,64 @@ export const integrationAPI = {
 // ============================================
 
 export const testGenAPI = {
-  /** Generate test cases */
-  generate: async (ticketData) => {
+  /** 
+   * Generate test cases with real-time progress via SSE 
+   * @param {Object} ticketData - Ticket information
+   * @param {Function} onProgress - Callback for progress updates: ({agent, label, status, progress, detail})
+   * @returns {Promise<Object>} - Final generation result
+   */
+  generate: async (ticketData, onProgress = null) => {
+    // Step 1: Start generation (returns job_id)
     const response = await apiClient.post('/test-generation/generate', ticketData);
-    return response.data;
+    const { job_id } = response.data;
+    
+    if (!job_id) {
+      // Fallback: if no job_id returned, treat response as direct result
+      return response.data;
+    }
+    
+    // Step 2: Connect to SSE for progress tracking
+    return new Promise((resolve, reject) => {
+      const baseUrl = API_BASE_URL.replace(/\/api$/, '');
+      const eventSource = new EventSource(`${baseUrl}/api/test-generation/progress/${job_id}`);
+      let timeoutId = setTimeout(() => {
+        eventSource.close();
+        reject(new Error('Generation timed out after 5 minutes'));
+      }, 300000); // 5 minute timeout
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'step' && onProgress) {
+            onProgress(data);
+          } else if (data.type === 'complete') {
+            clearTimeout(timeoutId);
+            eventSource.close();
+            if (onProgress) {
+              onProgress({ type: 'complete', progress: 100, label: 'Complete!' });
+            }
+            resolve(data.result);
+          } else if (data.type === 'error') {
+            clearTimeout(timeoutId);
+            eventSource.close();
+            reject(new Error(data.message || 'Generation failed'));
+          } else if (data.type === 'done') {
+            clearTimeout(timeoutId);
+            eventSource.close();
+          }
+        } catch (e) {
+          // Ignore parse errors for SSE heartbeats
+        }
+      };
+      
+      eventSource.onerror = () => {
+        // SSE connection errors are normal when the stream ends
+        // Only reject if we haven't resolved yet
+        clearTimeout(timeoutId);
+        eventSource.close();
+      };
+    });
   },
 
   /** AI-generate description and acceptance criteria from title */

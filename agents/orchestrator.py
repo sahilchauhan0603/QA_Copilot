@@ -2,6 +2,10 @@
 Agent Orchestrator
 Coordinates the multi-agent workflow using LangGraph
 """
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=UserWarning, message='.*pydantic.*')
+
 from typing import Dict, Optional
 from langgraph.graph import StateGraph, END
 import google.generativeai as genai
@@ -27,8 +31,8 @@ class AgentOrchestrator:
         genai.configure(api_key=google_api_key)
         self.llm_client = genai
         
-        # Initialize rate limiter (5 requests per minute for free tier)
-        self.rate_limiter = get_rate_limiter(max_requests=5, time_window=60)
+        # Initialize rate limiter (15 RPM for Gemini free tier, increase for paid)
+        self.rate_limiter = get_rate_limiter(max_requests=15, time_window=60)
         
         # Initialize API cache
         self.api_cache = get_api_cache(ttl=3600)  # 1 hour cache

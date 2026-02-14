@@ -1,6 +1,10 @@
 """
 API Helper with retry logic for handling rate limits
 """
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=UserWarning, message='.*pydantic.*')
+
 import time
 import google.generativeai as genai
 from typing import Dict, Any, Optional

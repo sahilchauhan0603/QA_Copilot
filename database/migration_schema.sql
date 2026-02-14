@@ -97,25 +97,58 @@ CREATE INDEX IF NOT EXISTS idx_credentials_user ON integration_credentials(user_
 CREATE INDEX IF NOT EXISTS idx_credentials_team ON integration_credentials(team_id);
 
 -- ============================================
--- TEST GENERATION HISTORY (User or Team-Specific)
+-- TEST GENERATION TABLES (User or Team-Specific)
 -- ============================================
-CREATE TABLE IF NOT EXISTS test_generation_history (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,  -- Optional team context
+
+-- Generations table - stores test generation sessions
+CREATE TABLE IF NOT EXISTS generations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ticket_id VARCHAR(100) NOT NULL,
-    ticket_source integration_type,
-    roadmap JSONB,  -- QA Execution Roadmap
-    test_cases JSONB,  -- Generated test cases
-    coverage_report JSONB,  -- Coverage auditor output
-    excel_file_path VARCHAR(500),  -- Path to generated Excel
-    generation_time FLOAT,  -- Time taken in seconds
+    ticket_title TEXT NOT NULL,
+    ticket_type VARCHAR(50),
+    ticket_description TEXT,
+    ticket_acceptance_criteria JSONB,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    excel_file_path VARCHAR(500),
+    status VARCHAR(50) DEFAULT 'completed',
+    total_test_cases INTEGER DEFAULT 0,
+    generation_metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_generations_ticket_id ON generations(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_generations_timestamp ON generations(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_generations_user_id ON generations(user_id);
+CREATE INDEX IF NOT EXISTS idx_generations_team_id ON generations(team_id);
+CREATE INDEX IF NOT EXISTS idx_generations_workspace ON generations(user_id, team_id);
+
+-- Test cases table - stores individual test cases
+CREATE TABLE IF NOT EXISTS test_cases (
+    id SERIAL PRIMARY KEY,
+    generation_id UUID NOT NULL REFERENCES generations(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    priority VARCHAR(10),
+    category VARCHAR(100),
+    preconditions TEXT,
+    test_steps JSONB,
+    expected_result TEXT,
+    test_data TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_history_user ON test_generation_history(user_id);
-CREATE INDEX IF NOT EXISTS idx_history_team ON test_generation_history(team_id);
-CREATE INDEX IF NOT EXISTS idx_history_ticket ON test_generation_history(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_test_cases_generation_id ON test_cases(generation_id);
+
+-- Coverage gaps table - stores identified coverage gaps
+CREATE TABLE IF NOT EXISTS coverage_gaps (
+    id SERIAL PRIMARY KEY,
+    generation_id UUID NOT NULL REFERENCES generations(id) ON DELETE CASCADE,
+    gap_description TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_coverage_gaps_generation_id ON coverage_gaps(generation_id);
 
 -- ============================================
 -- WORKSPACE CONTEXT (Track active workspace)

@@ -1,18 +1,20 @@
-streamlit
+# AI / LLM
 google-generativeai
 langchain
 langgraph
 python-dotenv
 openpyxl
-pandas
 requests
+
+# Jira / Azure DevOps Integrations
 jira
 azure-devops
+
+# Database
 sqlalchemy
-python-dateutil
-tiktoken
-plotly
+psycopg2-binary
 pydantic
+python-dateutil
 
 # Authentication & Security
 flask
@@ -20,8 +22,8 @@ flask-cors
 flask-jwt-extended
 bcrypt
 cryptography
-psycopg2-binary
 python-jose[cryptography]
+gunicorn
 
 # API & Validation
 pydantic[email]

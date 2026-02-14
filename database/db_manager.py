@@ -1,16 +1,16 @@
 """
 Database Manager
-Handles all database operations for persistent storage
+Handles all database operations for persistent storage using PostgreSQL
 """
-import sqlite3
 import os
-import json
 import uuid
 from typing import List, Dict, Optional, Any
 from datetime import datetime
-from pathlib import Path
 import logging
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, desc, func
 
+from database.connection import DatabaseConnection
 from database.models import Generation, TestCase, CoverageGap
 
 
@@ -18,36 +18,17 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
-    """Manages database operations for test generation history"""
+    """Manages database operations for test generation history using PostgreSQL"""
     
-    def __init__(self, db_path: str = "ticket_test.db"):
+    def __init__(self, database_url: str = None):
         """
         Initialize database manager
         
         Args:
-            db_path: Path to SQLite database file
+            database_url: PostgreSQL connection URL (optional, uses env var if not provided)
         """
-        self.db_path = db_path
-        self._init_database()
-    
-    def _init_database(self):
-        """Initialize database and create tables if they don't exist"""
-        try:
-            # Read schema file
-            schema_path = Path(__file__).parent / "schema.sql"
-            with open(schema_path, 'r') as f:
-                schema_sql = f.read()
-            
-            # Execute schema
-            conn = sqlite3.connect(self.db_path)
-            conn.executescript(schema_sql)
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Database initialized at {self.db_path}")
-        except Exception as e:
-            logger.error(f"Failed to initialize database: {e}")
-            raise
+        self.db = DatabaseConnection(database_url)
+        logger.info("Database manager initialized with PostgreSQL")
     
     def save_generation(
         self,
@@ -66,76 +47,73 @@ class DatabaseManager:
             excel_file_path: Path to generated Excel file
         
         Returns:
-            Generation ID (UUID)
+            Generation ID (UUID as string)
         """
         try:
-            generation_id = str(uuid.uuid4())
             ticket_info = state.get('ticket_info', {})
             test_cases = state.get('test_cases', [])
             coverage_gaps = state.get('coverage_gaps', [])
             
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Save generation
-            cursor.execute("""
-                INSERT INTO generations 
-                (id, ticket_id, ticket_title, ticket_type, ticket_description, 
-                 ticket_acceptance_criteria, timestamp, excel_file_path, status, total_test_cases, metadata,
-                 user_id, team_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                generation_id,
-                ticket_info.get('ticket_id', ''),
-                ticket_info.get('title', ''),
-                ticket_info.get('ticket_type', ''),
-                ticket_info.get('description', ''),
-                json.dumps(ticket_info.get('acceptance_criteria', [])),
-                datetime.now().isoformat(),
-                excel_file_path,
-                'completed',
-                len(test_cases),
-                json.dumps({
-                    'agent_workflow': state.get('agent_workflow', []),
-                    'qa_roadmap': state.get('qa_roadmap', {}),
-                    'clarification_questions': state.get('clarification_questions', []),
-                    'risk_areas': state.get('risk_areas', [])
-                }),
-                user_id,
-                team_id
-            ))
-            
-            # Save test cases
-            for test_case in test_cases:
-                cursor.execute("""
-                    INSERT INTO test_cases
-                    (generation_id, title, priority, category, preconditions,
-                     test_steps, expected_result, test_data)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    generation_id,
-                    test_case.get('title', ''),
-                    test_case.get('priority', 'P2'),
-                    test_case.get('category', ''),
-                    test_case.get('preconditions', ''),
-                    json.dumps(test_case.get('test_steps', [])),
-                    test_case.get('expected_result', ''),
-                    test_case.get('test_data', '')
-                ))
-            
-            # Save coverage gaps
-            for gap in coverage_gaps:
-                cursor.execute("""
-                    INSERT INTO coverage_gaps (generation_id, gap_description)
-                    VALUES (?, ?)
-                """, (generation_id, gap))
-            
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Saved generation {generation_id} with {len(test_cases)} test cases")
-            return generation_id
-            
+            with self.db.get_session() as session:
+                # Create generation
+                generation = Generation(
+                    ticket_id=ticket_info.get('ticket_id', ''),
+                    ticket_title=ticket_info.get('title', ''),
+                    ticket_type=ticket_info.get('ticket_type', ''),
+                    ticket_description=ticket_info.get('description', ''),
+                    ticket_acceptance_criteria=ticket_info.get('acceptance_criteria', []),
+                    excel_file_path=excel_file_path,
+                    status='completed',
+                    total_test_cases=len(test_cases),
+                    generation_metadata={
+                        'qa_roadmap': state.get('qa_roadmap', {}),
+                        'clarification_questions': state.get('clarification_questions', []),
+                        'risk_areas': state.get('risk_areas', []),
+                        'extracted_requirements': state.get('extracted_requirements', []),
+                        'acceptance_criteria_gaps': state.get('acceptance_criteria_gaps', []),
+                        'impacted_modules': state.get('impacted_modules', []),
+                        'dependencies': state.get('dependencies', []),
+                        'processing_time': state.get('processing_time', 0),
+                        'priority': state.get('ticket_info', {}).get('priority', ''),
+                        'status': state.get('ticket_info', {}).get('status', ''),
+                        'source_integration': state.get('source_integration'),
+                    },
+                    user_id=user_id,
+                    team_id=team_id
+                )
+                
+                session.add(generation)
+                session.flush()  # Get the generation ID
+                
+                generation_id = str(generation.id)
+                
+                # Create test cases
+                for test_case in test_cases:
+                    tc = TestCase(
+                        generation_id=generation.id,
+                        title=test_case.get('title', ''),
+                        priority=test_case.get('priority', 'P2'),
+                        category=test_case.get('category', ''),
+                        preconditions=test_case.get('preconditions', ''),
+                        test_steps=test_case.get('test_steps', []),
+                        expected_result=test_case.get('expected_result', ''),
+                        test_data=test_case.get('test_data', '')
+                    )
+                    session.add(tc)
+                
+                # Create coverage gaps
+                for gap in coverage_gaps:
+                    cg = CoverageGap(
+                        generation_id=generation.id,
+                        gap_description=gap
+                    )
+                    session.add(cg)
+                
+                session.commit()
+                
+                logger.info(f"Saved generation {generation_id} with {len(test_cases)} test cases")
+                return generation_id
+                
         except Exception as e:
             logger.error(f"Failed to save generation: {e}")
             raise
@@ -152,26 +130,28 @@ class DatabaseManager:
             True if successful, False otherwise
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                UPDATE generations
-                SET excel_file_path = ?
-                WHERE id = ?
-            """, (excel_path, generation_id))
-            
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Updated Excel path for generation {generation_id}")
-            return True
-            
+            with self.db.get_session() as session:
+                generation = session.query(Generation).filter(
+                    Generation.id == uuid.UUID(generation_id)
+                ).first()
+                
+                if generation:
+                    generation.excel_file_path = excel_path
+                    session.commit()
+                    logger.info(f"Updated Excel path for generation {generation_id}")
+                    return True
+                return False
+                
         except Exception as e:
             logger.error(f"Failed to update Excel path: {e}")
             return False
     
-    def get_all_generations(self, user_id: int, team_id: Optional[int] = None, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_all_generations(
+        self, 
+        user_id: int, 
+        team_id: Optional[int] = None, 
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
         """
         Get all generations for a specific workspace ordered by timestamp (newest first)
         
@@ -184,24 +164,33 @@ class DatabaseManager:
             List of generation dictionaries
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT id, ticket_id, ticket_title, ticket_type, 
-                       timestamp, total_test_cases, excel_file_path, status
-                FROM generations
-                WHERE user_id = ? AND (team_id = ? OR (team_id IS NULL AND ? IS NULL))
-                ORDER BY timestamp DESC
-                LIMIT ?
-            """, (user_id, team_id, team_id, limit))
-            
-            generations = [dict(row) for row in cursor.fetchall()]
-            conn.close()
-            
-            return generations
-            
+            with self.db.get_session() as session:
+                query = session.query(Generation).filter(
+                    Generation.user_id == user_id
+                )
+                
+                # Workspace filter
+                if team_id is None:
+                    query = query.filter(Generation.team_id.is_(None))
+                else:
+                    query = query.filter(Generation.team_id == team_id)
+                
+                generations = query.order_by(desc(Generation.timestamp)).limit(limit).all()
+                
+                return [
+                    {
+                        'id': str(g.id),
+                        'ticket_id': g.ticket_id,
+                        'ticket_title': g.ticket_title,
+                        'ticket_type': g.ticket_type,
+                        'timestamp': g.timestamp.isoformat() if g.timestamp else None,
+                        'total_test_cases': g.total_test_cases,
+                        'excel_file_path': g.excel_file_path,
+                        'status': g.status
+                    }
+                    for g in generations
+                ]
+                
         except Exception as e:
             logger.error(f"Failed to get generations: {e}")
             return []
@@ -217,70 +206,37 @@ class DatabaseManager:
             Dictionary with generation data, test cases, and coverage gaps
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            # Get generation info
-            cursor.execute("""
-                SELECT * FROM generations WHERE id = ?
-            """, (generation_id,))
-            
-            gen_row = cursor.fetchone()
-            if not gen_row:
-                conn.close()
-                return None
-            
-            generation = dict(gen_row)
-            
-            # Get test cases
-            cursor.execute("""
-                SELECT * FROM test_cases WHERE generation_id = ?
-            """, (generation_id,))
-            
-            test_cases = []
-            for row in cursor.fetchall():
-                tc = dict(row)
-                # Parse test_steps JSON
-                try:
-                    tc['test_steps'] = json.loads(tc['test_steps'])
-                except:
-                    tc['test_steps'] = []
-                test_cases.append(tc)
-            
-            # Get coverage gaps
-            cursor.execute("""
-                SELECT gap_description FROM coverage_gaps WHERE generation_id = ?
-            """, (generation_id,))
-            
-            coverage_gaps = [row['gap_description'] for row in cursor.fetchall()]
-            
-            # Parse metadata to get qa_roadmap, clarification_questions, and risk_areas
-            qa_roadmap = {}
-            clarification_questions = []
-            risk_areas = []
-            try:
-                if generation.get('metadata'):
-                    metadata = json.loads(generation['metadata'])
-                    qa_roadmap = metadata.get('qa_roadmap', {})
-                    clarification_questions = metadata.get('clarification_questions', [])
-                    risk_areas = metadata.get('risk_areas', [])
-            except:
-                qa_roadmap = {}
-                clarification_questions = []
-                risk_areas = []
-            
-            conn.close()
-            
-            return {
-                'generation': generation,
-                'test_cases': test_cases,
-                'coverage_gaps': coverage_gaps,
-                'qa_roadmap': qa_roadmap,
-                'clarification_questions': clarification_questions,
-                'risk_areas': risk_areas
-            }
-            
+            with self.db.get_session() as session:
+                generation = session.query(Generation).filter(
+                    Generation.id == uuid.UUID(generation_id)
+                ).first()
+                
+                if not generation:
+                    return None
+                
+                # Get test cases
+                test_cases = [tc.to_dict() for tc in generation.test_cases]
+                
+                # Get coverage gaps
+                coverage_gaps = [cg.gap_description for cg in generation.coverage_gaps]
+                
+                # Extract metadata
+                gen_metadata = generation.generation_metadata or {}
+                
+                return {
+                    'generation': generation.to_dict(),
+                    'test_cases': test_cases,
+                    'coverage_gaps': coverage_gaps,
+                    'qa_roadmap': gen_metadata.get('qa_roadmap', {}),
+                    'clarification_questions': gen_metadata.get('clarification_questions', []),
+                    'risk_areas': gen_metadata.get('risk_areas', []),
+                    'extracted_requirements': gen_metadata.get('extracted_requirements', []),
+                    'acceptance_criteria_gaps': gen_metadata.get('acceptance_criteria_gaps', []),
+                    'impacted_modules': gen_metadata.get('impacted_modules', []),
+                    'dependencies': gen_metadata.get('dependencies', []),
+                    'source_integration': gen_metadata.get('source_integration'),
+                }
+                
         except Exception as e:
             logger.error(f"Failed to get generation {generation_id}: {e}")
             return None
@@ -296,34 +252,21 @@ class DatabaseManager:
             True if successful, False otherwise
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # First, get the Excel file path before deleting the record
-            cursor.execute(
-                "SELECT excel_file_path FROM generations WHERE id = ?",
-                (generation_id,)
-            )
-            result = cursor.fetchone()
-            excel_file_path = result[0] if result else None
-            
-            # Delete the Excel file from outputs folder if it exists
-            if excel_file_path and os.path.exists(excel_file_path):
-                try:
-                    os.remove(excel_file_path)
-                    logger.info(f"Deleted Excel file: {excel_file_path}")
-                except Exception as file_error:
-                    logger.warning(f"Failed to delete Excel file {excel_file_path}: {file_error}")
-            
-            # Delete generation (CASCADE will delete test_cases and coverage_gaps)
-            cursor.execute("DELETE FROM generations WHERE id = ?", (generation_id,))
-            
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Deleted generation {generation_id}")
-            return True
-            
+            with self.db.get_session() as session:
+                generation = session.query(Generation).filter(
+                    Generation.id == uuid.UUID(generation_id)
+                ).first()
+                
+                if not generation:
+                    return False
+                
+                # Delete the generation (CASCADE will handle related records)
+                session.delete(generation)
+                session.commit()
+                
+                logger.info(f"Deleted generation {generation_id}")
+                return True
+                
         except Exception as e:
             logger.error(f"Failed to delete generation {generation_id}: {e}")
             return False
@@ -352,42 +295,46 @@ class DatabaseManager:
             List of matching generations
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            query = """
-                SELECT id, ticket_id, ticket_title, ticket_type,
-                       timestamp, total_test_cases, excel_file_path, status
-                FROM generations
-                WHERE user_id = ? AND (team_id = ? OR (team_id IS NULL AND ? IS NULL))
-            """
-            params = [user_id, team_id, team_id]
-            
-            if ticket_id:
-                query += " AND ticket_id LIKE ?"
-                params.append(f"%{ticket_id}%")
-            
-            if ticket_type:
-                query += " AND ticket_type = ?"
-                params.append(ticket_type)
-            
-            if date_from:
-                query += " AND timestamp >= ?"
-                params.append(date_from)
-            
-            if date_to:
-                query += " AND timestamp <= ?"
-                params.append(date_to)
-            
-            query += " ORDER BY timestamp DESC LIMIT 100"
-            
-            cursor.execute(query, params)
-            generations = [dict(row) for row in cursor.fetchall()]
-            conn.close()
-            
-            return generations
-            
+            with self.db.get_session() as session:
+                query = session.query(Generation).filter(
+                    Generation.user_id == user_id
+                )
+                
+                # Workspace filter
+                if team_id is None:
+                    query = query.filter(Generation.team_id.is_(None))
+                else:
+                    query = query.filter(Generation.team_id == team_id)
+                
+                # Additional filters
+                if ticket_id:
+                    query = query.filter(Generation.ticket_id.ilike(f"%{ticket_id}%"))
+                
+                if ticket_type:
+                    query = query.filter(Generation.ticket_type == ticket_type)
+                
+                if date_from:
+                    query = query.filter(Generation.timestamp >= datetime.fromisoformat(date_from))
+                
+                if date_to:
+                    query = query.filter(Generation.timestamp <= datetime.fromisoformat(date_to))
+                
+                generations = query.order_by(desc(Generation.timestamp)).limit(100).all()
+                
+                return [
+                    {
+                        'id': str(g.id),
+                        'ticket_id': g.ticket_id,
+                        'ticket_title': g.ticket_title,
+                        'ticket_type': g.ticket_type,
+                        'timestamp': g.timestamp.isoformat() if g.timestamp else None,
+                        'total_test_cases': g.total_test_cases,
+                        'excel_file_path': g.excel_file_path,
+                        'status': g.status
+                    }
+                    for g in generations
+                ]
+                
         except Exception as e:
             logger.error(f"Failed to search generations: {e}")
             return []
@@ -404,95 +351,89 @@ class DatabaseManager:
             Dictionary with statistics
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            workspace_filter = "WHERE user_id = ? AND (team_id = ? OR (team_id IS NULL AND ? IS NULL))"
-            workspace_params = (user_id, team_id, team_id)
-            
-            # Total generations
-            cursor.execute(f"SELECT COUNT(*) FROM generations {workspace_filter}", workspace_params)
-            total_generations = cursor.fetchone()[0]
-            
-            # Total test cases (only from existing generations in this workspace)
-            cursor.execute(f"""
-                SELECT COUNT(*) 
-                FROM test_cases tc
-                INNER JOIN generations g ON tc.generation_id = g.id
-                {workspace_filter}
-            """, workspace_params)
-            total_test_cases = cursor.fetchone()[0]
-            
-            # Test cases by priority (only from existing generations in this workspace)
-            cursor.execute(f"""
-                SELECT tc.priority, COUNT(*) as count
-                FROM test_cases tc
-                INNER JOIN generations g ON tc.generation_id = g.id
-                {workspace_filter}
-                GROUP BY tc.priority
-            """, workspace_params)
-            by_priority = {row[0]: row[1] for row in cursor.fetchall()}
-            
-            # Test cases by category (only from existing generations in this workspace)
-            cursor.execute(f"""
-                SELECT tc.category, COUNT(*) as count
-                FROM test_cases tc
-                INNER JOIN generations g ON tc.generation_id = g.id
-                {workspace_filter}
-                GROUP BY tc.category
-                ORDER BY count DESC
-                LIMIT 10
-            """, workspace_params)
-            by_category = {row[0]: row[1] for row in cursor.fetchall()}
-            
-            conn.close()
-            
-            return {
-                'total_generations': total_generations,
-                'total_test_cases': total_test_cases,
-                'by_priority': by_priority,
-                'by_category': by_category
-            }
-            
+            with self.db.get_session() as session:
+                # Base workspace filter
+                workspace_filter = Generation.user_id == user_id
+                if team_id is None:
+                    workspace_filter = and_(workspace_filter, Generation.team_id.is_(None))
+                else:
+                    workspace_filter = and_(workspace_filter, Generation.team_id == team_id)
+                
+                # Total generations
+                total_generations = session.query(Generation).filter(workspace_filter).count()
+                
+                # Total test cases
+                total_test_cases = session.query(TestCase).join(Generation).filter(
+                    workspace_filter
+                ).count()
+                
+                # Test cases by priority
+                priority_counts = session.query(
+                    TestCase.priority, 
+                    func.count(TestCase.id)
+                ).join(Generation).filter(
+                    workspace_filter
+                ).group_by(TestCase.priority).all()
+                by_priority = {p: c for p, c in priority_counts}
+                
+                # Test cases by category (top 10)
+                category_counts = session.query(
+                    TestCase.category,
+                    func.count(TestCase.id)
+                ).join(Generation).filter(
+                    workspace_filter
+                ).group_by(TestCase.category).order_by(
+                    desc(func.count(TestCase.id))
+                ).limit(10).all()
+                by_category = {c: count for c, count in category_counts}
+                
+                return {
+                    'total_generations': total_generations,
+                    'total_test_cases': total_test_cases,
+                    'by_priority': by_priority,
+                    'by_category': by_category
+                }
+                
         except Exception as e:
             logger.error(f"Failed to get statistics: {e}")
             return {}
     
     def cleanup_orphaned_records(self) -> int:
         """
-        Remove orphaned test cases and coverage gaps that have no parent generation.
-        This is a safeguard in case CASCADE delete doesn't work properly.
+        Remove orphaned test cases and coverage gaps.
+        Note: With PostgreSQL CASCADE, this shouldn't be necessary, but kept for safety.
         
         Returns:
             Number of orphaned records cleaned up
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Delete orphaned test cases
-            cursor.execute("""
-                DELETE FROM test_cases 
-                WHERE generation_id NOT IN (SELECT id FROM generations)
-            """)
-            test_cases_deleted = cursor.rowcount
-            
-            # Delete orphaned coverage gaps
-            cursor.execute("""
-                DELETE FROM coverage_gaps 
-                WHERE generation_id NOT IN (SELECT id FROM generations)
-            """)
-            coverage_gaps_deleted = cursor.rowcount
-            
-            conn.commit()
-            conn.close()
-            
-            total_deleted = test_cases_deleted + coverage_gaps_deleted
-            if total_deleted > 0:
-                logger.info(f"Cleaned up {test_cases_deleted} orphaned test cases and {coverage_gaps_deleted} orphaned coverage gaps")
-            
-            return total_deleted
-            
+            with self.db.get_session() as session:
+                # Find orphaned test cases
+                orphaned_tc = session.query(TestCase).filter(
+                    ~TestCase.generation_id.in_(
+                        session.query(Generation.id)
+                    )
+                ).all()
+                
+                # Find orphaned coverage gaps
+                orphaned_cg = session.query(CoverageGap).filter(
+                    ~CoverageGap.generation_id.in_(
+                        session.query(Generation.id)
+                    )
+                ).all()
+                
+                total_deleted = len(orphaned_tc) + len(orphaned_cg)
+                
+                if total_deleted > 0:
+                    for tc in orphaned_tc:
+                        session.delete(tc)
+                    for cg in orphaned_cg:
+                        session.delete(cg)
+                    session.commit()
+                    logger.info(f"Cleaned up {len(orphaned_tc)} orphaned test cases and {len(orphaned_cg)} orphaned coverage gaps")
+                
+                return total_deleted
+                
         except Exception as e:
             logger.error(f"Failed to cleanup orphaned records: {e}")
             return 0

@@ -148,18 +148,19 @@ QA_Copilot/
 │   ├── jira_integration.py   # Jira Cloud/Server
 │   ├── azure_devops_integration.py  # Azure DevOps
 │   └── manager.py            # Integration factory
-├── database/                  # SQLite storage & versioning
+├── database/                  # PostgreSQL storage
 │   ├── __init__.py
+│   ├── connection.py         # Database connection
 │   ├── db_manager.py         # Database operations
-│   ├── models.py             # Data models
-│   ├── schema.sql            # Database schema
+│   ├── models.py             # SQLAlchemy ORM models
+│   ├── auth_models.py        # User/team models
+│   ├── migration_schema.sql  # Database schema
+│   ├── clear_database.sql    # Reset utility
 │   └── README.md             # Database documentation
 ├── utils/
 │   ├── __init__.py
-│   ├── excel_exporter.py     # Professional Excel generation
+│   ├── excel_exporter.py     # In-memory Excel generation
 │   └── sample_tickets.py     # Demo data (Bug, Feature, API)
-├── outputs/                   # Generated Excel files
-│   └── README.md
 ├── app.py                     # Streamlit demo application
 ├── test_system.py            # System verification script
 ├── requirements.txt          # Python dependencies

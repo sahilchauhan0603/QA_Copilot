@@ -2,11 +2,21 @@
 Flask API Server
 Main API server with authentication and team management endpoints
 """
-from flask import Flask, request, jsonify, send_file
+import warnings
+# Suppress deprecation warnings for stable operation
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=UserWarning, message='.*Pydantic.*')
+warnings.filterwarnings('ignore', category=UserWarning, message='.*pydantic.*')
+
+from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
 from datetime import datetime
 import logging
 import os
+import time
+import uuid as uuid_lib
+import json
+import threading
 from dotenv import load_dotenv
 import traceback
 
@@ -19,7 +29,7 @@ from database.auth_models import TeamRole
 from database.db_manager import DatabaseManager
 from agents.orchestrator import AgentOrchestrator
 from agents.state import TicketInfo
-from utils.excel_exporter import export_to_excel
+from utils.excel_exporter import export_to_excel_bytes, get_excel_filename
 from api.decorators import (
     token_required,
     team_member_required,
@@ -70,6 +80,113 @@ def get_orchestrator():
             raise ValueError("GOOGLE_API_KEY not set in environment variables")
         orchestrator = AgentOrchestrator(google_api_key)
     return orchestrator
+
+
+# ============================================
+# SSE PROGRESS TRACKING
+# ============================================
+
+# In-memory store for generation progress (keyed by generation_job_id)
+_progress_store = {}
+_progress_lock = threading.Lock()
+
+AGENT_STEPS = [
+    {"agent": "ticket_reader", "label": "Reading Ticket", "order": 1},
+    {"agent": "context_builder", "label": "Building Context", "order": 2},
+    {"agent": "test_strategy", "label": "Creating Test Strategy", "order": 3},
+    {"agent": "test_generator", "label": "Generating Test Cases", "order": 4},
+    {"agent": "coverage_auditor", "label": "Auditing Coverage", "order": 5},
+]
+
+def _update_progress(job_id: str, agent_name: str, status: str = "completed", detail: str = None):
+    """Update progress for a generation job"""
+    with _progress_lock:
+        if job_id not in _progress_store:
+            _progress_store[job_id] = {
+                "status": "running",
+                "steps": [],
+                "current_agent": None,
+                "error": None,
+                "result": None,
+            }
+        store = _progress_store[job_id]
+        
+        if status == "started":
+            store["current_agent"] = agent_name
+        
+        step_info = {
+            "agent": agent_name,
+            "status": status,
+            "timestamp": datetime.now().isoformat(),
+        }
+        if detail:
+            step_info["detail"] = detail
+        
+        store["steps"].append(step_info)
+
+
+@app.route('/api/test-generation/progress/<job_id>', methods=['GET'])
+def stream_progress(job_id):
+    """SSE endpoint for streaming generation progress"""
+    def generate():
+        last_step_count = 0
+        timeout = 300  # 5 minute timeout
+        start = time.time()
+        
+        while time.time() - start < timeout:
+            with _progress_lock:
+                store = _progress_store.get(job_id)
+            
+            if not store:
+                yield f"data: {json.dumps({'type': 'waiting', 'message': 'Initializing...'})}\n\n"
+                time.sleep(0.5)
+                continue
+            
+            # Send any new steps
+            current_steps = store["steps"]
+            if len(current_steps) > last_step_count:
+                for step in current_steps[last_step_count:]:
+                    # Calculate progress percentage
+                    completed = len([s for s in current_steps if s["status"] == "completed"])
+                    total = len(AGENT_STEPS)
+                    progress_pct = int((completed / total) * 100)
+                    
+                    # Find label for this agent
+                    label = step["agent"]
+                    for a in AGENT_STEPS:
+                        if a["agent"] == step["agent"]:
+                            label = a["label"]
+                            break
+                    
+                    yield f"data: {json.dumps({'type': 'step', 'agent': step['agent'], 'label': label, 'status': step['status'], 'progress': progress_pct, 'detail': step.get('detail')})}\n\n"
+                
+                last_step_count = len(current_steps)
+            
+            # Check if generation is complete
+            if store["status"] in ("completed", "error"):
+                if store["status"] == "completed":
+                    yield f"data: {json.dumps({'type': 'complete', 'progress': 100, 'result': store['result']})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'error', 'message': store['error']})}\n\n"
+                
+                # Clean up after sending final event
+                with _progress_lock:
+                    _progress_store.pop(job_id, None)
+                break
+            
+            time.sleep(0.3)
+        
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+    
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        }
+    )
 
 
 # ============================================
@@ -446,7 +563,7 @@ def update_member_role(current_user, team_id, user_id):
 @app.route('/api/test-generation/generate', methods=['POST'])
 @token_required
 def generate_tests(current_user):
-    """Generate test cases from a ticket"""
+    """Generate test cases from a ticket (returns job_id for SSE progress tracking)"""
     try:
         data = request.get_json()
         
@@ -473,47 +590,82 @@ def generate_tests(current_user):
             linked_tickets=data.get('linked_tickets', [])
         )
         
-        # Initialize orchestrator and process ticket
-        orch = get_orchestrator()
+        # Track the source of generation (custom input or integration)
+        source_integration = data.get('integration_type')  # 'jira', 'azure_devops', or None
         
-        # Process with progress tracking
-        progress_updates = []
-        def progress_callback(agent_name, state):
-            progress_updates.append({
-                'agent': agent_name,
-                'status': 'completed',
-                'timestamp': datetime.now().isoformat()
-            })
+        # Create a job ID for progress tracking
+        job_id = str(uuid_lib.uuid4())
         
-        final_state = orch.process_ticket(ticket_info, progress_callback=progress_callback)
+        # Initialize progress store
+        with _progress_lock:
+            _progress_store[job_id] = {
+                "status": "running",
+                "steps": [],
+                "current_agent": None,
+                "error": None,
+                "result": None,
+            }
         
-        # Export to Excel
-        excel_path = None
-        try:
-            excel_path = export_to_excel(final_state)
-        except Exception as excel_error:
-            logger.warning(f"Failed to export to Excel: {excel_error}")
+        def run_generation():
+            """Run generation in background thread"""
+            try:
+                orch = get_orchestrator()
+                
+                def progress_callback(agent_name, state):
+                    # Mark previous agent as completed, current as started
+                    _update_progress(job_id, agent_name, "completed",
+                                     detail=f"Processed by {agent_name}")
+                
+                # Send initial "started" event for first agent
+                _update_progress(job_id, "ticket_reader", "started", detail="Starting pipeline...")
+                
+                final_state = orch.process_ticket(ticket_info, progress_callback=progress_callback)
+                
+                # Inject source integration info into state for DB storage
+                if source_integration:
+                    final_state['source_integration'] = source_integration
+                
+                # Save to database
+                generation_id = db_manager.save_generation(
+                    state=final_state,
+                    user_id=user_id,
+                    team_id=team_id,
+                    excel_file_path=None
+                )
+                
+                # Get the saved generation
+                generation_data = db_manager.get_generation_by_id(generation_id)
+                
+                with _progress_lock:
+                    store = _progress_store.get(job_id)
+                    if store:
+                        store["status"] = "completed"
+                        store["result"] = {
+                            'message': 'Test cases generated successfully',
+                            'generation_id': generation_id,
+                            'total_test_cases': len(final_state.get('test_cases', [])),
+                            'coverage_gaps': len(final_state.get('coverage_gaps', [])),
+                            'generation': generation_data
+                        }
+                
+            except Exception as e:
+                logger.error(f"Test generation error: {e}")
+                logger.error(traceback.format_exc())
+                with _progress_lock:
+                    store = _progress_store.get(job_id)
+                    if store:
+                        store["status"] = "error"
+                        store["error"] = str(e)
         
-        # Save to database
-        generation_id = db_manager.save_generation(
-            state=final_state,
-            user_id=user_id,
-            team_id=team_id,
-            excel_file_path=excel_path
-        )
-        
-        # Get the saved generation
-        generation_data = db_manager.get_generation_by_id(generation_id)
+        # Start generation in background thread
+        thread = threading.Thread(target=run_generation, daemon=True)
+        thread.start()
         
         return jsonify({
-            'message': 'Test cases generated successfully',
-            'generation_id': generation_id,
-            'total_test_cases': len(final_state.get('test_cases', [])),
-            'coverage_gaps': len(final_state.get('coverage_gaps', [])),
-            'excel_file': excel_path,
-            'progress': progress_updates,
-            'generation': generation_data
-        }), 201
+            'job_id': job_id,
+            'message': 'Generation started. Use SSE endpoint to track progress.',
+            'progress_url': f'/api/test-generation/progress/{job_id}'
+        }), 202
         
     except ValueError as ve:
         logger.error(f"Configuration error: {ve}")
@@ -648,7 +800,7 @@ def get_test_statistics(current_user):
 @app.route('/api/test-generation/download/<generation_id>', methods=['GET'])
 @token_required
 def download_excel(current_user, generation_id):
-    """Download Excel file for a generation"""
+    """Download Excel file for a generation (generated on-the-fly)"""
     try:
         generation_data = db_manager.get_generation_by_id(generation_id)
         
@@ -665,14 +817,38 @@ def download_excel(current_user, generation_id):
             else:
                 return jsonify({'error': 'Access denied'}), 403
         
-        excel_path = generation.get('excel_file_path')
-        if not excel_path or not os.path.exists(excel_path):
-            return jsonify({'error': 'Excel file not found'}), 404
+        # Reconstruct full state from database
+        meta = generation.get('generation_metadata', {})
+        state = {
+            'ticket_info': {
+                'ticket_id': generation['ticket_id'],
+                'title': generation['ticket_title'],
+                'ticket_type': generation['ticket_type'],
+                'description': generation.get('ticket_description', ''),
+                'acceptance_criteria': generation.get('ticket_acceptance_criteria', ''),
+                'priority': meta.get('priority', 'N/A'),
+                'status': meta.get('status', 'N/A'),
+            },
+            'test_cases': generation_data.get('test_cases', []),
+            'coverage_gaps': generation_data.get('coverage_gaps', []),
+            'qa_roadmap': generation_data.get('qa_roadmap', {}),
+            'extracted_requirements': generation_data.get('extracted_requirements', []),
+            'acceptance_criteria_gaps': generation_data.get('acceptance_criteria_gaps', []),
+            'risk_areas': generation_data.get('risk_areas', []),
+            'clarification_questions': generation_data.get('clarification_questions', []),
+            'impacted_modules': generation_data.get('impacted_modules', []),
+            'dependencies': generation_data.get('dependencies', []),
+            'processing_time': meta.get('processing_time', 0),
+        }
+        
+        # Generate Excel in-memory
+        excel_buffer = export_to_excel_bytes(state)
+        filename = get_excel_filename(state)
         
         return send_file(
-            excel_path,
+            excel_buffer,
             as_attachment=True,
-            download_name=f"test_cases_{generation_id}.xlsx",
+            download_name=filename,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
         
@@ -791,6 +967,58 @@ def delete_integration_config(current_user, integration_type):
         return jsonify({'error': 'Failed to delete integration config'}), 500
 
 
+@app.route('/api/integrations/view-credentials/<integration_type>', methods=['POST'])
+@token_required
+def view_integration_credentials(current_user, integration_type):
+    """View decrypted credentials after password verification"""
+    try:
+        data = request.get_json()
+        password = data.get('password')
+
+        if not password:
+            return jsonify({'error': 'Password is required'}), 400
+
+        user_id = current_user['user_id']
+
+        # Verify user's password
+        from database.connection import get_db_connection
+        from database.auth_models import User
+        
+        db = get_db_connection()
+        with db.get_session() as session:
+            user = session.query(User).filter(User.id == user_id).first()
+            if not user:
+                return jsonify({'error': 'User not found'}), 404
+
+            # Verify password
+            if not auth_service.verify_password(password, user.password_hash):
+                return jsonify({'error': 'Invalid password'}), 401
+
+        # Password verified - get decrypted credentials
+        team_id = workspace_service.get_active_workspace(user_id)
+        credentials = integration_service.get_credentials(
+            integration_type=integration_type,
+            user_id=user_id if not team_id else None,
+            team_id=team_id
+        )
+
+        if not credentials:
+            return jsonify({'error': 'Integration not configured'}), 404
+
+        # Return only sensitive fields
+        sensitive_data = {}
+        if integration_type == 'jira':
+            sensitive_data['api_token'] = credentials.get('api_token', '')
+        elif integration_type == 'azure_devops':
+            sensitive_data['personal_access_token'] = credentials.get('personal_access_token', '')
+
+        return jsonify({'credentials': sensitive_data}), 200
+
+    except Exception as e:
+        logger.error(f"View credentials error: {e}")
+        return jsonify({'error': 'Failed to view credentials'}), 500
+
+
 @app.route('/api/integrations/test-connection', methods=['POST'])
 @token_required
 def test_integration_connection(current_user):
@@ -852,6 +1080,355 @@ def fetch_integration_ticket(current_user):
     except Exception as e:
         logger.error(f"Fetch ticket error: {e}")
         return jsonify({'error': f'Failed to fetch ticket: {str(e)}'}), 500
+
+
+# ============================================
+# TICKET SYNC ENDPOINTS
+# ============================================
+
+@app.route('/api/integrations/sync/attach-excel', methods=['POST'])
+@token_required
+def sync_attach_excel(current_user):
+    """Attach the generated Excel file to a Jira/Azure DevOps ticket"""
+    try:
+        data = request.get_json()
+
+        integration_type = data.get('integration_type')
+        ticket_id = data.get('ticket_id')
+        generation_id = data.get('generation_id')
+
+        if not all([integration_type, ticket_id, generation_id]):
+            return jsonify({'error': 'integration_type, ticket_id, and generation_id are required'}), 400
+
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+
+        # Get generation data
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        if not generation_data:
+            return jsonify({'error': 'Generation not found'}), 404
+
+        generation = generation_data['generation']
+
+        # Verify access
+        if generation['user_id'] != user_id:
+            if generation['team_id'] is not None:
+                if not team_service.is_team_member(user_id, generation['team_id']):
+                    return jsonify({'error': 'Access denied'}), 403
+            else:
+                return jsonify({'error': 'Access denied'}), 403
+
+        # Generate Excel in-memory
+        meta = generation.get('generation_metadata', {})
+        state = {
+            'ticket_info': {
+                'ticket_id': generation['ticket_id'],
+                'title': generation['ticket_title'],
+                'ticket_type': generation['ticket_type'],
+                'description': generation.get('ticket_description', ''),
+                'acceptance_criteria': generation.get('ticket_acceptance_criteria', ''),
+                'priority': meta.get('priority', 'N/A'),
+                'status': meta.get('status', 'N/A'),
+            },
+            'test_cases': generation_data.get('test_cases', []),
+            'coverage_gaps': generation_data.get('coverage_gaps', []),
+            'qa_roadmap': generation_data.get('qa_roadmap', {}),
+            'extracted_requirements': generation_data.get('extracted_requirements', []),
+            'acceptance_criteria_gaps': generation_data.get('acceptance_criteria_gaps', []),
+            'risk_areas': generation_data.get('risk_areas', []),
+            'clarification_questions': generation_data.get('clarification_questions', []),
+            'impacted_modules': generation_data.get('impacted_modules', []),
+            'dependencies': generation_data.get('dependencies', []),
+            'processing_time': meta.get('processing_time', 0),
+        }
+
+        excel_buffer = export_to_excel_bytes(state)
+        filename = get_excel_filename(state)
+
+        success, error = integration_service.attach_excel_to_ticket(
+            integration_type=integration_type,
+            ticket_id=ticket_id,
+            excel_buffer=excel_buffer,
+            filename=filename,
+            user_id=user_id if not team_id else None,
+            team_id=team_id
+        )
+
+        if error:
+            return jsonify({'error': error}), 400
+
+        return jsonify({'message': f'Excel file attached to {ticket_id} successfully'}), 200
+
+    except Exception as e:
+        logger.error(f"Sync attach Excel error: {e}")
+        return jsonify({'error': f'Failed to attach Excel: {str(e)}'}), 500
+
+
+@app.route('/api/integrations/sync/add-comment', methods=['POST'])
+@token_required
+def sync_add_comment(current_user):
+    """Add a test summary comment to a Jira/Azure DevOps ticket"""
+    try:
+        data = request.get_json()
+
+        integration_type = data.get('integration_type')
+        ticket_id = data.get('ticket_id')
+        generation_id = data.get('generation_id')
+        comment_text = data.get('comment')  # Optional custom comment
+
+        if not all([integration_type, ticket_id, generation_id]):
+            return jsonify({'error': 'integration_type, ticket_id, and generation_id are required'}), 400
+
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+
+        # Get generation data
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        if not generation_data:
+            return jsonify({'error': 'Generation not found'}), 404
+
+        generation = generation_data['generation']
+
+        # Verify access
+        if generation['user_id'] != user_id:
+            if generation['team_id'] is not None:
+                if not team_service.is_team_member(user_id, generation['team_id']):
+                    return jsonify({'error': 'Access denied'}), 403
+            else:
+                return jsonify({'error': 'Access denied'}), 403
+
+        # Build comment from generation data if not provided
+        if not comment_text:
+            test_cases = generation_data.get('test_cases', [])
+            coverage_gaps = generation_data.get('coverage_gaps', [])
+            risk_areas = generation_data.get('risk_areas', [])
+            meta = generation.get('generation_metadata', {})
+
+            # Priority breakdown
+            priority_counts = {}
+            for tc in test_cases:
+                p = tc.get('priority', 'P2')
+                priority_counts[p] = priority_counts.get(p, 0) + 1
+
+            # Category breakdown
+            category_counts = {}
+            for tc in test_cases:
+                c = tc.get('category', 'General')
+                category_counts[c] = category_counts.get(c, 0) + 1
+
+            if integration_type == 'jira':
+                # Jira uses wiki markup
+                comment_text = f"h3. \U0001f9ea Test Cases Generated by TicketToTest AI\n\n"
+                comment_text += f"*Total Test Cases:* {len(test_cases)}\n"
+                comment_text += f"*Coverage Gaps:* {len(coverage_gaps)}\n"
+                comment_text += f"*Risk Areas:* {len(risk_areas)}\n\n"
+
+                if priority_counts:
+                    comment_text += "h4. Priority Distribution\n"
+                    comment_text += "||Priority||Count||\n"
+                    for p in sorted(priority_counts.keys()):
+                        comment_text += f"|{p}|{priority_counts[p]}|\n"
+                    comment_text += "\n"
+
+                if category_counts:
+                    comment_text += "h4. Test Categories\n"
+                    comment_text += "||Category||Count||\n"
+                    for c in sorted(category_counts.keys()):
+                        comment_text += f"|{c}|{category_counts[c]}|\n"
+                    comment_text += "\n"
+
+                if test_cases:
+                    comment_text += "h4. Test Case Summary\n"
+                    comment_text += "||ID||Priority||Category||Title||\n"
+                    for tc in test_cases[:20]:  # Limit to first 20
+                        tc_id = tc.get('id', tc.get('title', '')[:8])
+                        comment_text += f"|{tc_id}|{tc.get('priority', 'P2')}|{tc.get('category', '')}|{tc.get('title', '')}|\n"
+                    if len(test_cases) > 20:
+                        comment_text += f"\n_...and {len(test_cases) - 20} more test cases. See attached Excel for full details._\n"
+
+                if coverage_gaps:
+                    comment_text += "\nh4. Coverage Gaps\n"
+                    for gap in coverage_gaps[:10]:
+                        comment_text += f"* {gap}\n"
+
+                if risk_areas:
+                    comment_text += "\nh4. Risk Areas\n"
+                    for risk in risk_areas[:10]:
+                        comment_text += f"* (!)\u00a0{risk}\n"
+
+                comment_text += f"\n----\n_Generated on {generation.get('timestamp', 'N/A')} by TicketToTest AI_"
+            else:
+                # Azure DevOps uses HTML
+                comment_text = f"<h3>\U0001f9ea Test Cases Generated by TicketToTest AI</h3>"
+                comment_text += f"<p><strong>Total Test Cases:</strong> {len(test_cases)}<br>"
+                comment_text += f"<strong>Coverage Gaps:</strong> {len(coverage_gaps)}<br>"
+                comment_text += f"<strong>Risk Areas:</strong> {len(risk_areas)}</p>"
+
+                if priority_counts:
+                    comment_text += "<h4>Priority Distribution</h4><table><tr><th>Priority</th><th>Count</th></tr>"
+                    for p in sorted(priority_counts.keys()):
+                        comment_text += f"<tr><td>{p}</td><td>{priority_counts[p]}</td></tr>"
+                    comment_text += "</table>"
+
+                if category_counts:
+                    comment_text += "<h4>Test Categories</h4><table><tr><th>Category</th><th>Count</th></tr>"
+                    for c in sorted(category_counts.keys()):
+                        comment_text += f"<tr><td>{c}</td><td>{category_counts[c]}</td></tr>"
+                    comment_text += "</table>"
+
+                if test_cases:
+                    comment_text += "<h4>Test Case Summary</h4><table><tr><th>ID</th><th>Priority</th><th>Category</th><th>Title</th></tr>"
+                    for tc in test_cases[:20]:
+                        tc_id = tc.get('id', tc.get('title', '')[:8])
+                        comment_text += f"<tr><td>{tc_id}</td><td>{tc.get('priority', 'P2')}</td><td>{tc.get('category', '')}</td><td>{tc.get('title', '')}</td></tr>"
+                    comment_text += "</table>"
+                    if len(test_cases) > 20:
+                        comment_text += f"<p><em>...and {len(test_cases) - 20} more test cases. See attached Excel for full details.</em></p>"
+
+                if coverage_gaps:
+                    comment_text += "<h4>Coverage Gaps</h4><ul>"
+                    for gap in coverage_gaps[:10]:
+                        comment_text += f"<li>{gap}</li>"
+                    comment_text += "</ul>"
+
+                if risk_areas:
+                    comment_text += "<h4>Risk Areas</h4><ul>"
+                    for risk in risk_areas[:10]:
+                        comment_text += f"<li>\u26a0\ufe0f {risk}</li>"
+                    comment_text += "</ul>"
+
+                comment_text += f"<hr><p><em>Generated on {generation.get('timestamp', 'N/A')} by TicketToTest AI</em></p>"
+
+        success, error = integration_service.post_comment_to_ticket(
+            integration_type=integration_type,
+            ticket_id=ticket_id,
+            comment=comment_text,
+            user_id=user_id if not team_id else None,
+            team_id=team_id
+        )
+
+        if error:
+            return jsonify({'error': error}), 400
+
+        return jsonify({'message': f'Comment added to {ticket_id} successfully'}), 200
+
+    except Exception as e:
+        logger.error(f"Sync add comment error: {e}")
+        return jsonify({'error': f'Failed to add comment: {str(e)}'}), 500
+
+
+@app.route('/api/integrations/sync/full-sync', methods=['POST'])
+@token_required
+def sync_full(current_user):
+    """Full sync: attach Excel + add summary comment to ticket"""
+    try:
+        data = request.get_json()
+
+        integration_type = data.get('integration_type')
+        ticket_id = data.get('ticket_id')
+        generation_id = data.get('generation_id')
+
+        if not all([integration_type, ticket_id, generation_id]):
+            return jsonify({'error': 'integration_type, ticket_id, and generation_id are required'}), 400
+
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+
+        results = {'attach_excel': False, 'add_comment': False, 'errors': []}
+
+        # Get generation data once
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        if not generation_data:
+            return jsonify({'error': 'Generation not found'}), 404
+
+        generation = generation_data['generation']
+
+        # Verify access
+        if generation['user_id'] != user_id:
+            if generation['team_id'] is not None:
+                if not team_service.is_team_member(user_id, generation['team_id']):
+                    return jsonify({'error': 'Access denied'}), 403
+            else:
+                return jsonify({'error': 'Access denied'}), 403
+
+        # 1. Attach Excel
+        meta = generation.get('generation_metadata', {})
+        state = {
+            'ticket_info': {
+                'ticket_id': generation['ticket_id'],
+                'title': generation['ticket_title'],
+                'ticket_type': generation['ticket_type'],
+                'description': generation.get('ticket_description', ''),
+                'acceptance_criteria': generation.get('ticket_acceptance_criteria', ''),
+                'priority': meta.get('priority', 'N/A'),
+                'status': meta.get('status', 'N/A'),
+            },
+            'test_cases': generation_data.get('test_cases', []),
+            'coverage_gaps': generation_data.get('coverage_gaps', []),
+            'qa_roadmap': generation_data.get('qa_roadmap', {}),
+            'extracted_requirements': generation_data.get('extracted_requirements', []),
+            'acceptance_criteria_gaps': generation_data.get('acceptance_criteria_gaps', []),
+            'risk_areas': generation_data.get('risk_areas', []),
+            'clarification_questions': generation_data.get('clarification_questions', []),
+            'impacted_modules': generation_data.get('impacted_modules', []),
+            'dependencies': generation_data.get('dependencies', []),
+            'processing_time': meta.get('processing_time', 0),
+        }
+
+        excel_buffer = export_to_excel_bytes(state)
+        filename = get_excel_filename(state)
+
+        success, error = integration_service.attach_excel_to_ticket(
+            integration_type=integration_type,
+            ticket_id=ticket_id,
+            excel_buffer=excel_buffer,
+            filename=filename,
+            user_id=user_id if not team_id else None,
+            team_id=team_id
+        )
+        results['attach_excel'] = success
+        if error:
+            results['errors'].append(f"Attach Excel: {error}")
+
+        # 2. Add comment (call ourselves internally)
+        # Build a minimal comment for the sync
+        test_cases = generation_data.get('test_cases', [])
+        total = len(test_cases)
+        gaps = len(generation_data.get('coverage_gaps', []))
+        risks = len(generation_data.get('risk_areas', []))
+
+        if integration_type == 'jira':
+            comment = f"h3. \U0001f9ea TicketToTest AI - Test Generation Complete\n\n"
+            comment += f"*{total}* test cases generated | *{gaps}* coverage gaps | *{risks}* risk areas\n\n"
+            comment += f"_Full test case Excel report has been attached to this ticket._\n"
+            comment += f"----\n_Generated on {generation.get('timestamp', 'N/A')}_"
+        else:
+            comment = f"<h3>\U0001f9ea TicketToTest AI - Test Generation Complete</h3>"
+            comment += f"<p><strong>{total}</strong> test cases generated | <strong>{gaps}</strong> coverage gaps | <strong>{risks}</strong> risk areas</p>"
+            comment += f"<p><em>Full test case Excel report has been attached to this ticket.</em></p>"
+            comment += f"<hr><p><em>Generated on {generation.get('timestamp', 'N/A')}</em></p>"
+
+        success2, error2 = integration_service.post_comment_to_ticket(
+            integration_type=integration_type,
+            ticket_id=ticket_id,
+            comment=comment,
+            user_id=user_id if not team_id else None,
+            team_id=team_id
+        )
+        results['add_comment'] = success2
+        if error2:
+            results['errors'].append(f"Add comment: {error2}")
+
+        if results['attach_excel'] and results['add_comment']:
+            return jsonify({'message': f'Successfully synced to {ticket_id}', 'results': results}), 200
+        elif results['attach_excel'] or results['add_comment']:
+            return jsonify({'message': 'Partial sync completed', 'results': results}), 207
+        else:
+            return jsonify({'error': 'Sync failed', 'results': results}), 400
+
+    except Exception as e:
+        logger.error(f"Full sync error: {e}")
+        return jsonify({'error': f'Failed to sync: {str(e)}'}), 500
 
 
 # ============================================
@@ -970,6 +1547,8 @@ if __name__ == '__main__':
     debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
     
     logger.info(f"Starting API server on port {port}")
+    logger.info("Note: Using development server. For production, use: gunicorn -w 4 -b 0.0.0.0:5000 api.server:app")
+    
     app.run(
         host='0.0.0.0',
         port=port,

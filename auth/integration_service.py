@@ -3,6 +3,8 @@ Integration Credentials Service
 Manages integration credentials per user or team workspace
 """
 import logging
+import tempfile
+import os
 from database.connection import get_db_connection
 from database.auth_models import IntegrationCredential, IntegrationType
 from auth.encryption import EncryptionService
@@ -277,3 +279,91 @@ class IntegrationService:
         except Exception as e:
             logger.error(f"Fetch ticket error: {e}")
             return None, f"Failed to fetch ticket: {str(e)}"
+
+    def _create_integration(self, integration_type: str, creds: dict):
+        """Create an integration instance from credentials."""
+        if integration_type == 'jira':
+            from integrations.jira_integration import JiraIntegration
+            return JiraIntegration(
+                url=creds.get('url'),
+                email=creds.get('email'),
+                api_token=creds.get('api_token')
+            )
+        elif integration_type in ('azure_devops', 'ado', 'azure'):
+            from integrations.azure_devops_integration import AzureDevOpsIntegration
+            return AzureDevOpsIntegration(
+                organization_url=creds.get('organization_url'),
+                personal_access_token=creds.get('personal_access_token'),
+                project=creds.get('project')
+            )
+        return None
+
+    def attach_excel_to_ticket(self, integration_type: str, ticket_id: str,
+                               excel_buffer, filename: str,
+                               user_id: int = None, team_id: int = None) -> tuple:
+        """
+        Attach an Excel file (BytesIO) to a ticket.
+        Returns (success: bool, error: str or None).
+        """
+        creds = self.get_credentials(integration_type, user_id=user_id, team_id=team_id)
+        if not creds:
+            return False, f"{integration_type} is not configured."
+
+        try:
+            integration = self._create_integration(integration_type, creds)
+            if not integration:
+                return False, f"Unknown integration type: {integration_type}"
+
+            if not integration.connect():
+                return False, "Failed to connect. Check your credentials."
+
+            # Write BytesIO to a temp file (integration APIs need file paths)
+            tmp_dir = tempfile.mkdtemp()
+            tmp_path = os.path.join(tmp_dir, filename)
+            try:
+                excel_buffer.seek(0)
+                with open(tmp_path, 'wb') as f:
+                    f.write(excel_buffer.read())
+
+                success = integration.attach_file(ticket_id, tmp_path, filename)
+                if success:
+                    return True, None
+                return False, "Failed to attach file to ticket."
+            finally:
+                # Cleanup temp file
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+                if os.path.exists(tmp_dir):
+                    os.rmdir(tmp_dir)
+
+        except Exception as e:
+            logger.error(f"Attach Excel error: {e}")
+            return False, f"Failed to attach Excel: {str(e)}"
+
+    def post_comment_to_ticket(self, integration_type: str, ticket_id: str,
+                               comment: str,
+                               user_id: int = None, team_id: int = None) -> tuple:
+        """
+        Post a comment to a ticket.
+        Returns (success: bool, error: str or None).
+        """
+        creds = self.get_credentials(integration_type, user_id=user_id, team_id=team_id)
+        if not creds:
+            return False, f"{integration_type} is not configured."
+
+        try:
+            integration = self._create_integration(integration_type, creds)
+            if not integration:
+                return False, f"Unknown integration type: {integration_type}"
+
+            if not integration.connect():
+                return False, "Failed to connect. Check your credentials."
+
+            success = integration.post_comment(ticket_id, comment)
+            if success:
+                return True, None
+            return False, "Failed to post comment to ticket."
+
+        except Exception as e:
+            logger.error(f"Post comment error: {e}")
+            return False, f"Failed to post comment: {str(e)}"
