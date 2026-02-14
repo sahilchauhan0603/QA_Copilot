@@ -1,0 +1,204 @@
+"""
+Test Management Service
+Handles exporting generated test cases to test management tools
+"""
+from typing import Dict, List, Optional, Any
+import logging
+
+from integrations.xray_integration import XrayIntegration
+from integrations.zephyr_integration import ZephyrIntegration
+from integrations.testrail_integration import TestRailIntegration
+
+logger = logging.getLogger(__name__)
+
+
+class TestManagementService:
+    """Service for managing test case exports"""
+    
+    @staticmethod
+    def export_to_xray(
+        test_cases: List[Dict[str, Any]],
+        suite_name: str = None,
+        ticket_id: str = None,
+        project_key: str = None
+    ) -> Dict[str, Any]:
+        """
+        Export test cases to Xray
+        
+        Args:
+            test_cases: List of generated test cases
+            suite_name: Optional test set name
+            ticket_id: Optional Jira ticket to link
+            project_key: Jira project key
+        
+        Returns:
+            Export results summary
+        """
+        try:
+            xray = XrayIntegration(project_key=project_key)
+            
+            if not xray.connect():
+                return {'success': False, 'error': 'Failed to connect to Xray'}
+            
+            # Create test set if suite name provided
+            suite_id = None
+            if suite_name:
+                suite_id = xray.create_test_suite(suite_name)
+            
+            # Export test cases
+            result = xray.bulk_create_test_cases(test_cases, suite_id)
+            
+            # Link to ticket if provided
+            if ticket_id and result.get('ids'):
+                for test_id in result['ids']:
+                    xray.link_to_ticket(test_id, ticket_id)
+            
+            return {
+                'success': True,
+                'tool': 'Xray',
+                'suite_id': suite_id,
+                'created': result['created'],
+                'failed': result['failed'],
+                'test_ids': result['ids']
+            }
+            
+        except Exception as e:
+            logger.error(f"Export to Xray failed: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    @staticmethod
+    def export_to_zephyr(
+        test_cases: List[Dict[str, Any]],
+        suite_name: str = None,
+        ticket_id: str = None,
+        project_key: str = None
+    ) -> Dict[str, Any]:
+        """
+        Export test cases to Zephyr Scale
+        
+        Args:
+            test_cases: List of generated test cases
+            suite_name: Optional test cycle name
+            ticket_id: Optional Jira ticket to link
+            project_key: Jira project key
+        
+        Returns:
+            Export results summary
+        """
+        try:
+            zephyr = ZephyrIntegration(project_key=project_key)
+            
+            if not zephyr.connect():
+                return {'success': False, 'error': 'Failed to connect to Zephyr'}
+            
+            # Create test cycle if suite name provided
+            suite_id = None
+            if suite_name:
+                suite_id = zephyr.create_test_suite(suite_name)
+            
+            # Export test cases
+            result = zephyr.bulk_create_test_cases(test_cases, suite_id)
+            
+            # Link to ticket if provided
+            if ticket_id and result.get('ids'):
+                for test_id in result['ids']:
+                    zephyr.link_to_ticket(test_id, ticket_id)
+            
+            return {
+                'success': True,
+                'tool': 'Zephyr',
+                'suite_id': suite_id,
+                'created': result['created'],
+                'failed': result['failed'],
+                'test_ids': result['ids']
+            }
+            
+        except Exception as e:
+            logger.error(f"Export to Zephyr failed: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    @staticmethod
+    def export_to_testrail(
+        test_cases: List[Dict[str, Any]],
+        suite_name: str = None,
+        ticket_id: str = None,
+        project_id: int = None
+    ) -> Dict[str, Any]:
+        """
+        Export test cases to TestRail
+        
+        Args:
+            test_cases: List of generated test cases
+            suite_name: Test suite name (required for TestRail)
+            ticket_id: Optional external ticket reference
+            project_id: TestRail project ID
+        
+        Returns:
+            Export results summary
+        """
+        try:
+            testrail = TestRailIntegration(project_id=project_id)
+            
+            if not testrail.connect():
+                return {'success': False, 'error': 'Failed to connect to TestRail'}
+            
+            # Create test suite (required for TestRail)
+            suite_id = testrail.create_test_suite(
+                suite_name or "AI Generated Tests",
+                "Test cases generated by QA Copilot"
+            )
+            
+            if not suite_id:
+                return {'success': False, 'error': 'Failed to create test suite'}
+            
+            # Add ticket_id to test cases for reference
+            if ticket_id:
+                for tc in test_cases:
+                    tc['ticket_id'] = ticket_id
+            
+            # Export test cases
+            result = testrail.bulk_create_test_cases(test_cases, suite_id)
+            
+            return {
+                'success': True,
+                'tool': 'TestRail',
+                'suite_id': suite_id,
+                'created': result['created'],
+                'failed': result['failed'],
+                'test_ids': result['ids']
+            }
+            
+        except Exception as e:
+            logger.error(f"Export to TestRail failed: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    @staticmethod
+    def format_test_cases_for_export(generation_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Format generated test cases for export
+        
+        Args:
+            generation_data: Complete generation result with all agent data
+        
+        Returns:
+            List of formatted test cases
+        """
+        test_cases = []
+        
+        # Extract test cases from generation data
+        test_generator_output = generation_data.get('test_generator', {})
+        all_test_cases = test_generator_output.get('test_cases', [])
+        
+        for tc in all_test_cases:
+            formatted = {
+                'title': tc.get('title', ''),
+                'description': tc.get('description', ''),
+                'steps': tc.get('steps', []),
+                'expected_results': tc.get('expected_results', []),
+                'priority': tc.get('priority', 'P2'),
+                'test_type': tc.get('test_type', 'Functional'),
+                'test_data': tc.get('test_data', '')
+            }
+            test_cases.append(formatted)
+        
+        return test_cases

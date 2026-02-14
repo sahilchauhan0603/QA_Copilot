@@ -25,6 +25,7 @@ from auth.auth_service import AuthService
 from auth.team_service import TeamService
 from auth.workspace_service import WorkspaceService
 from auth.integration_service import IntegrationService
+from auth.test_management_service import TestManagementService
 from database.auth_models import TeamRole
 from database.db_manager import DatabaseManager
 from agents.orchestrator import AgentOrchestrator
@@ -1511,6 +1512,177 @@ def sync_full(current_user):
     except Exception as e:
         logger.error(f"Full sync error: {e}")
         return jsonify({'error': f'Failed to sync: {str(e)}'}), 500
+
+
+# ============================================
+# TEST MANAGEMENT TOOL EXPORTS
+# ============================================
+@app.route('/api/test-management/export-xray', methods=['POST'])
+@workspace_aware
+@token_required
+def export_to_xray(current_user, current_workspace):
+    """Export generated test cases to Xray for Jira"""
+    try:
+        data = request.get_json()
+        generation_id = data.get('generation_id')
+        suite_name = data.get('suite_name')
+        ticket_id = data.get('ticket_id')
+
+        if not generation_id:
+            return jsonify({'error': 'generation_id is required'}), 400
+
+        # Get the generation record
+        conn = DatabaseManager.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT metadata FROM test_generations 
+            WHERE uuid = %s AND workspace_id = %s
+        """, (generation_id, current_workspace['id']))
+        
+        result = cursor.fetchone()
+        cursor.close()
+        
+        if not result:
+            return jsonify({'error': 'Generation not found'}), 404
+        
+        generation_data = result[0]
+        
+        # Export to Xray
+        export_result = TestManagementService.export_to_xray(
+            generation_data=generation_data,
+            suite_name=suite_name,
+            ticket_id=ticket_id
+        )
+        
+        if export_result['success']:
+            return jsonify({
+                'message': 'Successfully exported to Xray',
+                'result': export_result
+            }), 200
+        else:
+            return jsonify({
+                'error': 'Export to Xray failed',
+                'result': export_result
+            }), 400
+
+    except Exception as e:
+        logger.error(f"Xray export error: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': f'Failed to export to Xray: {str(e)}'}), 500
+
+
+@app.route('/api/test-management/export-zephyr', methods=['POST'])
+@workspace_aware
+@token_required
+def export_to_zephyr(current_user, current_workspace):
+    """Export generated test cases to Zephyr Scale"""
+    try:
+        data = request.get_json()
+        generation_id = data.get('generation_id')
+        cycle_name = data.get('cycle_name')
+        ticket_id = data.get('ticket_id')
+
+        if not generation_id:
+            return jsonify({'error': 'generation_id is required'}), 400
+
+        # Get the generation record
+        conn = DatabaseManager.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT metadata FROM test_generations 
+            WHERE uuid = %s AND workspace_id = %s
+        """, (generation_id, current_workspace['id']))
+        
+        result = cursor.fetchone()
+        cursor.close()
+        
+        if not result:
+            return jsonify({'error': 'Generation not found'}), 404
+        
+        generation_data = result[0]
+        
+        # Export to Zephyr
+        export_result = TestManagementService.export_to_zephyr(
+            generation_data=generation_data,
+            cycle_name=cycle_name,
+            ticket_id=ticket_id
+        )
+        
+        if export_result['success']:
+            return jsonify({
+                'message': 'Successfully exported to Zephyr Scale',
+                'result': export_result
+            }), 200
+        else:
+            return jsonify({
+                'error': 'Export to Zephyr Scale failed',
+                'result': export_result
+            }), 400
+
+    except Exception as e:
+        logger.error(f"Zephyr export error: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': f'Failed to export to Zephyr Scale: {str(e)}'}), 500
+
+
+@app.route('/api/test-management/export-testrail', methods=['POST'])
+@workspace_aware
+@token_required
+def export_to_testrail(current_user, current_workspace):
+    """Export generated test cases to TestRail"""
+    try:
+        data = request.get_json()
+        generation_id = data.get('generation_id')
+        suite_name = data.get('suite_name')
+        ticket_id = data.get('ticket_id')
+
+        if not generation_id:
+            return jsonify({'error': 'generation_id is required'}), 400
+
+        if not suite_name:
+            return jsonify({'error': 'suite_name is required for TestRail'}), 400
+
+        # Get the generation record
+        conn = DatabaseManager.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT metadata FROM test_generations 
+            WHERE uuid = %s AND workspace_id = %s
+        """, (generation_id, current_workspace['id']))
+        
+        result = cursor.fetchone()
+        cursor.close()
+        
+        if not result:
+            return jsonify({'error': 'Generation not found'}), 404
+        
+        generation_data = result[0]
+        
+        # Export to TestRail
+        export_result = TestManagementService.export_to_testrail(
+            generation_data=generation_data,
+            suite_name=suite_name,
+            ticket_id=ticket_id
+        )
+        
+        if export_result['success']:
+            return jsonify({
+                'message': 'Successfully exported to TestRail',
+                'result': export_result
+            }), 200
+        else:
+            return jsonify({
+                'error': 'Export to TestRail failed',
+                'result': export_result
+            }), 400
+
+    except Exception as e:
+        logger.error(f"TestRail export error: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': f'Failed to export to TestRail: {str(e)}'}), 500
 
 
 # ============================================

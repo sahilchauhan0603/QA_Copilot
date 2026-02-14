@@ -153,6 +153,36 @@ cd ..
 3. Click **Save & Test Connection**
 4. Use Integration tab to fetch work items
 
+#### Test Management Tools Setup (Optional):
+
+**Xray for Jira:**
+1. Uses your existing Jira credentials
+2. Add to `.env`:
+   ```
+   XRAY_PROJECT_KEY=PROJ
+   ```
+3. Export test cases directly to Xray Test Sets
+
+**Zephyr Scale:**
+1. Generate API token from Zephyr Scale settings
+2. Add to `.env`:
+   ```
+   ZEPHYR_API_TOKEN=your_zephyr_token
+   ZEPHYR_PROJECT_KEY=PROJ
+   ```
+3. Export test cases to Zephyr Test Cycles
+
+**TestRail:**
+1. Generate API key from TestRail account settings
+2. Add to `.env`:
+   ```
+   TESTRAIL_URL=https://yourcompany.testrail.io
+   TESTRAIL_EMAIL=your@email.com
+   TESTRAIL_API_KEY=your_api_key
+   TESTRAIL_PROJECT_ID=1
+   ```
+3. Export test cases to TestRail Test Suites
+
 ---
 
 ## Usage Guide
@@ -182,6 +212,20 @@ cd ..
    - **Attach Excel Only**
    - **Add Comment Only**
 4. Confirm sync
+
+### Export to Test Management Tools
+1. After generation, open detail view
+2. Click **Export to Test Tool** button
+3. Choose target tool:
+   - **Xray for Jira** - Creates Test Set and Test issues
+   - **Zephyr Scale** - Creates Test Cycle and Test Cases
+   - **TestRail** - Creates Test Suite and Cases
+4. (Optional) Enter suite/cycle name
+5. Click **Export**
+6. Test cases are created in your test management tool with:
+   - All test steps and expected results
+   - Priority mapping
+   - Links to source tickets (if available)
 
 ### View History
 - Go to **History** tab

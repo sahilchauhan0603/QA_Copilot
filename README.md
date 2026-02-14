@@ -12,6 +12,7 @@
 
 ✅ **Intelligent Test Generation** - 5 AI agents analyze tickets and generate comprehensive test suites  
 ✅ **Live Integrations** - Direct Jira & Azure DevOps connectivity with sync capabilities  
+✅ **Test Management Export** - One-click export to Xray, Zephyr Scale, or TestRail  
 ✅ **Team Collaboration** - Multi-user authentication, teams, and workspace management  
 ✅ **Excel Export** - Professional 4-sheet Excel output (Summary, Test Cases, QA Roadmap, Coverage)  
 ✅ **Version History** - PostgreSQL storage with audit trails and regeneration  
@@ -24,7 +25,8 @@
 1. **QA Execution Roadmap** - Categorized scenarios (Happy Path, Negative, Edge Cases, Regression)  
 2. **Detailed Test Cases** - Step-by-step instructions with expected results and test data  
 3. **Coverage Analysis** - Gap identification with clarifying questions  
-4. **Professional Excel Export** - Ready for Jira, Xray, Zephyr, or any test management tool
+4. **Professional Excel Export** - Ready for Jira, Xray, Zephyr, or any test management tool  
+5. **Direct Export to Test Tools** - Export test cases directly to Xray, Zephyr Scale, or TestRail with one click
 
 ---
 
@@ -103,8 +105,11 @@ Five specialized agents working autonomously in sequence:
 - JSONB for metadata storage
 
 **Integrations:**
-- Jira REST API
-- Azure DevOps API
+- Jira REST API (ticket fetching)
+- Azure DevOps API (ticket fetching)
+- Xray for Jira (test case export)
+- Zephyr Scale (test case export)
+- TestRail (test case export)
 - SMTP Email Service (password reset)
 
 **Export:**
@@ -133,18 +138,23 @@ TicketToTest_AI_2/
 │   ├── test_generator.py
 │   ├── coverage_auditor.py
 │   └── sync_agent.py
-├── auth/                      # Authentication
+├── auth/                      # Authentication & Services
 │   ├── auth_service.py       # JWT, password hashing
 │   ├── team_service.py
-│   └── workspace_service.py
+│   ├── workspace_service.py
+│   └── test_management_service.py
 ├── database/                  # PostgreSQL models
 │   ├── models.py             # Generation history
 │   ├── auth_models.py        # Users, teams, sessions
 │   ├── connection.py
 │   └── db_manager.py
-├── integrations/              # Jira/DevOps
+├── integrations/              # Ticket & Test Management
 │   ├── jira_integration.py
 │   ├── azure_devops_integration.py
+│   ├── xray_integration.py
+│   ├── zephyr_integration.py
+│   ├── testrail_integration.py
+│   ├── test_management_base.py
 │   └── manager.py
 ├── utils/
 │   ├── excel_exporter.py     # 4-sheet Excel generation
@@ -178,7 +188,6 @@ TicketToTest_AI_2/
 
 - [ ] Webhook monitoring for auto-regeneration on ticket updates
 - [ ] Custom test templates per team/workspace
-- [ ] Integration with Xray, Zephyr, TestRail
 - [ ] AI-powered test maintenance & flaky test detection
 
 ---
