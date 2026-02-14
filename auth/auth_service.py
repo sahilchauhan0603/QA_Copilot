@@ -5,13 +5,14 @@ Handles user authentication, password hashing, and JWT token management
 import bcrypt
 import jwt
 import hashlib
-from datetime import datetime, timedelta
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, Dict, Any
 import os
 from dotenv import load_dotenv
 import logging
 
-from database.auth_models import User, UserSession
+from database.auth_models import User, UserSession, PasswordResetToken
 from database.connection import get_db_connection
 
 load_dotenv()
@@ -192,13 +193,13 @@ class AuthService:
         """
         try:
             # Create token payload
-            expiration = datetime.utcnow() + timedelta(hours=self.jwt_expiration_hours)
+            expiration = datetime.now(timezone.utc) + timedelta(hours=self.jwt_expiration_hours)
             payload = {
                 'user_id': user.id,
                 'username': user.username,
                 'email': user.email,
                 'exp': expiration,
-                'iat': datetime.utcnow()
+                'iat': datetime.now(timezone.utc)
             }
             
             # Generate token
@@ -244,7 +245,7 @@ class AuthService:
             with self.db.get_session() as session:
                 user_session = session.query(UserSession).filter(
                     UserSession.token_hash == token_hash,
-                    UserSession.expires_at > datetime.utcnow()
+                    UserSession.expires_at > datetime.now(timezone.utc)
                 ).first()
                 
                 if not user_session:
@@ -309,6 +310,136 @@ class AuthService:
             logger.error(f"Error revoking user tokens: {e}")
             return False
     
+    def request_password_reset(self, email: str, ip_address: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Create a password reset token for a user by email
+        
+        Args:
+            email: User's email address
+            ip_address: Optional IP address of requester
+            
+        Returns:
+            Tuple of (token, error_message). token is None if error occurred.
+        """
+        try:
+            with self.db.get_session() as session:
+                # Find user by email
+                user = session.query(User).filter(
+                    User.email == email,
+                    User.is_active == True
+                ).first()
+                
+                if not user:
+                    # Don't reveal if email exists for security
+                    logger.info(f"Password reset requested for non-existent email: {email}")
+                    return None, None  # Return None/None to prevent email enumeration
+                
+                # Generate secure random token
+                reset_token = secrets.token_urlsafe(32)
+                
+                # Token expires in 1 hour
+                expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+                
+                # Delete any existing unused tokens for this user
+                session.query(PasswordResetToken).filter(
+                    PasswordResetToken.user_id == user.id,
+                    PasswordResetToken.used == False
+                ).delete()
+                
+                # Create new reset token
+                token_record = PasswordResetToken(
+                    user_id=user.id,
+                    token=reset_token,
+                    expires_at=expires_at,
+                    ip_address=ip_address
+                )
+                session.add(token_record)
+                
+                logger.info(f"Password reset token created for user: {user.email}")
+                return reset_token, None
+                
+        except Exception as e:
+            logger.error(f"Error creating password reset token: {e}")
+            return None, "Failed to create password reset token"
+    
+    def verify_reset_token(self, token: str) -> Tuple[Optional[int], Optional[str]]:
+        """
+        Verify a password reset token and return user_id if valid
+        
+        Args:
+            token: Reset token to verify
+            
+        Returns:
+            Tuple of (user_id, error_message). user_id is None if invalid.
+        """
+        try:
+            with self.db.get_session() as session:
+                token_record = session.query(PasswordResetToken).filter(
+                    PasswordResetToken.token == token,
+                    PasswordResetToken.used == False
+                ).first()
+                
+                if not token_record:
+                    return None, "Invalid or already used reset token"
+                
+                # Check if token has expired
+                if token_record.expires_at < datetime.now(timezone.utc):
+                    return None, "Reset token has expired"
+                
+                return token_record.user_id, None
+                
+        except Exception as e:
+            logger.error(f"Error verifying reset token: {e}")
+            return None, "Failed to verify reset token"
+    
+    def reset_password(self, token: str, new_password: str) -> Tuple[bool, Optional[str]]:
+        """
+        Reset a user's password using a valid reset token
+        
+        Args:
+            token: Reset token
+            new_password: New password to set
+            
+        Returns:
+            Tuple of (success, error_message)
+        """
+        try:
+            # Verify token first
+            user_id, error = self.verify_reset_token(token)
+            if error:
+                return False, error
+            
+            with self.db.get_session() as session:
+                # Get user
+                user = session.query(User).filter(User.id == user_id).first()
+                if not user:
+                    return False, "User not found"
+                
+                # Hash new password
+                new_password_hash = self.hash_password(new_password)
+                
+                # Update password
+                user.password_hash = new_password_hash
+                
+                # Mark token as used
+                token_record = session.query(PasswordResetToken).filter(
+                    PasswordResetToken.token == token
+                ).first()
+                if token_record:
+                    token_record.used = True
+                
+                # Revoke all existing sessions for security
+                session.query(UserSession).filter(
+                    UserSession.user_id == user.id
+                ).delete()
+                
+                logger.info(f"Password reset successful for user: {user.email}")
+                return True, None
+                
+        except Exception as e:
+            logger.error(f"Error resetting password: {e}")
+            return False, "Failed to reset password"
+    
     def cleanup_expired_sessions(self) -> int:
         """
         Remove expired sessions from database
@@ -319,7 +450,7 @@ class AuthService:
         try:
             with self.db.get_session() as session:
                 count = session.query(UserSession).filter(
-                    UserSession.expires_at < datetime.utcnow()
+                    UserSession.expires_at < datetime.now(timezone.utc)
                 ).delete()
                 
             logger.info(f"Cleaned up {count} expired sessions")
@@ -328,3 +459,46 @@ class AuthService:
         except Exception as e:
             logger.error(f"Error cleaning up sessions: {e}")
             return 0
+    
+    def cleanup_expired_reset_tokens(self) -> int:
+        """
+        Remove expired password reset tokens from database
+        
+        Returns:
+            Number of tokens removed
+        """
+        try:
+            with self.db.get_session() as session:
+                count = session.query(PasswordResetToken).filter(
+                    PasswordResetToken.expires_at < datetime.now(timezone.utc)
+                ).delete()
+                
+            logger.info(f"Cleaned up {count} expired reset tokens")
+            return count
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up reset tokens: {e}")
+            return 0
+    
+    def get_username_by_email(self, email: str) -> Optional[str]:
+        """
+        Get username by email address
+        
+        Args:
+            email: User's email address
+            
+        Returns:
+            Username if found, None otherwise
+        """
+        try:
+            with self.db.get_session() as session:
+                user = session.query(User).filter(
+                    User.email == email,
+                    User.is_active == True
+                ).first()
+                
+                return user.username if user else None
+                
+        except Exception as e:
+            logger.error(f"Error getting username by email: {e}")
+            return None

@@ -191,3 +191,22 @@ class UserWorkspaceContext(Base):
     def __repr__(self):
         workspace = "Personal" if self.active_team_id is None else f"Team {self.active_team_id}"
         return f"<UserWorkspaceContext(user_id={self.user_id}, workspace='{workspace}')>"
+
+
+class PasswordResetToken(Base):
+    """Password reset tokens for user password recovery"""
+    __tablename__ = 'password_reset_tokens'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    token = Column(String(255), unique=True, nullable=False, index=True)  # Random secure token
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    ip_address = Column(String(45))  # IPv6 compatible
+    
+    # Relationships
+    user = relationship("User")
+    
+    def __repr__(self):
+        return f"<PasswordResetToken(id={self.id}, user_id={self.user_id}, used={self.used})>"

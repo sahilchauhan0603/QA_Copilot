@@ -334,6 +334,96 @@ def get_current_user(current_user):
         return jsonify({'error': 'Failed to get user information'}), 500
 
 
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def forgot_password():
+    """Request password reset email"""
+    try:
+        data = request.get_json()
+        
+        if 'email' not in data:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        email = data['email'].strip()
+        ip_address = request.remote_addr
+        
+        # Request password reset
+        reset_token, error = auth_service.request_password_reset(email, ip_address)
+        
+        if error:
+            return jsonify({'error': error}), 500
+        
+        # Send email only if user exists (reset_token will be None for non-existent emails)
+        if reset_token:
+            from utils.email_service import email_service
+            
+            # Get username for personalization
+            username = auth_service.get_username_by_email(email)
+            if not username:
+                username = email.split('@')[0]  # Fallback to email prefix
+            
+            # Send reset email
+            email_sent = email_service.send_password_reset_email(email, username, reset_token)
+            
+            if not email_sent:
+                logger.error(f"Failed to send password reset email to {email}")
+                # Don't fail the request - return success to prevent email enumeration
+        
+        # Always return success to prevent email enumeration
+        return jsonify({
+            'message': 'If an account with that email exists, a password reset link has been sent.'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Forgot password error: {e}")
+        return jsonify({'error': 'Failed to process password reset request'}), 500
+
+
+@app.route('/api/auth/verify-reset-token/<token>', methods=['GET'])
+def verify_reset_token(token):
+    """Verify if a reset token is valid"""
+    try:
+        user_id, error = auth_service.verify_reset_token(token)
+        
+        if error:
+            return jsonify({'valid': False, 'error': error}), 400
+        
+        return jsonify({'valid': True}), 200
+        
+    except Exception as e:
+        logger.error(f"Verify reset token error: {e}")
+        return jsonify({'valid': False, 'error': 'Failed to verify token'}), 500
+
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    """Reset password using valid token"""
+    try:
+        data = request.get_json()
+        
+        required_fields = ['token', 'password']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Token and password are required'}), 400
+        
+        token = data['token']
+        new_password = data['password']
+        
+        # Validate password strength
+        if len(new_password) < 8:
+            return jsonify({'error': 'Password must be at least 8 characters long'}), 400
+        
+        # Reset password
+        success, error = auth_service.reset_password(token, new_password)
+        
+        if not success:
+            return jsonify({'error': error}), 400
+        
+        return jsonify({'message': 'Password has been reset successfully'}), 200
+        
+    except Exception as e:
+        logger.error(f"Reset password error: {e}")
+        return jsonify({'error': 'Failed to reset password'}), 500
+
+
 # ============================================
 # WORKSPACE ENDPOINTS
 # ============================================
@@ -860,7 +950,6 @@ def download_excel(current_user, generation_id):
 # ============================================
 # INTEGRATION ENDPOINTS
 # ============================================
-
 @app.route('/api/integrations/config', methods=['GET'])
 @token_required
 def get_integration_configs(current_user):
@@ -879,7 +968,6 @@ def get_integration_configs(current_user):
     except Exception as e:
         logger.error(f"Get integration configs error: {e}")
         return jsonify({'error': 'Failed to get integration configs'}), 500
-
 
 @app.route('/api/integrations/config/<integration_type>', methods=['GET'])
 @token_required
@@ -900,7 +988,6 @@ def get_integration_config(current_user, integration_type):
     except Exception as e:
         logger.error(f"Get integration config error: {e}")
         return jsonify({'error': 'Failed to get integration config'}), 500
-
 
 @app.route('/api/integrations/config', methods=['POST'])
 @token_required
@@ -939,7 +1026,6 @@ def save_integration_config(current_user):
         logger.error(f"Save integration config error: {e}")
         return jsonify({'error': 'Failed to save integration config'}), 500
 
-
 @app.route('/api/integrations/config/<integration_type>', methods=['DELETE'])
 @token_required
 def delete_integration_config(current_user, integration_type):
@@ -965,7 +1051,6 @@ def delete_integration_config(current_user, integration_type):
     except Exception as e:
         logger.error(f"Delete integration config error: {e}")
         return jsonify({'error': 'Failed to delete integration config'}), 500
-
 
 @app.route('/api/integrations/view-credentials/<integration_type>', methods=['POST'])
 @token_required
@@ -1018,7 +1103,6 @@ def view_integration_credentials(current_user, integration_type):
         logger.error(f"View credentials error: {e}")
         return jsonify({'error': 'Failed to view credentials'}), 500
 
-
 @app.route('/api/integrations/test-connection', methods=['POST'])
 @token_required
 def test_integration_connection(current_user):
@@ -1047,7 +1131,6 @@ def test_integration_connection(current_user):
     except Exception as e:
         logger.error(f"Test connection error: {e}")
         return jsonify({'error': f'Connection test failed: {str(e)}'}), 500
-
 
 @app.route('/api/integrations/fetch-ticket', methods=['POST'])
 @token_required
@@ -1085,7 +1168,6 @@ def fetch_integration_ticket(current_user):
 # ============================================
 # TICKET SYNC ENDPOINTS
 # ============================================
-
 @app.route('/api/integrations/sync/attach-excel', methods=['POST'])
 @token_required
 def sync_attach_excel(current_user):
@@ -1434,7 +1516,6 @@ def sync_full(current_user):
 # ============================================
 # AI DESCRIPTION GENERATION
 # ============================================
-
 @app.route('/api/test-generation/ai-describe', methods=['POST'])
 @token_required
 def ai_generate_description(current_user):
@@ -1517,7 +1598,6 @@ Only return valid JSON, no markdown code blocks or extra text."""
 # ============================================
 # ERROR HANDLERS
 # ============================================
-
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({'error': 'Endpoint not found'}), 404
