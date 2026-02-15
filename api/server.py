@@ -29,7 +29,10 @@ from auth.test_management_service import TestManagementService
 from database.auth_models import TeamRole
 from database.db_manager import DatabaseManager
 from agents.orchestrator import AgentOrchestrator
+from agents.refine_agent import RefineAgent
 from agents.state import TicketInfo
+from utils.rate_limiter import get_rate_limiter
+from utils.api_cache import get_api_cache
 from utils.excel_exporter import export_to_excel_bytes, get_excel_filename
 from api.decorators import (
     token_required,
@@ -946,6 +949,190 @@ def download_excel(current_user, generation_id):
     except Exception as e:
         logger.error(f"Download Excel error: {e}")
         return jsonify({'error': 'Failed to download file'}), 500
+
+
+@app.route('/api/test-generation/refine', methods=['POST'])
+@token_required
+def refine_tests(current_user):
+    """Refine existing test cases based on user feedback"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        generation_id = data.get('generation_id')
+        refinement_type = data.get('refinement_type')
+        
+        if not generation_id or not refinement_type:
+            return jsonify({'error': 'generation_id and refinement_type are required'}), 400
+        
+        # Validate refinement type
+        valid_types = ['minimize', 'focus', 'edge_cases', 'coverage', 'simplify', 'regenerate']
+        if refinement_type not in valid_types:
+            return jsonify({'error': f'Invalid refinement_type. Must be one of: {", ".join(valid_types)}'}), 400
+        
+        # Get the original generation
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        
+        if not generation_data:
+            return jsonify({'error': 'Generation not found'}), 404
+        
+        generation = generation_data['generation']
+        
+        # Verify access
+        if generation['user_id'] != current_user['user_id']:
+            if generation['team_id'] is not None:
+                if not team_service.is_team_member(current_user['user_id'], generation['team_id']):
+                    return jsonify({'error': 'Access denied'}), 403
+            else:
+                return jsonify({'error': 'Access denied'}), 403
+        
+        # If regenerate entire, run full pipeline again
+        if refinement_type == 'regenerate':
+            # Get original ticket info
+            meta = generation.get('generation_metadata', {})
+            ticket_info = TicketInfo(
+                ticket_id=generation['ticket_id'],
+                title=generation['ticket_title'],
+                description=generation.get('ticket_description', ''),
+                acceptance_criteria=generation.get('ticket_acceptance_criteria', ''),
+                ticket_type=generation['ticket_type'],
+                priority=meta.get('priority', 'P2'),
+                status=meta.get('status', 'In Progress'),
+                attachments=meta.get('attachments', []),
+                comments=meta.get('comments', []),
+                linked_tickets=meta.get('linked_tickets', [])
+            )
+            
+            # Create job ID for SSE tracking
+            job_id = str(uuid_lib.uuid4())
+            
+            with _progress_lock:
+                _progress_store[job_id] = {
+                    "status": "running",
+                    "steps": [],
+                    "current_agent": None,
+                    "error": None,
+                    "result": None,
+                }
+            
+            def run_regeneration():
+                try:
+                    orch = get_orchestrator()
+                    
+                    _update_progress(job_id, "ticket_reader", "started", detail="Regenerating...")
+                    
+                    final_state = orch.process_ticket(ticket_info)
+                    
+                    # Preserve source integration
+                    if meta.get('source_integration'):
+                        final_state['source_integration'] = meta['source_integration']
+                    
+                    # Save as new generation
+                    new_generation_id = db_manager.save_generation(
+                        state=final_state,
+                        user_id=current_user['user_id'],
+                        team_id=generation['team_id'],
+                        excel_file_path=None
+                    )
+                    
+                    new_generation_data = db_manager.get_generation_by_id(new_generation_id)
+                    
+                    with _progress_lock:
+                        store = _progress_store.get(job_id)
+                        if store:
+                            store["status"] = "completed"
+                            store["result"] = {
+                                'message': 'Test cases regenerated successfully',
+                                'generation_id': new_generation_id,
+                                'total_test_cases': len(final_state.get('test_cases', [])),
+                                'generation': new_generation_data
+                            }
+                    
+                except Exception as e:
+                    logger.error(f"Regeneration error: {e}")
+                    logger.error(traceback.format_exc())
+                    with _progress_lock:
+                        store = _progress_store.get(job_id)
+                        if store:
+                            store["status"] = "error"
+                            store["error"] = str(e)
+            
+            thread = threading.Thread(target=run_regeneration, daemon=True)
+            thread.start()
+            
+            return jsonify({
+                'job_id': job_id,
+                'message': 'Regeneration started. Use SSE endpoint to track progress.',
+                'progress_url': f'/api/test-generation/progress/{job_id}'
+            }), 202
+        
+        # For all other refinement types, use RefineAgent
+        else:
+            # Reconstruct state from generation
+            meta = generation.get('generation_metadata', {})
+            state = {
+                'ticket_info': {
+                    'ticket_id': generation['ticket_id'],
+                    'title': generation['ticket_title'],
+                    'description': generation.get('ticket_description', ''),
+                    'acceptance_criteria': generation.get('ticket_acceptance_criteria', ''),
+                    'ticket_type': generation['ticket_type'],
+                    'priority': meta.get('priority', 'P2'),
+                },
+                'test_cases': generation_data.get('test_cases', []),
+                'coverage_gaps': generation_data.get('coverage_gaps', []),
+                'qa_roadmap': generation_data.get('qa_roadmap', {}),
+            }
+            
+            # Get refinement context (e.g., focus_area)
+            refinement_context = {}
+            if refinement_type == 'focus':
+                focus_area = data.get('focus_area', '')
+                if not focus_area:
+                    return jsonify({'error': 'focus_area is required for focus refinement'}), 400
+                refinement_context['focus_area'] = focus_area
+            
+            # Initialize RefineAgent
+            google_api_key = os.getenv('GOOGLE_API_KEY')
+            if not google_api_key:
+                return jsonify({'error': 'AI service not configured'}), 500
+            
+            genai.configure(api_key=google_api_key)
+            rate_limiter = get_rate_limiter(max_requests=15, time_window=60)
+            api_cache = get_api_cache(ttl=3600)
+            refine_agent = RefineAgent(genai, rate_limiter, api_cache)
+            
+            # Perform refinement
+            logger.info(f"Refining generation {generation_id} with type: {refinement_type}")
+            refined_state = refine_agent.refine(state, refinement_type, refinement_context)
+            
+            # Save refined generation as new entry
+            new_generation_id = db_manager.save_generation(
+                state=refined_state,
+                user_id=current_user['user_id'],
+                team_id=generation['team_id'],
+                excel_file_path=None
+            )
+            
+            # Get the new generation data
+            new_generation_data = db_manager.get_generation_by_id(new_generation_id)
+            
+            return jsonify({
+                'message': f'Test cases refined successfully ({refinement_type})',
+                'generation_id': new_generation_id,
+                'original_generation_id': generation_id,
+                'refinement_type': refinement_type,
+                'total_test_cases': len(refined_state.get('test_cases', [])),
+                'generation': new_generation_data
+            }), 200
+        
+    except ValueError as ve:
+        logger.error(f"Configuration error: {ve}")
+        return jsonify({'error': str(ve)}), 500
+    except Exception as e:
+        logger.error(f"Refinement error: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': f'Refinement failed: {str(e)}'}), 500
 
 
 # ============================================

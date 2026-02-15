@@ -13,6 +13,7 @@
 ✅ **Intelligent Test Generation** - 5 AI agents analyze tickets and generate comprehensive test suites  
 ✅ **Live Integrations** - Direct Jira & Azure DevOps connectivity with sync capabilities  
 ✅ **Test Management Export** - One-click export to Xray, Zephyr Scale, or TestRail  
+✅ **Refine Results** - 6 refinement options to optimize test cases (minimize, focus, edge cases, coverage, simplify, regenerate)  
 ✅ **Team Collaboration** - Multi-user authentication, teams, and workspace management  
 ✅ **Excel Export** - Professional 4-sheet Excel output (Summary, Test Cases, QA Roadmap, Coverage)  
 ✅ **Version History** - PostgreSQL storage with audit trails and regeneration  
@@ -25,8 +26,9 @@
 1. **QA Execution Roadmap** - Categorized scenarios (Happy Path, Negative, Edge Cases, Regression)  
 2. **Detailed Test Cases** - Step-by-step instructions with expected results and test data  
 3. **Coverage Analysis** - Gap identification with clarifying questions  
-4. **Professional Excel Export** - Ready for Jira, Xray, Zephyr, or any test management tool  
-5. **Direct Export to Test Tools** - Export test cases directly to Xray, Zephyr Scale, or TestRail with one click
+4. **Refinement Options** - Minimize redundancy, focus on areas, add edge cases, increase coverage, or simplify  
+5. **Professional Excel Export** - Ready for Jira, Xray, Zephyr, or any test management tool  
+6. **Direct Export to Test Tools** - Export test cases directly to Xray, Zephyr Scale, or TestRail with one click
 
 ---
 

@@ -1422,6 +1422,83 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
     }
   };
 
+  // Refinement state
+  const [showRefineMenu, setShowRefineMenu] = useState(false);
+  const [showRefineDialog, setShowRefineDialog] = useState(false);
+  const [refinementType, setRefinementType] = useState('');
+  const [focusArea, setFocusArea] = useState('');
+  const [refining, setRefining] = useState(false);
+
+  const handleRefineClick = (type) => {
+    setRefinementType(type);
+    setShowRefineMenu(false);
+    
+    // Focus refinement needs additional input
+    if (type === 'focus') {
+      setShowRefineDialog(true);
+    } else {
+      performRefinement(type);
+    }
+  };
+
+  const performRefinement = async (type, options = {}) => {
+    setRefining(true);
+    setShowRefineDialog(false);
+    
+    try {
+      let result;
+      
+      if (type === 'regenerate') {
+        // Use SSE for regenerate
+        result = await testGenAPI.refine(gen.id, type, options, (progressData) => {
+          // Progress callback handled same as generation
+          if (progressData.type === 'step') {
+            toast(`${progressData.label} - ${progressData.status}`, { icon: '⚙️', duration: 1500 });
+          }
+        });
+        toast.success('Test cases regenerated successfully!');
+      } else {
+        // Direct call for other refinements
+        result = await testGenAPI.refine(gen.id, type, options);
+        
+        const messages = {
+          minimize: 'Test cases minimized successfully!',
+          focus: `Added focused test cases for: ${options.focus_area}`,
+          edge_cases: 'Added edge case scenarios!',
+          coverage: 'Added coverage tests for identified gaps!',
+          simplify: 'Test cases simplified!'
+        };
+        
+        toast.success(messages[type] || 'Test cases refined successfully!');
+      }
+      
+      // Reload the page or update the UI with new generation
+      if (result.generation) {
+        // Close current modal and show notification to view new refined result
+        toast.success(
+          `Refinement complete! ${result.total_test_cases} test cases. Check history for refined version.`,
+          { duration: 5000 }
+        );
+        
+        // Close modal after short delay
+        setTimeout(() => {
+          onClose();
+          // Trigger refresh of generations list if parent has refresh function
+          if (window.refreshGenerations) {
+            window.refreshGenerations();
+          }
+        }, 2000);
+      }
+      
+    } catch (err) {
+      toast.error(err.response?.data?.error || `Refinement failed: ${err.message}`);
+    } finally {
+      setRefining(false);
+      setFocusArea('');
+      setRefinementType('');
+    }
+  };
+
   // Test case filters
   const [tcSearch, setTcSearch] = useState('');
   const [tcPriorityFilter, setTcPriorityFilter] = useState('all');
@@ -1599,6 +1676,85 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
                 )}
               </div>
             )}
+            {/* Refine Results Button */}
+            <div className="relative">
+              <button
+                onClick={() => setShowRefineMenu(!showRefineMenu)}
+                disabled={refining}
+                className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+              >
+                {refining ? <Loader size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                Refine Results
+              </button>
+              {showRefineMenu && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setShowRefineMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-30">
+                    <button
+                      onClick={() => handleRefineClick('regenerate')}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-indigo-50 flex items-center gap-3 transition-colors"
+                    >
+                      <RefreshCw size={15} className="text-indigo-600" />
+                      <div>
+                        <div className="font-medium text-gray-900">Regenerate Entire</div>
+                        <div className="text-xs text-gray-500">Run all agents again</div>
+                      </div>
+                    </button>
+                    <div className="border-t border-gray-100 my-1" />
+                    <button
+                      onClick={() => handleRefineClick('minimize')}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-amber-50 flex items-center gap-3 transition-colors"
+                    >
+                      <TrendingUp size={15} className="text-amber-600 rotate-90" />
+                      <div>
+                        <div className="font-medium text-gray-900">Minimize Test Cases</div>
+                        <div className="text-xs text-gray-500">Remove redundant tests</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleRefineClick('focus')}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center gap-3 transition-colors"
+                    >
+                      <Target size={15} className="text-blue-600" />
+                      <div>
+                        <div className="font-medium text-gray-900">Focus on Area</div>
+                        <div className="text-xs text-gray-500">Add tests for specific area</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleRefineClick('edge_cases')}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-orange-50 flex items-center gap-3 transition-colors"
+                    >
+                      <ShieldAlert size={15} className="text-orange-600" />
+                      <div>
+                        <div className="font-medium text-gray-900">Add Edge Cases</div>
+                        <div className="text-xs text-gray-500">Boundary & unusual scenarios</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleRefineClick('coverage')}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-green-50 flex items-center gap-3 transition-colors"
+                    >
+                      <ListChecks size={15} className="text-green-600" />
+                      <div>
+                        <div className="font-medium text-gray-900">Increase Coverage</div>
+                        <div className="text-xs text-gray-500">Address identified gaps</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleRefineClick('simplify')}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-purple-50 flex items-center gap-3 transition-colors"
+                    >
+                      <FileText size={15} className="text-purple-600" />
+                      <div>
+                        <div className="font-medium text-gray-900">Simplify Tests</div>
+                        <div className="text-xs text-gray-500">Make more concise</div>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <button
               onClick={onClose}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -1943,6 +2099,18 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
                 {exporting === 'xray' ? 'Exporting to Xray...' : exporting === 'zephyr' ? 'Exporting to Zephyr...' : 'Exporting to TestRail...'}
               </span>
             )}
+            {refining && (
+              <span className="ml-3 text-indigo-600 font-medium inline-flex items-center gap-1">
+                <Loader size={12} className="animate-spin" />
+                {refinementType === 'regenerate' ? 'Regenerating test cases...' : 
+                 refinementType === 'minimize' ? 'Minimizing test cases...' :
+                 refinementType === 'focus' ? 'Generating focused tests...' :
+                 refinementType === 'edge_cases' ? 'Adding edge cases...' :
+                 refinementType === 'coverage' ? 'Improving coverage...' :
+                 refinementType === 'simplify' ? 'Simplifying tests...' :
+                 'Refining results...'}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button onClick={onClose} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">
@@ -1994,6 +2162,52 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   Export
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Refine Dialog (for Focus Area) ─── */}
+        {showRefineDialog && refinementType === 'focus' && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50 rounded-xl">
+            <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+              <h4 className="text-lg font-bold text-gray-900 mb-4">
+                Focus on Specific Area
+              </h4>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  What area should we focus on?<span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={focusArea}
+                  onChange={(e) => setFocusArea(e.target.value)}
+                  placeholder="e.g., authentication, error handling, API integration..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  autoFocus
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  The AI will generate 5-10 additional test cases focused specifically on this area
+                </p>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowRefineDialog(false);
+                    setFocusArea('');
+                    setRefinementType('');
+                  }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => performRefinement('focus', { focus_area: focusArea })}
+                  disabled={!focusArea.trim()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Generate Focused Tests
                 </button>
               </div>
             </div>

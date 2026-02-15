@@ -367,6 +367,72 @@ export const testGenAPI = {
     return response.data;
   },
 
+  /** 
+   * Refine existing test cases
+   * @param {string} generationId - ID of the generation to refine
+   * @param {string} refinementType - Type of refinement: minimize, focus, edge_cases, coverage, simplify, regenerate
+   * @param {Object} options - Additional options like focus_area
+   * @param {Function} onProgress - Progress callback (for regenerate only)
+   * @returns {Promise<Object>} - Refined generation result
+   */
+  refine: async (generationId, refinementType, options = {}, onProgress = null) => {
+    const requestBody = {
+      generation_id: generationId,
+      refinement_type: refinementType,
+      ...options
+    };
+    
+    const response = await apiClient.post('/test-generation/refine', requestBody);
+    
+    // If regenerating, handle SSE progress tracking
+    if (refinementType === 'regenerate' && response.data.job_id) {
+      const { job_id } = response.data;
+      
+      return new Promise((resolve, reject) => {
+        const baseUrl = API_BASE_URL.replace(/\/api$/, '');
+        const eventSource = new EventSource(`${baseUrl}/api/test-generation/progress/${job_id}`);
+        let timeoutId = setTimeout(() => {
+          eventSource.close();
+          reject(new Error('Regeneration timed out after 5 minutes'));
+        }, 300000); // 5 minute timeout
+        
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'step' && onProgress) {
+              onProgress(data);
+            } else if (data.type === 'complete') {
+              clearTimeout(timeoutId);
+              eventSource.close();
+              if (onProgress) {
+                onProgress({ type: 'complete', progress: 100, label: 'Complete!' });
+              }
+              resolve(data.result);
+            } else if (data.type === 'error') {
+              clearTimeout(timeoutId);
+              eventSource.close();
+              reject(new Error(data.message || 'Regeneration failed'));
+            } else if (data.type === 'done') {
+              clearTimeout(timeoutId);
+              eventSource.close();
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        };
+        
+        eventSource.onerror = () => {
+          clearTimeout(timeoutId);
+          eventSource.close();
+        };
+      });
+    }
+    
+    // For other refinement types, return immediately
+    return response.data;
+  },
+
   /** Get all generations */
   getGenerations: async (params = {}) => {
     const response = await apiClient.get('/test-generation/generations', { params });

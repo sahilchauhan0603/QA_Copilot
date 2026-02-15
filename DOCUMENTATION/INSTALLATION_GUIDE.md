@@ -227,11 +227,28 @@ cd ..
    - Priority mapping
    - Links to source tickets (if available)
 
+### Refine Generated Results
+1. After generation, open detail view
+2. Click **Refine Results** button (indigo)
+3. Choose refinement type:
+   - **Regenerate Entire** - Run all AI agents again (4-5 min)
+   - **Minimize Test Cases** - Remove redundant tests, reduce by 20-40%
+   - **Focus on Area** - Generate 5-10 additional tests for a specific area (e.g., "authentication", "error handling")
+   - **Add Edge Cases** - Add boundary conditions, race conditions, special scenarios
+   - **Increase Coverage** - Generate tests to address identified coverage gaps
+   - **Simplify Tests** - Make test cases more concise and easier to read
+4. Wait for refinement to complete
+5. New refined generation appears in history
+6. Compare original vs refined versions
+
+**Note:** All refinements create new generations, so you can always compare before/after results.
+
 ### View History
 - Go to **History** tab
 - View all previous generations
 - Click any row to view details
 - Download Excel from history
+- Compare original and refined versions
 
 ---
 
