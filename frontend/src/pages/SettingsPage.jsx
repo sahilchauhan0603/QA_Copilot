@@ -3,7 +3,7 @@
  * Integration configuration for Jira & Azure DevOps
  */
 import { Settings } from 'lucide-react';
-import IntegrationSettings from '../components/IntegrationSettings';
+import IntegrationSettings from '../components/settings/IntegrationSettings';
 
 const SettingsPage = () => {
   return (

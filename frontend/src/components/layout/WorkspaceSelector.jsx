@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { Users, User, ChevronDown, Check } from 'lucide-react';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../../store/authStore';
 
 const WorkspaceSelector = () => {
   const { workspaces, activeWorkspace, switchWorkspace, fetchWorkspaces, getActiveWorkspaceDetails } = useAuthStore();

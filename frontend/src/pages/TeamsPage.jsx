@@ -6,8 +6,8 @@
  */
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import TeamManagement from '../components/TeamManagement';
-import MyTeams from '../components/MyTeams';
+import TeamManagement from '../components/teams/TeamManagement';
+import MyTeams from '../components/teams/MyTeams';
 import useAuthStore from '../store/authStore';
 
 const TeamsPage = () => {

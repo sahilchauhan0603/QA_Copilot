@@ -803,7 +803,7 @@ def get_generations(current_user):
                 limit=limit
             )
         
-        return jsonify(generations), 200
+        return jsonify({'generations': generations}), 200
         
     except Exception as e:
         logger.error(f"Get generations error: {e}")

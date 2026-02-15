@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, Users, TestTube, TrendingUp, ArrowRight, Zap, Shield, Clock } from 'lucide-react';
 import useAuthStore from '../store/authStore';
-import api from '../services/api';
+import api from '../services/api/client';
 
 const HomePage = () => {
   const { user, getActiveWorkspaceDetails } = useAuthStore();

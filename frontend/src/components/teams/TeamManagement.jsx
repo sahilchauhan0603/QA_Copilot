@@ -5,8 +5,8 @@
 import { useState } from 'react';
 import { Users, Plus, UserPlus, Trash2, Shield, X } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { teamAPI } from '../services/api';
-import useAuthStore from '../store/authStore';
+import { teamAPI } from '../../services/api';
+import useAuthStore from '../../store/authStore';
 
 const TeamManagement = ({ onCancel }) => {
   const { fetchWorkspaces, getActiveWorkspaceDetails, workspaces, switchWorkspace } = useAuthStore();

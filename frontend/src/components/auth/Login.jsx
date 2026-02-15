@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../../store/authStore';
 
 const Login = () => {
   const navigate = useNavigate();

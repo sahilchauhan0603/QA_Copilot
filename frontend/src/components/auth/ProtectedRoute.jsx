@@ -3,7 +3,7 @@
  * Redirects to login if not authenticated
  */
 import { Navigate } from 'react-router-dom';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../../store/authStore';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuthStore();

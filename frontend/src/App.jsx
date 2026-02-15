@@ -4,16 +4,16 @@
  */
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import Login from './components/Login';
-import Signup from './components/Signup';
-import ForgotPassword from './components/ForgotPassword';
-import ResetPassword from './components/ResetPassword';
-import Layout from './components/Layout';
+import Login from './components/auth/Login';
+import Signup from './components/auth/Signup';
+import ForgotPassword from './components/auth/ForgotPassword';
+import ResetPassword from './components/auth/ResetPassword';
+import Layout from './components/layout/Layout';
 import HomePage from './pages/HomePage';
 import TestGenerationPage from './pages/TestGenerationPage';
 import TeamsPage from './pages/TeamsPage';
 import SettingsPage from './pages/SettingsPage';
-import ProtectedRoute from './components/ProtectedRoute';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 import useAuthStore from './store/authStore';
 import './index.css';
 

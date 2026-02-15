@@ -387,9 +387,12 @@ class DatabaseManager:
                 ).limit(10).all()
                 by_category = {c: count for c, count in category_counts}
                 
+                avg_test_cases = round(total_test_cases / total_generations, 1) if total_generations > 0 else 0
+                
                 return {
                     'total_generations': total_generations,
                     'total_test_cases': total_test_cases,
+                    'avg_test_cases': avg_test_cases,
                     'by_priority': by_priority,
                     'by_category': by_category
                 }

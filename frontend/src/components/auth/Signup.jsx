@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../../store/authStore';
 
 const Signup = () => {
   const navigate = useNavigate();

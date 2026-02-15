@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Lock, CheckCircle, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import apiClient from '../services/api';
+import apiClient from '../../services/api';
 
 const ResetPassword = () => {
   const navigate = useNavigate();

@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import toast from 'react-hot-toast';
-import { authAPI, workspaceAPI } from '../services/api';
+import { authAPI, workspaceAPI } from '../services/api/index';
 
 const useAuthStore = create(
   persist(

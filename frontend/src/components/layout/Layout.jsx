@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { LogOut, Menu, X, Home, TestTube, Users, Settings } from 'lucide-react';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../../store/authStore';
 import WorkspaceSelector from './WorkspaceSelector';
 
 const Layout = ({ children }) => {

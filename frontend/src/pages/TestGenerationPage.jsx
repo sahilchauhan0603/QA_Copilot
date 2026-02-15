@@ -2,7 +2,7 @@
  * Test Generation Page
  * Dedicated page for AI-powered test case generation
  */
-import TestGeneration from '../components/TestGeneration';
+import TestGeneration from '../components/test-generation/TestGeneration';
 
 const TestGenerationPage = () => {
   return (

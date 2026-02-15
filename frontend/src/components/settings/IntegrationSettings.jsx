@@ -20,7 +20,7 @@ import {
   Lock,
   X
 } from 'lucide-react';
-import { integrationAPI } from '../services/api';
+import { integrationAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
 const IntegrationSettings = () => {

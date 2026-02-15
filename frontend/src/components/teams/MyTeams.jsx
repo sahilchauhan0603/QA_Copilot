@@ -3,7 +3,7 @@
  * Read-only view of teams user is part of (for personal workspace)
  */
 import { Users, Crown, Shield, ChevronRight } from 'lucide-react';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../../store/authStore';
 
 const MyTeams = ({ onCreateTeam }) => {
   const { workspaces, switchWorkspace } = useAuthStore();
