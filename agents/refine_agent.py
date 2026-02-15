@@ -68,8 +68,9 @@ class RefineAgent:
         if not test_cases:
             return state
         
-        with self.rate_limiter:
-            prompt = f"""You are a QA expert tasked with minimizing test cases by removing redundancy.
+        self.rate_limiter.wait_if_needed()
+        
+        prompt = f"""You are a QA expert tasked with minimizing test cases by removing redundancy.
 
 **Current Test Cases ({len(test_cases)} total):**
 {self._format_test_cases_for_prompt(test_cases)}
@@ -108,21 +109,21 @@ Return your response as a JSON array of refined test cases in this exact format:
 
 Return ONLY the JSON array, no additional text."""
 
-            try:
-                model = self.llm.GenerativeModel(self.model_name)
-                response = model.generate_content(prompt)
+        try:
+            model = self.llm.GenerativeModel(self.model_name)
+            response = model.generate_content(prompt)
+            
+            # Parse response
+            refined_cases = self._parse_test_cases_response(response.text)
+            
+            if refined_cases:
+                logger.info(f"Minimized test cases: {len(test_cases)} → {len(refined_cases)}")
+                state['test_cases'] = refined_cases
+            else:
+                logger.warning("Failed to minimize test cases, keeping original")
                 
-                # Parse response
-                refined_cases = self._parse_test_cases_response(response.text)
-                
-                if refined_cases:
-                    logger.info(f"Minimized test cases: {len(test_cases)} → {len(refined_cases)}")
-                    state['test_cases'] = refined_cases
-                else:
-                    logger.warning("Failed to minimize test cases, keeping original")
-                    
-            except Exception as e:
-                logger.error(f"Error minimizing test cases: {e}")
+        except Exception as e:
+            logger.error(f"Error minimizing test cases: {e}")
         
         return state
     
@@ -137,8 +138,9 @@ Return ONLY the JSON array, no additional text."""
         test_cases = state.get('test_cases', [])
         ticket_info = state.get('ticket_info', {})
         
-        with self.rate_limiter:
-            prompt = f"""You are a QA expert generating focused test cases.
+        self.rate_limiter.wait_if_needed()
+        
+        prompt = f"""You are a QA expert generating focused test cases.
 
 **Ticket Information:**
 Title: {ticket_info.get('title', '')}
@@ -183,22 +185,22 @@ Return your response as a JSON array of new test cases in this exact format:
 
 Return ONLY the JSON array, no additional text."""
 
-            try:
-                model = self.llm.GenerativeModel(self.model_name)
-                response = model.generate_content(prompt)
+        try:
+            model = self.llm.GenerativeModel(self.model_name)
+            response = model.generate_content(prompt)
+            
+            # Parse response
+            new_cases = self._parse_test_cases_response(response.text)
+            
+            if new_cases:
+                # Add new cases to existing ones
+                logger.info(f"Added {len(new_cases)} focused test cases")
+                state['test_cases'] = test_cases + new_cases
+            else:
+                logger.warning("Failed to generate focused test cases")
                 
-                # Parse response
-                new_cases = self._parse_test_cases_response(response.text)
-                
-                if new_cases:
-                    # Add new cases to existing ones
-                    logger.info(f"Added {len(new_cases)} focused test cases")
-                    state['test_cases'] = test_cases + new_cases
-                else:
-                    logger.warning("Failed to generate focused test cases")
-                    
-            except Exception as e:
-                logger.error(f"Error generating focused test cases: {e}")
+        except Exception as e:
+            logger.error(f"Error generating focused test cases: {e}")
         
         return state
     
@@ -209,8 +211,9 @@ Return ONLY the JSON array, no additional text."""
         test_cases = state.get('test_cases', [])
         ticket_info = state.get('ticket_info', {})
         
-        with self.rate_limiter:
-            prompt = f"""You are a QA expert specializing in edge case testing.
+        self.rate_limiter.wait_if_needed()
+        
+        prompt = f"""You are a QA expert specializing in edge case testing.
 
 **Ticket Information:**
 Title: {ticket_info.get('title', '')}
@@ -254,21 +257,21 @@ Return your response as a JSON array of edge case tests in this exact format:
 
 Return ONLY the JSON array, no additional text."""
 
-            try:
-                model = self.llm.GenerativeModel(self.model_name)
-                response = model.generate_content(prompt)
+        try:
+            model = self.llm.GenerativeModel(self.model_name)
+            response = model.generate_content(prompt)
+            
+            # Parse response
+            edge_cases = self._parse_test_cases_response(response.text)
+            
+            if edge_cases:
+                logger.info(f"Added {len(edge_cases)} edge case tests")
+                state['test_cases'] = test_cases + edge_cases
+            else:
+                logger.warning("Failed to generate edge cases")
                 
-                # Parse response
-                edge_cases = self._parse_test_cases_response(response.text)
-                
-                if edge_cases:
-                    logger.info(f"Added {len(edge_cases)} edge case tests")
-                    state['test_cases'] = test_cases + edge_cases
-                else:
-                    logger.warning("Failed to generate edge cases")
-                    
-            except Exception as e:
-                logger.error(f"Error generating edge cases: {e}")
+        except Exception as e:
+            logger.error(f"Error generating edge cases: {e}")
         
         return state
     
@@ -283,8 +286,9 @@ Return ONLY the JSON array, no additional text."""
             logger.info("No coverage gaps identified, skipping")
             return state
         
-        with self.rate_limiter:
-            prompt = f"""You are a QA expert tasked with improving test coverage.
+        self.rate_limiter.wait_if_needed()
+        
+        prompt = f"""You are a QA expert tasked with improving test coverage.
 
 **Identified Coverage Gaps:**
 {self._format_coverage_gaps(coverage_gaps)}
@@ -321,21 +325,21 @@ Return your response as a JSON array of test cases in this exact format:
 
 Return ONLY the JSON array, no additional text."""
 
-            try:
-                model = self.llm.GenerativeModel(self.model_name)
-                response = model.generate_content(prompt)
+        try:
+            model = self.llm.GenerativeModel(self.model_name)
+            response = model.generate_content(prompt)
+            
+            # Parse response
+            coverage_cases = self._parse_test_cases_response(response.text)
+            
+            if coverage_cases:
+                logger.info(f"Added {len(coverage_cases)} coverage test cases")
+                state['test_cases'] = test_cases + coverage_cases
+            else:
+                logger.warning("Failed to generate coverage tests")
                 
-                # Parse response
-                coverage_cases = self._parse_test_cases_response(response.text)
-                
-                if coverage_cases:
-                    logger.info(f"Added {len(coverage_cases)} coverage test cases")
-                    state['test_cases'] = test_cases + coverage_cases
-                else:
-                    logger.warning("Failed to generate coverage tests")
-                    
-            except Exception as e:
-                logger.error(f"Error generating coverage tests: {e}")
+        except Exception as e:
+            logger.error(f"Error generating coverage tests: {e}")
         
         return state
     
@@ -347,8 +351,9 @@ Return ONLY the JSON array, no additional text."""
         if not test_cases:
             return state
         
-        with self.rate_limiter:
-            prompt = f"""You are a QA expert tasked with simplifying test cases.
+        self.rate_limiter.wait_if_needed()
+        
+        prompt = f"""You are a QA expert tasked with simplifying test cases.
 
 **Current Test Cases ({len(test_cases)} total):**
 {self._format_test_cases_for_prompt(test_cases)}
@@ -388,21 +393,21 @@ Return your response as a JSON array of simplified test cases in this exact form
 
 Return ONLY the JSON array, no additional text."""
 
-            try:
-                model = self.llm.GenerativeModel(self.model_name)
-                response = model.generate_content(prompt)
+        try:
+            model = self.llm.GenerativeModel(self.model_name)
+            response = model.generate_content(prompt)
+            
+            # Parse response
+            simplified_cases = self._parse_test_cases_response(response.text)
+            
+            if simplified_cases:
+                logger.info(f"Simplified {len(test_cases)} test cases")
+                state['test_cases'] = simplified_cases
+            else:
+                logger.warning("Failed to simplify test cases, keeping original")
                 
-                # Parse response
-                simplified_cases = self._parse_test_cases_response(response.text)
-                
-                if simplified_cases:
-                    logger.info(f"Simplified {len(test_cases)} test cases")
-                    state['test_cases'] = simplified_cases
-                else:
-                    logger.warning("Failed to simplify test cases, keeping original")
-                    
-            except Exception as e:
-                logger.error(f"Error simplifying test cases: {e}")
+        except Exception as e:
+            logger.error(f"Error simplifying test cases: {e}")
         
         return state
     

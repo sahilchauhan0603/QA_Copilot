@@ -145,13 +145,18 @@ const GenerationHistory = ({
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="text-sm font-mono font-semibold text-primary-600">
                             {gen.ticket_id}
                           </span>
                           <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
                             {gen.ticket_type || 'story'}
                           </span>
+                          {gen.generation_metadata?.refinement?.is_refined && (
+                            <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+                              🔄 {gen.generation_metadata.refinement.refinement_type}
+                            </span>
+                          )}
                         </div>
                         <h4 className="text-sm font-medium text-gray-900 line-clamp-2">
                           {gen.ticket_title}
@@ -236,9 +241,16 @@ const GenerationHistory = ({
                           {gen.ticket_title}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                            {gen.ticket_type || 'story'}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs inline-block">
+                              {gen.ticket_type || 'story'}
+                            </span>
+                            {gen.generation_metadata?.refinement?.is_refined && (
+                              <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs inline-block">
+                                🔄 {gen.generation_metadata.refinement.refinement_type}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700">
                           {gen.total_test_cases}

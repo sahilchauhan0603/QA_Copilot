@@ -22,7 +22,7 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
-    toast.error('Request failed. Please try again.');
+    toast.error('Request failed. Please try again.', { id: 'request-error' });
     return Promise.reject(error);
   }
 );
@@ -37,26 +37,26 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       if (isLoginEndpoint || isViewCredentials) {
         const errorMsg = error.response?.data?.error || 'Invalid credentials';
-        toast.error(errorMsg);
+        toast.error(errorMsg, { id: 'auth-error' });
       } else {
-        toast.error('Session expired. Please login again.');
+        toast.error('Session expired. Please login again.', { id: 'session-expired' });
         localStorage.removeItem('auth_token');
         setTimeout(() => {
           window.location.href = '/login';
         }, 1500);
       }
     } else if (error.response?.status === 403) {
-      toast.error('Access denied. You don\'t have permission.');
+      toast.error('Access denied. You don\'t have permission.', { id: 'access-denied' });
     } else if (error.response?.status === 404) {
-      toast.error('Resource not found.');
+      toast.error('Resource not found.', { id: 'not-found' });
     } else if (error.response?.status >= 500) {
-      toast.error('Server error. Please try again later.');
+      toast.error('Server error. Please try again later.', { id: 'server-error' });
     } else if (error.response?.data?.error) {
-      toast.error(error.response.data.error);
+      toast.error(error.response.data.error, { id: 'api-error' });
     } else if (error.message === 'Network Error') {
-      toast.error('Network error. Please check your connection.');
+      toast.error('Network error. Please check your connection.', { id: 'network-error' });
     } else {
-      toast.error('Something went wrong. Please try again.');
+      toast.error('Something went wrong. Please try again.', { id: 'generic-error' });
     }
     return Promise.reject(error);
   }

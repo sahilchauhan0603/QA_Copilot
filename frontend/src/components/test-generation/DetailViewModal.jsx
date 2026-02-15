@@ -109,41 +109,57 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[9999]">
       <div className="bg-gray-50 rounded-xl max-w-6xl w-full max-h-[93vh] flex flex-col shadow-2xl">
         {/* ─── Sticky Header ─── */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 rounded-t-xl px-6 py-4 flex items-center justify-between z-10 shrink-0">
-          <div className="flex items-center gap-4 min-w-0">
+        <div className="sticky top-0 bg-white border-b border-gray-200 rounded-t-xl px-4 sm:px-6 py-3 sm:py-4 z-10 shrink-0">
+          {/* Top Row: Title and Close Button */}
+          <div className="flex items-start gap-3 mb-3">
             <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg text-white shrink-0">
               <FileText size={20} />
             </div>
-            <div className="min-w-0">
-              <h3 className="text-lg font-bold text-gray-900 truncate">
-                {gen.ticket_id} — {gen.ticket_title || 'Test Generation Results'}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">
+                <span className="font-mono">{gen.ticket_id}</span> — {gen.ticket_title || 'Test Generation Results'}
               </h3>
-              <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
-                <span className="flex items-center gap-1">
+              <div className="flex items-center flex-wrap gap-2 text-xs text-gray-500 mt-1.5">
+                <span className="flex items-center gap-1 whitespace-nowrap">
                   <Calendar size={12} />
-                  {new Date(gen.timestamp).toLocaleString()}
+                  {new Date(gen.timestamp).toLocaleDateString()}
                 </span>
                 {gen.ticket_type && (
-                  <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                  <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium whitespace-nowrap">
                     {gen.ticket_type}
                   </span>
                 )}
+                {gen.generation_metadata?.refinement?.is_refined && (
+                  <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium whitespace-nowrap">
+                    🔄 {gen.generation_metadata.refinement.refinement_type}
+                  </span>
+                )}
                 {sourceIntegration && (
-                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium flex items-center gap-1">
+                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium flex items-center gap-1 whitespace-nowrap">
                     <ExternalLink size={10} />
                     {integrationLabel}
                   </span>
                 )}
               </div>
             </div>
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+
+          {/* Action Buttons Row */}
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={onDownloadExcel}
-              className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
             >
               <FileSpreadsheet size={16} />
-              Export Excel
+              <span className="hidden sm:inline">Export Excel</span>
+              <span className="sm:hidden">Excel</span>
             </button>
             <ExportMenu generationId={gen.id} ticketId={gen.ticket_id} />
             <SyncMenu
@@ -154,12 +170,6 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
               onSync={handleSync}
             />
             <RefineMenu generationId={gen.id} onClose={onClose} />
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X size={20} />
-            </button>
           </div>
         </div>
 

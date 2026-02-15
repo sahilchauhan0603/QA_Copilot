@@ -1076,6 +1076,13 @@ def refine_tests(current_user):
                     if meta.get('source_integration'):
                         final_state['source_integration'] = meta['source_integration']
                     
+                    # Add refinement metadata
+                    if 'refinement' not in final_state:
+                        final_state['refinement'] = {}
+                    final_state['refinement']['is_refined'] = True
+                    final_state['refinement']['original_generation_id'] = generation_id
+                    final_state['refinement']['refinement_type'] = 'regenerate'
+                    
                     # Save as new generation
                     new_generation_id = db_manager.save_generation(
                         state=final_state,
@@ -1154,6 +1161,13 @@ def refine_tests(current_user):
             # Perform refinement
             logger.info(f"Refining generation {generation_id} with type: {refinement_type}")
             refined_state = refine_agent.refine(state, refinement_type, refinement_context)
+            
+            # Add refinement metadata
+            if 'refinement' not in refined_state:
+                refined_state['refinement'] = {}
+            refined_state['refinement']['is_refined'] = True
+            refined_state['refinement']['original_generation_id'] = generation_id
+            refined_state['refinement']['refinement_type'] = refinement_type
             
             # Save refined generation as new entry
             new_generation_id = db_manager.save_generation(

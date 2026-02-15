@@ -77,6 +77,7 @@ class DatabaseManager:
                         'priority': state.get('ticket_info', {}).get('priority', ''),
                         'status': state.get('ticket_info', {}).get('status', ''),
                         'source_integration': state.get('source_integration'),
+                        'refinement': state.get('refinement'),  # Add refinement metadata
                     },
                     user_id=user_id,
                     team_id=team_id
