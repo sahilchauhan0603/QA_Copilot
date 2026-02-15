@@ -11,6 +11,7 @@ import {
   CheckCircle,
   Loader,
   Clock,
+  XCircle,
 } from 'lucide-react';
 
 const agentSteps = [
@@ -21,7 +22,7 @@ const agentSteps = [
   { key: 'coverage_auditor', label: 'Auditing Coverage', icon: ShieldAlert },
 ];
 
-const GenerationProgress = ({ generationProgress }) => {
+const GenerationProgress = ({ generationProgress, onCancel }) => {
   const { progress, currentLabel, steps } = generationProgress;
 
   if (progress <= 0) return null;
@@ -33,9 +34,21 @@ const GenerationProgress = ({ generationProgress }) => {
           <Loader size={20} className="animate-spin text-primary-600" />
           Generating Test Cases...
         </h3>
-        <span className="text-sm font-mono text-primary-600 bg-primary-50 px-3 py-1 rounded-full">
-          {Math.round(progress)}%
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-mono text-primary-600 bg-primary-50 px-3 py-1 rounded-full">
+            {Math.round(progress)}%
+          </span>
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors text-sm font-medium"
+              title="Cancel generation"
+            >
+              <XCircle size={16} />
+              Cancel
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Progress Bar */}

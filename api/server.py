@@ -112,6 +112,7 @@ def _update_progress(job_id: str, agent_name: str, status: str = "completed", de
                 "current_agent": None,
                 "error": None,
                 "result": None,
+                "cancelled": False,
             }
         store = _progress_store[job_id]
         
@@ -166,6 +167,13 @@ def stream_progress(job_id):
                 
                 last_step_count = len(current_steps)
             
+            # Check if generation is cancelled
+            if store.get("cancelled"):
+                yield f"data: {json.dumps({'type': 'cancelled', 'message': 'Generation cancelled by user'})}\n\n"
+                with _progress_lock:
+                    _progress_store.pop(job_id, None)
+                break
+            
             # Check if generation is complete
             if store["status"] in ("completed", "error"):
                 if store["status"] == "completed":
@@ -191,6 +199,31 @@ def stream_progress(job_id):
             'Connection': 'keep-alive',
         }
     )
+
+
+@app.route('/api/test-generation/cancel/<job_id>', methods=['POST'])
+@token_required
+def cancel_generation(current_user, job_id):
+    """Cancel an ongoing test generation job"""
+    try:
+        with _progress_lock:
+            store = _progress_store.get(job_id)
+            if not store:
+                return jsonify({'error': 'Job not found or already completed'}), 404
+            
+            if store["status"] in ("completed", "error"):
+                return jsonify({'error': 'Job already finished'}), 400
+            
+            # Mark as cancelled
+            store["cancelled"] = True
+            store["status"] = "cancelled"
+            store["error"] = "Cancelled by user"
+        
+        return jsonify({'message': 'Generation cancelled successfully'}), 200
+    
+    except Exception as e:
+        logger.error(f"Cancel generation error: {e}")
+        return jsonify({'error': 'Failed to cancel generation'}), 500
 
 
 # ============================================
@@ -698,14 +731,24 @@ def generate_tests(current_user):
                 "current_agent": None,
                 "error": None,
                 "result": None,
+                "cancelled": False,
             }
         
         def run_generation():
             """Run generation in background thread"""
             try:
+                # Check if cancelled before starting
+                with _progress_lock:
+                    if _progress_store.get(job_id, {}).get("cancelled"):
+                        raise Exception("Generation cancelled by user")
+                
                 orch = get_orchestrator()
                 
                 def progress_callback(agent_name, state):
+                    # Check for cancellation
+                    with _progress_lock:
+                        if _progress_store.get(job_id, {}).get("cancelled"):
+                            raise Exception("Generation cancelled by user")
                     # Mark previous agent as completed, current as started
                     _update_progress(job_id, agent_name, "completed",
                                      detail=f"Processed by {agent_name}")
@@ -1013,10 +1056,16 @@ def refine_tests(current_user):
                     "current_agent": None,
                     "error": None,
                     "result": None,
+                    "cancelled": False,
                 }
             
             def run_regeneration():
                 try:
+                    # Check if cancelled before starting
+                    with _progress_lock:
+                        if _progress_store.get(job_id, {}).get("cancelled"):
+                            raise Exception("Regeneration cancelled by user")
+                    
                     orch = get_orchestrator()
                     
                     _update_progress(job_id, "ticket_reader", "started", detail="Regenerating...")

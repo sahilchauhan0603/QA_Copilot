@@ -46,6 +46,9 @@ const TestGeneration = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [generationToDelete, setGenerationToDelete] = useState(null);
 
+  // ──── Cancellation ────
+  const [currentCancelFn, setCurrentCancelFn] = useState(null);
+
   // ──── Filters ────
   const applyFilters = useCallback(() => {
     let filtered = [...generations];
@@ -91,7 +94,7 @@ const TestGeneration = () => {
   const loadIntegrationConfigs = useCallback(async () => {
     try {
       const data = await integrationAPI.getConfigs();
-      setIntegrationConfigs(data.configs || []);
+      setIntegrationConfigs(data.integrations || []);
     } catch {
       // silent
     }
@@ -139,16 +142,32 @@ const TestGeneration = () => {
     setGenerating(true);
     resetProgress();
     try {
-      await testGenAPI.generate(ticketData, handleProgressUpdate);
+      const { promise, cancel } = testGenAPI.generate(ticketData, handleProgressUpdate);
+      setCurrentCancelFn(() => cancel);
+      await promise;
       toast.success('Test cases generated successfully!');
       setShowNewForm(false);
       await loadGenerations();
       await loadStatistics();
     } catch (err) {
-      toast.error(err.message || 'Generation failed');
+      if (!err.message?.includes('cancelled')) {
+        toast.error(err.message || 'Generation failed');
+      }
     } finally {
       setGenerating(false);
+      setCurrentCancelFn(null);
       setTimeout(resetProgress, 2000);
+    }
+  };
+
+  const handleCancelGeneration = async () => {
+    if (currentCancelFn) {
+      try {
+        await currentCancelFn();
+        toast.success('Generation cancelled');
+      } catch (err) {
+        toast.error('Failed to cancel');
+      }
     }
   };
 
@@ -211,7 +230,7 @@ const TestGeneration = () => {
       <StatisticsCards statistics={statistics} />
 
       {/* ─── Generation Progress ─── */}
-      {generating && <GenerationProgress generationProgress={generationProgress} />}
+      {generating && <GenerationProgress generationProgress={generationProgress} onCancel={handleCancelGeneration} />}
 
       {/* ─── New Generation Form ─── */}
       {!showNewForm ? (

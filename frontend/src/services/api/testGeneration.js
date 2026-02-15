@@ -10,55 +10,83 @@ export const testGenAPI = {
    * Generate test cases with real-time progress via SSE 
    * @param {Object} ticketData - Ticket information
    * @param {Function} onProgress - Callback for progress updates
-   * @returns {Promise<Object>} - Final generation result
+   * @returns {Object} - { promise, cancel, jobId } - Promise for result, cancel function, and job ID
    */
-  generate: async (ticketData, onProgress = null) => {
-    const response = await apiClient.post('/test-generation/generate', ticketData);
-    const { job_id } = response.data;
+  generate: (ticketData, onProgress = null) => {
+    let eventSource = null;
+    let timeoutId = null;
+    let jobId = null;
+    
+    const promise = (async () => {
+      const response = await apiClient.post('/test-generation/generate', ticketData);
+      jobId = response.data.job_id;
 
-    if (!job_id) {
-      return response.data;
-    }
+      if (!jobId) {
+        return response.data;
+      }
 
-    return new Promise((resolve, reject) => {
-      const baseUrl = API_BASE_URL.replace(/\/api$/, '');
-      const eventSource = new EventSource(`${baseUrl}/api/test-generation/progress/${job_id}`);
-      let timeoutId = setTimeout(() => {
-        eventSource.close();
-        reject(new Error('Generation timed out after 5 minutes'));
-      }, 300000);
+      return new Promise((resolve, reject) => {
+        const baseUrl = API_BASE_URL.replace(/\/api$/, '');
+        eventSource = new EventSource(`${baseUrl}/api/test-generation/progress/${jobId}`);
+        timeoutId = setTimeout(() => {
+          eventSource.close();
+          reject(new Error('Generation timed out after 5 minutes'));
+        }, 300000);
 
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
 
-          if (data.type === 'step' && onProgress) {
-            onProgress(data);
-          } else if (data.type === 'complete') {
-            clearTimeout(timeoutId);
-            eventSource.close();
-            if (onProgress) {
-              onProgress({ type: 'complete', progress: 100, label: 'Complete!' });
+            if (data.type === 'step' && onProgress) {
+              onProgress(data);
+            } else if (data.type === 'complete') {
+              clearTimeout(timeoutId);
+              eventSource.close();
+              if (onProgress) {
+                onProgress({ type: 'complete', progress: 100, label: 'Complete!' });
+              }
+              resolve(data.result);
+            } else if (data.type === 'cancelled') {
+              clearTimeout(timeoutId);
+              eventSource.close();
+              reject(new Error(data.message || 'Generation cancelled'));
+            } else if (data.type === 'error') {
+              clearTimeout(timeoutId);
+              eventSource.close();
+              reject(new Error(data.message || 'Generation failed'));
+            } else if (data.type === 'done') {
+              clearTimeout(timeoutId);
+              eventSource.close();
             }
-            resolve(data.result);
-          } else if (data.type === 'error') {
-            clearTimeout(timeoutId);
-            eventSource.close();
-            reject(new Error(data.message || 'Generation failed'));
-          } else if (data.type === 'done') {
-            clearTimeout(timeoutId);
-            eventSource.close();
+          } catch (e) {
+            // Ignore parse errors for SSE heartbeats
           }
-        } catch (e) {
-          // Ignore parse errors for SSE heartbeats
-        }
-      };
+        };
 
-      eventSource.onerror = () => {
-        clearTimeout(timeoutId);
+        eventSource.onerror = () => {
+          clearTimeout(timeoutId);
+          eventSource.close();
+        };
+      });
+    })();
+    
+    const cancel = async () => {
+      if (eventSource) {
         eventSource.close();
-      };
-    });
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (jobId) {
+        try {
+          await apiClient.post(`/test-generation/cancel/${jobId}`);
+        } catch (e) {
+          // Ignore cancel errors
+        }
+      }
+    };
+    
+    return { promise, cancel, get jobId() { return jobId; } };
   },
 
   /** AI-generate description and acceptance criteria from title */
@@ -77,24 +105,37 @@ export const testGenAPI = {
    * @param {string} refinementType - minimize, focus, edge_cases, coverage, simplify, regenerate
    * @param {Object} options - Additional options like focus_area
    * @param {Function} onProgress - Progress callback (for regenerate only)
-   * @returns {Promise<Object>} - Refined generation result
+   * @returns {Object|Promise} - For regenerate: { promise, cancel, jobId }, otherwise Promise
    */
-  refine: async (generationId, refinementType, options = {}, onProgress = null) => {
+  refine: (generationId, refinementType, options = {}, onProgress = null) => {
     const requestBody = {
       generation_id: generationId,
       refinement_type: refinementType,
       ...options,
     };
 
-    const response = await apiClient.post('/test-generation/refine', requestBody);
+    if (refinementType !== 'regenerate') {
+      // Non-SSE refinement types return a simple promise
+      return apiClient.post('/test-generation/refine', requestBody).then(r => r.data);
+    }
 
-    if (refinementType === 'regenerate' && response.data.job_id) {
-      const { job_id } = response.data;
+    // Regenerate uses SSE, so return { promise, cancel, jobId }
+    let eventSource = null;
+    let timeoutId = null;
+    let jobId = null;
+    
+    const promise = (async () => {
+      const response = await apiClient.post('/test-generation/refine', requestBody);
+      jobId = response.data.job_id;
+
+      if (!jobId) {
+        return response.data;
+      }
 
       return new Promise((resolve, reject) => {
         const baseUrl = API_BASE_URL.replace(/\/api$/, '');
-        const eventSource = new EventSource(`${baseUrl}/api/test-generation/progress/${job_id}`);
-        let timeoutId = setTimeout(() => {
+        eventSource = new EventSource(`${baseUrl}/api/test-generation/progress/${jobId}`);
+        timeoutId = setTimeout(() => {
           eventSource.close();
           reject(new Error('Regeneration timed out after 5 minutes'));
         }, 300000);
@@ -112,6 +153,10 @@ export const testGenAPI = {
                 onProgress({ type: 'complete', progress: 100, label: 'Complete!' });
               }
               resolve(data.result);
+            } else if (data.type === 'cancelled') {
+              clearTimeout(timeoutId);
+              eventSource.close();
+              reject(new Error(data.message || 'Regeneration cancelled'));
             } else if (data.type === 'error') {
               clearTimeout(timeoutId);
               eventSource.close();
@@ -130,9 +175,25 @@ export const testGenAPI = {
           eventSource.close();
         };
       });
-    }
-
-    return response.data;
+    })();
+    
+    const cancel = async () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (jobId) {
+        try {
+          await apiClient.post(`/test-generation/cancel/${jobId}`);
+        } catch (e) {
+          // Ignore cancel errors
+        }
+      }
+    };
+    
+    return { promise, cancel, get jobId() { return jobId; } };
   },
 
   /** Get all generations */

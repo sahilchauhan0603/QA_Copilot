@@ -2,7 +2,7 @@
  * RefineMenu Component
  * Dropdown menu + dialog for refining test generation results
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Sparkles,
   RefreshCw,
@@ -12,6 +12,7 @@ import {
   ListChecks,
   FileText,
   Loader,
+  XCircle,
 } from 'lucide-react';
 import { testGenAPI } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -22,6 +23,7 @@ const RefineMenu = ({ generationId, onClose }) => {
   const [refinementType, setRefinementType] = useState('');
   const [focusArea, setFocusArea] = useState('');
   const [refining, setRefining] = useState(false);
+  const cancelFnRef = useRef(null);
 
   const handleRefineClick = (type) => {
     setRefinementType(type);
@@ -42,7 +44,7 @@ const RefineMenu = ({ generationId, onClose }) => {
       let result;
 
       if (type === 'regenerate') {
-        result = await testGenAPI.refine(generationId, type, options, (progressData) => {
+        const { promise, cancel } = testGenAPI.refine(generationId, type, options, (progressData) => {
           if (progressData.type === 'step') {
             toast(`${progressData.label} - ${progressData.status}`, {
               icon: '\u2699\uFE0F',
@@ -50,6 +52,8 @@ const RefineMenu = ({ generationId, onClose }) => {
             });
           }
         });
+        cancelFnRef.current = cancel;
+        result = await promise;
         toast.success('Test cases regenerated successfully!');
       } else {
         result = await testGenAPI.refine(generationId, type, options);
@@ -79,11 +83,25 @@ const RefineMenu = ({ generationId, onClose }) => {
         }, 2000);
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || `Refinement failed: ${err.message}`);
+      if (!err.message?.includes('cancelled')) {
+        toast.error(err.response?.data?.error || `Refinement failed: ${err.message}`);
+      }
     } finally {
       setRefining(false);
+      cancelFnRef.current = null;
       setFocusArea('');
       setRefinementType('');
+    }
+  };
+
+  const handleCancelRefinement = async () => {
+    if (cancelFnRef.current) {
+      try {
+        await cancelFnRef.current();
+        toast.success('Refinement cancelled');
+      } catch (err) {
+        toast.error('Failed to cancel');
+      }
     }
   };
 
@@ -96,8 +114,18 @@ const RefineMenu = ({ generationId, onClose }) => {
           className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
         >
           {refining ? <Loader size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          Refine Results
+          {refining ? 'Refining...' : 'Refine Results'}
         </button>
+        {refining && refinementType === 'regenerate' && (
+          <button
+            onClick={handleCancelRefinement}
+            className="absolute -right-20 top-0 flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors text-sm font-medium whitespace-nowrap"
+            title="Cancel refinement"
+          >
+            <XCircle size={16} />
+            Cancel
+          </button>
+        )}
         {showMenu && (
           <>
             <div className="fixed inset-0 z-20" onClick={() => setShowMenu(false)} />
