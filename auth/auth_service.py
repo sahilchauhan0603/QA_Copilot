@@ -62,6 +62,41 @@ class AuthService:
             logger.error(f"Password verification error: {e}")
             return False
     
+    def check_availability(self, email: Optional[str] = None, username: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Check if email and/or username are available
+        
+        Args:
+            email: Email to check (optional)
+            username: Username to check (optional)
+            
+        Returns:
+            Dictionary with availability status for each field
+        """
+        try:
+            with self.db.get_session() as session:
+                result = {
+                    'email_available': True,
+                    'username_available': True
+                }
+                
+                if email:
+                    existing_email = session.query(User).filter(User.email == email).first()
+                    result['email_available'] = existing_email is None
+                
+                if username:
+                    existing_username = session.query(User).filter(User.username == username).first()
+                    result['username_available'] = existing_username is None
+                
+                return result
+        except Exception as e:
+            logger.error(f"Error checking availability: {e}")
+            return {
+                'email_available': False,
+                'username_available': False,
+                'error': str(e)
+            }
+    
     def create_user(
         self,
         email: str,

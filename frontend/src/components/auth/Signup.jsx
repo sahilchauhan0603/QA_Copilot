@@ -1,9 +1,9 @@
 /**
  * Signup Component
  */
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
 
@@ -20,10 +20,89 @@ const Signup = () => {
   });
 
   const [validationError, setValidationError] = useState('');
+  const [availability, setAvailability] = useState({
+    email: { available: null, checking: false },
+    username: { available: null, checking: false }
+  });
+
+  // Debounced availability check
+  const checkAvailability = useCallback(async (field, value) => {
+    if (!value || value.length < 3) {
+      setAvailability(prev => ({
+        ...prev,
+        [field]: { available: null, checking: false }
+      }));
+      return;
+    }
+
+    setAvailability(prev => ({
+      ...prev,
+      [field]: { ...prev[field], checking: true }
+    }));
+
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_URL}/auth/check-availability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value })
+      });
+
+      const data = await response.json();
+      
+      setAvailability(prev => ({
+        ...prev,
+        [field]: {
+          available: data[`${field}_available`],
+          checking: false
+        }
+      }));
+    } catch (error) {
+      console.error(`Error checking ${field} availability:`, error);
+      setAvailability(prev => ({
+        ...prev,
+        [field]: { available: null, checking: false }
+      }));
+    }
+  }, []);
+
+  // Debounce timer
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.email) {
+        checkAvailability('email', formData.email);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.email, checkAvailability]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.username) {
+        checkAvailability('username', formData.username);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.username, checkAvailability]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setValidationError('');
+
+    // Check availability before proceeding
+    if (availability.email.available === false) {
+      setValidationError('Email is already registered');
+      toast.error('Email is already registered');
+      return;
+    }
+
+    if (availability.username.available === false) {
+      setValidationError('Username is already taken');
+      toast.error('Username is already taken');
+      return;
+    }
 
     // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
@@ -116,32 +195,90 @@ const Signup = () => {
               <label htmlFor="email" className="input-label">
                 Email Address
               </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="input"
-                placeholder="you@example.com"
-                required
-              />
+              <div className="relative">
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className={`input pr-10 ${
+                    availability.email.available === false
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                      : availability.email.available === true
+                      ? 'border-green-300 focus:border-green-500 focus:ring-green-500'
+                      : ''
+                  }`}
+                  placeholder="you@example.com"
+                  required
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  {availability.email.checking && (
+                    <Loader2 size={18} className="text-gray-400 animate-spin" />
+                  )}
+                  {!availability.email.checking && availability.email.available === true && (
+                    <CheckCircle size={18} className="text-green-500" />
+                  )}
+                  {!availability.email.checking && availability.email.available === false && (
+                    <XCircle size={18} className="text-red-500" />
+                  )}
+                </div>
+              </div>
+              {availability.email.available === false && (
+                <p className="mt-1 text-sm text-red-600">
+                  This email is already registered
+                </p>
+              )}
+              {availability.email.available === true && (
+                <p className="mt-1 text-sm text-green-600">
+                  Email is available
+                </p>
+              )}
             </div>
 
             <div>
               <label htmlFor="username" className="input-label">
                 Username
               </label>
-              <input
-                type="text"
-                id="username"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                className="input"
-                placeholder="Choose a username"
-                required
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  id="username"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleChange}
+                  className={`input pr-10 ${
+                    availability.username.available === false
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                      : availability.username.available === true
+                      ? 'border-green-300 focus:border-green-500 focus:ring-green-500'
+                      : ''
+                  }`}
+                  placeholder="Choose a username"
+                  required
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  {availability.username.checking && (
+                    <Loader2 size={18} className="text-gray-400 animate-spin" />
+                  )}
+                  {!availability.username.checking && availability.username.available === true && (
+                    <CheckCircle size={18} className="text-green-500" />
+                  )}
+                  {!availability.username.checking && availability.username.available === false && (
+                    <XCircle size={18} className="text-red-500" />
+                  )}
+                </div>
+              </div>
+              {availability.username.available === false && (
+                <p className="mt-1 text-sm text-red-600">
+                  This username is already taken
+                </p>
+              )}
+              {availability.username.available === true && (
+                <p className="mt-1 text-sm text-green-600">
+                  Username is available
+                </p>
+              )}
             </div>
 
             <div>
@@ -181,7 +318,13 @@ const Signup = () => {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={
+                isLoading || 
+                availability.email.checking || 
+                availability.username.checking ||
+                availability.email.available === false ||
+                availability.username.available === false
+              }
               className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-6"
             >
               {isLoading ? (

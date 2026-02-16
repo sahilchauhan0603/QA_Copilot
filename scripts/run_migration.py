@@ -1,11 +1,32 @@
 """
-Run password reset migration using SQLAlchemy
+Run database migrations using SQLAlchemy
+This script runs:
+1. Main schema migration (creates all base tables)
+2. Password reset token migration (adds password reset functionality)
 """
-from database.connection import get_engine
+import sys
+import os
+
+# Add parent directory to path so we can import from database module
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from database.connection import get_db_connection
 from sqlalchemy import text
 
-# Migration SQL
-MIGRATION_SQL = """
+
+def read_sql_file(filename):
+    """Read SQL file from database directory"""
+    sql_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'database',
+        filename
+    )
+    with open(sql_path, 'r', encoding='utf-8') as f:
+        return f.read()
+
+
+# Password reset migration SQL
+PASSWORD_RESET_SQL = """
 -- Create password_reset_tokens table
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id SERIAL PRIMARY KEY,
@@ -31,25 +52,65 @@ COMMENT ON COLUMN password_reset_tokens.ip_address IS 'IP address where reset wa
 """
 
 def run_migration():
-    """Run the password reset migration"""
+    """Run the database migrations"""
     try:
-        # Get database engine
-        engine = get_engine()
+        # Get database connection
+        db = get_db_connection()
+        engine = db.engine
         
-        print("Running password reset migration...")
+        print("=" * 60)
+        print("DATABASE MIGRATION - TicketToTest AI")
+        print("=" * 60)
+        db_name = db.database_url.split('@')[1] if '@' in db.database_url else 'database'
+        print(f"Connected to: {db_name}")
+        print()
         
-        # Execute migration
+        # Step 1: Run main schema migration
+        print("Step 1/2: Running main schema migration...")
+        print("  - Creating base tables (users, teams, workspaces, etc.)")
+        
+        main_schema_sql = read_sql_file('migration_schema.sql')
+        
         with engine.connect() as conn:
-            conn.execute(text(MIGRATION_SQL))
+            conn.execute(text(main_schema_sql))
             conn.commit()
         
-        print("✅ Migration completed successfully!")
-        print("   - Created password_reset_tokens table")
-        print("   - Created indexes for performance")
-        print("   - Added table/column comments")
+        print("  ✅ Main schema migration completed!")
+        print("     - Users table")
+        print("     - Teams table")
+        print("     - Team members table")
+        print("     - Integration credentials table")
+        print("     - Generations & test cases tables")
+        print("     - Workspace context table")
+        print()
+        
+        # Step 2: Run password reset migration
+        print("Step 2/2: Running password reset migration...")
+        print("  - Creating password_reset_tokens table")
+        
+        with engine.connect() as conn:
+            conn.execute(text(PASSWORD_RESET_SQL))
+            conn.commit()
+        
+        print("  ✅ Password reset migration completed!")
+        print("     - password_reset_tokens table")
+        print("     - Indexes for performance")
+        print()
+        
+        print("=" * 60)
+        print("🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!")
+        print("=" * 60)
+        print()
+        print("Your Supabase database is now fully initialized and ready to use!")
+        print("Next step: Update your Render backend with this DATABASE_URL")
         
     except Exception as e:
-        print(f"❌ Migration failed: {e}")
+        print()
+        print("=" * 60)
+        print("❌ MIGRATION FAILED")
+        print("=" * 60)
+        print(f"Error: {e}")
+        print()
         import traceback
         traceback.print_exc()
 

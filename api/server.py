@@ -244,6 +244,27 @@ def health_check():
 # AUTHENTICATION ENDPOINTS
 # ============================================
 
+@app.route('/api/auth/check-availability', methods=['POST'])
+def check_availability():
+    """Check if email or username is available"""
+    try:
+        data = request.get_json()
+        
+        email = data.get('email')
+        username = data.get('username')
+        
+        if not email and not username:
+            return jsonify({'error': 'At least one field (email or username) is required'}), 400
+        
+        result = auth_service.check_availability(email=email, username=username)
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        logger.error(f"Error checking availability: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/auth/signup', methods=['POST'])
 def signup():
     """User registration endpoint"""
