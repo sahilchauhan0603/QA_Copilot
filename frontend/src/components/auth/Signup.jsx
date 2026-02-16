@@ -27,7 +27,10 @@ const Signup = () => {
 
   // Debounced availability check
   const checkAvailability = useCallback(async (field, value) => {
-    if (!value || value.length < 3) {
+    // Trim whitespace for validation
+    const trimmedValue = value.trim();
+    
+    if (!trimmedValue || trimmedValue.length < 3) {
       setAvailability(prev => ({
         ...prev,
         [field]: { available: null, checking: false }
@@ -45,7 +48,7 @@ const Signup = () => {
       const response = await fetch(`${API_URL}/auth/check-availability`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: value })
+        body: JSON.stringify({ [field]: trimmedValue })
       });
 
       const data = await response.json();
@@ -119,10 +122,10 @@ const Signup = () => {
     }
 
     const result = await signup(
-      formData.email,
-      formData.username,
+      formData.email.trim().toLowerCase(),
+      formData.username.trim(),
       formData.password,
-      formData.fullName
+      formData.fullName.trim()
     );
     
     if (result.success) {
@@ -138,9 +141,20 @@ const Signup = () => {
   };
 
   const handleChange = (e) => {
+    const { name, value } = e.target;
+    
+    // Auto-trim email and username, prevent spaces in username
+    let processedValue = value;
+    if (name === 'email') {
+      processedValue = value.trim().toLowerCase();
+    } else if (name === 'username') {
+      // Remove all spaces from username
+      processedValue = value.replace(/\s/g, '');
+    }
+    
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: processedValue,
     });
     setValidationError('');
   };
@@ -277,6 +291,11 @@ const Signup = () => {
               {availability.username.available === true && (
                 <p className="mt-1 text-sm text-green-600">
                   Username is available
+                </p>
+              )}
+              {!availability.username.available && !availability.username.checking && (
+                <p className="input-hint">
+                  No spaces allowed (automatically removed)
                 </p>
               )}
             </div>

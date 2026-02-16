@@ -81,11 +81,15 @@ class AuthService:
                 }
                 
                 if email:
-                    existing_email = session.query(User).filter(User.email == email).first()
+                    # Normalize email: trim and lowercase
+                    normalized_email = email.strip().lower()
+                    existing_email = session.query(User).filter(User.email == normalized_email).first()
                     result['email_available'] = existing_email is None
                 
                 if username:
-                    existing_username = session.query(User).filter(User.username == username).first()
+                    # Trim username and remove spaces
+                    normalized_username = username.strip()
+                    existing_username = session.query(User).filter(User.username == normalized_username).first()
                     result['username_available'] = existing_username is None
                 
                 return result
@@ -118,6 +122,12 @@ class AuthService:
             User object if successful, None otherwise
         """
         try:
+            # Normalize inputs
+            email = email.strip().lower()
+            username = username.strip()
+            if full_name:
+                full_name = full_name.strip()
+            
             with self.db.get_session() as session:
                 # Check if email already exists
                 existing_user = session.query(User).filter(
@@ -177,6 +187,9 @@ class AuthService:
             Tuple of (User object, error message)
         """
         try:
+            # Normalize input (trim and lowercase for email comparison)
+            username_or_email = username_or_email.strip().lower()
+            
             with self.db.get_session() as session:
                 # Find user by username or email
                 user = session.query(User).filter(

@@ -17,7 +17,8 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const result = await login(formData.username, formData.password);
+    // Trim username/email before login
+    const result = await login(formData.username.trim().toLowerCase(), formData.password);
     if (result.success) {
       navigate('/dashboard');
     } else {
@@ -30,9 +31,17 @@ const Login = () => {
   };
 
   const handleChange = (e) => {
+    const { name, value } = e.target;
+    
+    // Auto-trim and lowercase username/email
+    let processedValue = value;
+    if (name === 'username') {
+      processedValue = value.trim().toLowerCase();
+    }
+    
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: processedValue,
     });
   };
 
