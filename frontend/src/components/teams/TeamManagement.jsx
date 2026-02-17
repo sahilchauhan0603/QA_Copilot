@@ -28,7 +28,6 @@ const TeamManagement = ({ onCancel }) => {
   const [newMemberUserId, setNewMemberUserId] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('qa_member');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
 
   // Get teams where user is admin
   const adminTeams = workspaces.filter(w => w.type === 'team' && w.role === 'admin');
@@ -36,17 +35,16 @@ const TeamManagement = ({ onCancel }) => {
   const handleCreateTeam = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
     
     // Validation
     if (newTeamName.trim().length < 3) {
-      setError('Team name must be at least 3 characters long');
+      toast.error('Team name must be at least 3 characters long');
       setIsLoading(false);
       return;
     }
     
     if (newTeamName.trim().length > 100) {
-      setError('Team name must be less than 100 characters');
+      toast.error('Team name must be less than 100 characters');
       setIsLoading(false);
       return;
     }
@@ -56,7 +54,6 @@ const TeamManagement = ({ onCancel }) => {
       setShowCreateModal(false);
       setNewTeamName('');
       setNewTeamDesc('');
-      setError('');
       toast.success(`Team "${newTeamName}" created successfully!`);
       
       // Small delay to ensure database commit completes
@@ -68,8 +65,7 @@ const TeamManagement = ({ onCancel }) => {
         onCancel();
       }
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Failed to create team';
-      setError(errorMsg);
+      toast.error('Failed to create team. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -77,14 +73,13 @@ const TeamManagement = ({ onCancel }) => {
 
   const loadTeamMembers = async (teamId) => {
     setIsLoading(true);
-    setError('');
     try {
       const data = await teamAPI.getTeam(teamId);
       setTeamMembers(data.members || []);
       setCurrentUserRole(data.your_role);
       setSelectedTeam(teamId);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load team members');
+      toast.error('Failed to load team members');
     } finally {
       setIsLoading(false);
     }
@@ -93,19 +88,18 @@ const TeamManagement = ({ onCancel }) => {
   const handleAddMember = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
     
     // Validation
     const userId = parseInt(newMemberUserId);
     if (!userId || userId <= 0) {
-      setError('Please enter a valid User ID');
+      toast.error('Please enter a valid User ID');
       setIsLoading(false);
       return;
     }
     
     // Check if user is already a member
     if (teamMembers.some(m => m.user_id === userId)) {
-      setError('This user is already a member of the team');
+      toast.error('This user is already a member of the team');
       setIsLoading(false);
       return;
     }
@@ -115,12 +109,10 @@ const TeamManagement = ({ onCancel }) => {
       setShowAddMemberModal(false);
       setNewMemberUserId('');
       setNewMemberRole('qa_member');
-      setError('');
       toast.success(`User added as ${newMemberRole.replace('_', ' ')} successfully!`);
       await loadTeamMembers(selectedTeam);
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Failed to add member';
-      setError(errorMsg);
+      toast.error('Failed to add member. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -195,7 +187,7 @@ const TeamManagement = ({ onCancel }) => {
 
   const handleDeleteTeam = async () => {
     if (!teamToDelete) {
-      setError('Please select a team to delete');
+      toast.error('Please select a team to delete');
       return;
     }
 
@@ -207,7 +199,6 @@ const TeamManagement = ({ onCancel }) => {
       toast.success(`Team "${teamName}" deleted successfully!`);
       setShowDeleteTeamModal(false);
       setTeamToDelete('');
-      setError('');
       
       // Switch to personal workspace if deleted team was active
       if (activeWorkspace?.id === parseInt(teamToDelete)) {
@@ -217,8 +208,7 @@ const TeamManagement = ({ onCancel }) => {
       // Refresh workspaces
       await fetchWorkspaces();
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Failed to delete team';
-      setError(errorMsg);
+      toast.error('Failed to delete team. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -260,12 +250,6 @@ const TeamManagement = ({ onCancel }) => {
               <X size={24} />
             </button>
           </div>
-          
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
           
           <form onSubmit={handleCreateTeam} className="space-y-4">
             <div>
@@ -347,14 +331,8 @@ const TeamManagement = ({ onCancel }) => {
                 <Users size={16} />
                 View Team Members
               </>
-            )}
+            )}          
           </button>
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
         </div>
       )}
 
@@ -446,11 +424,6 @@ const TeamManagement = ({ onCancel }) => {
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Create New Team</h3>
             <form onSubmit={handleCreateTeam} className="space-y-4">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
               <div>
                 <label htmlFor="teamName" className="block text-sm font-medium text-gray-700 mb-1">
                   Team Name *
@@ -490,7 +463,7 @@ const TeamManagement = ({ onCancel }) => {
                     setShowCreateModal(false);
                     setNewTeamName('');
                     setNewTeamDesc('');
-                    setError('');
+
                   }}
                   className="btn-secondary w-full sm:w-auto"
                 >
@@ -523,11 +496,6 @@ const TeamManagement = ({ onCancel }) => {
               </button>
             </div>
             <form onSubmit={handleAddMember} className="space-y-4">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
               <div>
                 <label htmlFor="userId" className="block text-sm font-medium text-gray-700 mb-1">
                   User ID *
@@ -568,7 +536,7 @@ const TeamManagement = ({ onCancel }) => {
                     setShowAddMemberModal(false);
                     setNewMemberUserId('');
                     setNewMemberRole('qa_member');
-                    setError('');
+
                   }}
                   className="btn-secondary w-full sm:w-auto"
                 >
@@ -746,7 +714,7 @@ const TeamManagement = ({ onCancel }) => {
                 onClick={() => {
                   setShowDeleteTeamModal(false);
                   setTeamToDelete('');
-                  setError('');
+
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -754,11 +722,6 @@ const TeamManagement = ({ onCancel }) => {
               </button>
             </div>
             <div className="space-y-4">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
               <p className="text-gray-700">
                 Select a team to permanently delete:
               </p>
@@ -807,7 +770,6 @@ const TeamManagement = ({ onCancel }) => {
                   onClick={() => {
                     setShowDeleteTeamModal(false);
                     setTeamToDelete('');
-                    setError('');
                   }}
                   className="btn-secondary w-full sm:w-auto"
                   disabled={isLoading}

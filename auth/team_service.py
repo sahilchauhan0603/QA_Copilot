@@ -72,7 +72,7 @@ class TeamService:
                 
         except Exception as e:
             logger.error(f"Error creating team: {e}")
-            return None, f"Failed to create team: {str(e)}"
+            return None, "Failed to create team. Please try again."
     
     def add_team_member(
         self,
@@ -126,7 +126,7 @@ class TeamService:
                 
         except Exception as e:
             logger.error(f"Error adding team member: {e}")
-            return False, f"Failed to add team member: {str(e)}"
+            return False, "Failed to add team member. Please try again."
     
     def remove_team_member(
         self,
@@ -175,7 +175,7 @@ class TeamService:
                 
         except Exception as e:
             logger.error(f"Error removing team member: {e}")
-            return False, f"Failed to remove team member: {str(e)}"
+            return False, "Failed to remove team member. Please try again."
     
     def update_member_role(
         self,
@@ -229,7 +229,7 @@ class TeamService:
                 
         except Exception as e:
             logger.error(f"Error updating member role: {e}")
-            return False, f"Failed to update member role: {str(e)}"
+            return False, "Failed to update member role. Please try again."
     
     def get_user_teams(self, user_id: int) -> List[Dict[str, Any]]:
         """
@@ -382,4 +382,4 @@ class TeamService:
                 
         except Exception as e:
             logger.error(f"Error deleting team: {e}")
-            return False, f"Failed to delete team: {str(e)}"
+            return False, "Failed to delete team. Please try again."

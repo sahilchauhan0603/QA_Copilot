@@ -64,7 +64,7 @@ class TestManagementService:
             
         except Exception as e:
             logger.error(f"Export to Xray failed: {e}")
-            return {'success': False, 'error': str(e)}
+            return {'success': False, 'error': 'Failed to export to Xray. Please try again.'}
     
     @staticmethod
     def export_to_zephyr(
@@ -115,7 +115,7 @@ class TestManagementService:
             
         except Exception as e:
             logger.error(f"Export to Zephyr failed: {e}")
-            return {'success': False, 'error': str(e)}
+            return {'success': False, 'error': 'Failed to export to Zephyr Scale. Please try again.'}
     
     @staticmethod
     def export_to_testrail(
@@ -170,7 +170,7 @@ class TestManagementService:
             
         except Exception as e:
             logger.error(f"Export to TestRail failed: {e}")
-            return {'success': False, 'error': str(e)}
+            return {'success': False, 'error': 'Failed to export to TestRail. Please try again.'}
     
     @staticmethod
     def format_test_cases_for_export(generation_data: Dict[str, Any]) -> List[Dict[str, Any]]:

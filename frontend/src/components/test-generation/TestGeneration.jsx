@@ -151,7 +151,7 @@ const TestGeneration = () => {
       await loadStatistics();
     } catch (err) {
       if (!err.message?.includes('cancelled')) {
-        toast.error(err.message || 'Generation failed');
+        toast.error('Test generation failed. Please try again.');
       }
     } finally {
       setGenerating(false);

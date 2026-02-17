@@ -72,7 +72,7 @@ class IntegrationService:
 
         except Exception as e:
             logger.error(f"Error saving integration config: {e}")
-            return None, str(e)
+            return None, "Failed to retrieve integration configuration"
 
     def get_config(self, integration_type: str, user_id: int = None, team_id: int = None) -> dict:
         """
@@ -110,7 +110,7 @@ class IntegrationService:
                 }
         except Exception as e:
             logger.error(f"Error getting integration config: {e}")
-            return {'configured': False, 'error': str(e)}
+            return {'configured': False, 'error': 'Failed to check integration setup'}
 
     def get_all_configs(self, user_id: int = None, team_id: int = None) -> list:
         """Get all integration configs for a workspace."""
@@ -163,7 +163,7 @@ class IntegrationService:
             return deleted > 0, None
         except Exception as e:
             logger.error(f"Error deleting integration config: {e}")
-            return False, str(e)
+            return False, "Failed to save integration configuration"
 
     def get_credentials(self, integration_type: str, user_id: int = None, team_id: int = None) -> dict:
         """
@@ -236,7 +236,7 @@ class IntegrationService:
 
         except Exception as e:
             logger.error(f"Connection test error: {e}")
-            return False, f"Connection failed: {str(e)}"
+            return False, "Connection test failed. Please check your credentials."
 
     def fetch_ticket(self, integration_type: str, ticket_id: str,
                      user_id: int = None, team_id: int = None) -> tuple:

@@ -98,7 +98,7 @@ class AuthService:
             return {
                 'email_available': False,
                 'username_available': False,
-                'error': str(e)
+                'error': 'Failed to check availability'
             }
     
     def create_user(
@@ -169,7 +169,7 @@ class AuthService:
                 
         except Exception as e:
             logger.error(f"Error creating user: {e}")
-            return None, f"Failed to create user: {str(e)}"
+            return None, "Failed to create user. Please try again."
     
     def authenticate_user(
         self,

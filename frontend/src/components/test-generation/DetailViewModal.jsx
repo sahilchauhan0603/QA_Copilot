@@ -85,7 +85,7 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
         }
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || `Sync failed: ${err.message}`);
+      toast.error(err.response?.data?.error || 'Sync failed. Please try again.');
     } finally {
       setSyncing(null);
     }

@@ -84,7 +84,7 @@ const RefineMenu = ({ generationId, onClose }) => {
       }
     } catch (err) {
       if (!err.message?.includes('cancelled')) {
-        toast.error(err.response?.data?.error || `Refinement failed: ${err.message}`);
+        toast.error(err.response?.data?.error || 'Refinement failed. Please try again.');
       }
     } finally {
       setRefining(false);

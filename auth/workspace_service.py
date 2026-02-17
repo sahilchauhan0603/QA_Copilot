@@ -119,7 +119,7 @@ class WorkspaceService:
                 
         except Exception as e:
             logger.error(f"Error switching workspace: {e}")
-            return False, f"Failed to switch workspace: {str(e)}"
+            return False, "Failed to switch workspace. Please try again."
     
     def get_active_workspace(self, user_id: int) -> Optional[int]:
         """

@@ -45,7 +45,7 @@ const ExportMenu = ({ generationId, ticketId }) => {
         toast.success(`Exported ${result.result.created} test cases to TestRail`);
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || `Export failed: ${err.message}`);
+      toast.error(err.response?.data?.error || 'Export failed. Please try again.');
     } finally {
       setExporting(null);
       setExportSuiteName('');
