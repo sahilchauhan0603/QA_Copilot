@@ -86,7 +86,7 @@ class TeamMember(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     team_id = Column(Integer, ForeignKey('teams.id', ondelete='CASCADE'), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
-    role = Column(Enum(TeamRole), nullable=False, default=TeamRole.QA_MEMBER)
+    role = Column(Enum(TeamRole, name='team_role', native_enum=True, values_callable=lambda x: [e.value for e in x]), nullable=False, default=TeamRole.QA_MEMBER)
     joined_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Unique constraint: user can only be in a team once
@@ -128,7 +128,7 @@ class IntegrationCredential(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True)
     team_id = Column(Integer, ForeignKey('teams.id', ondelete='CASCADE'), nullable=True, index=True)
-    integration_type = Column(Enum(IntegrationType), nullable=False)
+    integration_type = Column(Enum(IntegrationType, name='integration_type', native_enum=True, values_callable=lambda x: [e.value for e in x]), nullable=False)
     encrypted_credentials = Column(Text, nullable=False)  # Fernet encrypted JSON
     config = Column(JSON)  # Additional settings (server URL, project key, etc.)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -160,7 +160,7 @@ class TestGenerationHistory(Base):
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     team_id = Column(Integer, ForeignKey('teams.id', ondelete='SET NULL'), nullable=True, index=True)
     ticket_id = Column(String(100), nullable=False, index=True)
-    ticket_source = Column(Enum(IntegrationType))
+    ticket_source = Column(Enum(IntegrationType, name='integration_type', native_enum=True, values_callable=lambda x: [e.value for e in x]))
     roadmap = Column(JSON)  # QA Execution Roadmap
     test_cases = Column(JSON)  # Generated test cases
     coverage_report = Column(JSON)  # Coverage auditor output
