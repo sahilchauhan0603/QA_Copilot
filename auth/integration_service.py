@@ -231,6 +231,19 @@ class IntegrationService:
                     return True, "Successfully connected to Azure DevOps"
                 return False, "Failed to connect to Azure DevOps. Check your credentials."
 
+            elif integration_type == 'testrail':
+                from integrations.testrail_integration import TestRailIntegration
+                integration = TestRailIntegration(
+                    url=config.get('url'),
+                    email=config.get('email'),
+                    api_key=credentials.get('api_key'),
+                    project_id=int(config.get('project_id', 0)) if config.get('project_id') else None
+                )
+                connected = integration.connect()
+                if connected:
+                    return True, "Successfully connected to TestRail"
+                return False, "Failed to connect to TestRail. Check your credentials."
+
             else:
                 return False, f"Unknown integration type: {integration_type}"
 

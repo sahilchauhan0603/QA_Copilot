@@ -33,11 +33,14 @@ apiClient.interceptors.response.use(
   (error) => {
     const isLoginEndpoint = error.config?.url?.includes('/auth/login');
     const isViewCredentials = error.config?.url?.includes('/view-credentials');
+    const errorMsg = error.response?.data?.error || '';
+    
+    // Skip toast for configuration errors - handled by components with custom toast
+    const isConfigError = errorMsg.includes('not configured');
 
     if (error.response?.status === 401) {
       if (isLoginEndpoint || isViewCredentials) {
-        const errorMsg = error.response?.data?.error || 'Invalid credentials';
-        toast.error(errorMsg, { id: 'auth-error' });
+        toast.error(errorMsg || 'Invalid credentials', { id: 'auth-error' });
       } else {
         toast.error('Session expired. Please login again.', { id: 'session-expired' });
         localStorage.removeItem('auth_token');
@@ -51,11 +54,11 @@ apiClient.interceptors.response.use(
       toast.error('Resource not found.', { id: 'not-found' });
     } else if (error.response?.status >= 500) {
       toast.error('Server error. Please try again later.', { id: 'server-error' });
-    } else if (error.response?.data?.error) {
+    } else if (error.response?.data?.error && !isConfigError) {
       toast.error(error.response.data.error, { id: 'api-error' });
     } else if (error.message === 'Network Error') {
       toast.error('Network error. Please check your connection.', { id: 'network-error' });
-    } else {
+    } else if (!isConfigError) {
       toast.error('Something went wrong. Please try again.', { id: 'generic-error' });
     }
     return Promise.reject(error);

@@ -24,6 +24,7 @@ import {
   ListChecks,
   ShieldAlert,
   HelpCircle,
+  Settings,
 } from 'lucide-react';
 import { integrationAPI } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -84,8 +85,37 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
           toast.success(`Synced to ${gen.ticket_id} successfully`);
         }
       }
+      
+      // Close modal after successful sync
+      setTimeout(() => {
+        onClose();
+      }, 1500);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Sync failed. Please try again.');
+      // Check if it's a configuration error
+      const errorMsg = err.response?.data?.error || '';
+      if (errorMsg.includes('not configured')) {
+        // Show custom toast with settings button
+        toast.error(
+          (t) => (
+            <div className="flex items-center gap-3">
+              <span className="flex-1">{errorMsg}</span>
+              <button
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  window.location.href = '/settings';
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors"
+              >
+                <Settings size={14} />
+                Settings
+              </button>
+            </div>
+          ),
+          { duration: 6000, id: 'config-error' }
+        );
+      }
+      console.error('Sync error:', err);
+      // Don't close modal on error
     } finally {
       setSyncing(null);
     }
@@ -161,7 +191,7 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
               <span className="hidden sm:inline">Export Excel</span>
               <span className="sm:hidden">Excel</span>
             </button>
-            <ExportMenu generationId={gen.id} ticketId={gen.ticket_id} />
+            <ExportMenu generationId={gen.id} ticketId={gen.ticket_id} onClose={onClose} />
             <SyncMenu
               sourceIntegration={sourceIntegration}
               integrationLabel={integrationLabel}

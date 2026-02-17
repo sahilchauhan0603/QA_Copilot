@@ -20,11 +20,21 @@ const WorkspaceSelector = () => {
 
   const handleWorkspaceSwitch = async (workspaceId) => {
     setSwitching(true);
-    await switchWorkspace(workspaceId);
-    // Delay reload to allow toast to be visible
-    setTimeout(() => {
-      window.location.reload();
-    }, 1500);
+    setIsOpen(false);
+    try {
+      const result = await switchWorkspace(workspaceId);
+      if (result.success) {
+        // Small delay to allow state to persist, then reload
+        await new Promise(resolve => setTimeout(resolve, 500));
+        window.location.href = window.location.href;
+      } else {
+        // Error already shown by switchWorkspace
+        setSwitching(false);
+      }
+    } catch (error) {
+      console.error('Workspace switch failed:', error);
+      setSwitching(false);
+    }
   };
 
   // Close dropdown when clicking outside
@@ -45,7 +55,20 @@ const WorkspaceSelector = () => {
   }, [isOpen]);
 
   return (
-    <div className="workspace-selector relative w-full md:w-auto">
+    <>
+      {/* Loading Overlay */}
+      {switching && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-lg p-6 shadow-xl">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm text-gray-600">Switching workspace...</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="workspace-selector relative w-full md:w-auto">
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={switching}
@@ -116,6 +139,7 @@ const WorkspaceSelector = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

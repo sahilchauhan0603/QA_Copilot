@@ -13,6 +13,7 @@ import {
   FileText,
   Loader,
   XCircle,
+  Settings,
 } from 'lucide-react';
 import { testGenAPI } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -83,8 +84,31 @@ const RefineMenu = ({ generationId, onClose }) => {
         }, 2000);
       }
     } catch (err) {
+      // Check if it's a configuration error
+      const errorMsg = err.response?.data?.error || err.message || '';
       if (!err.message?.includes('cancelled')) {
-        toast.error(err.response?.data?.error || 'Refinement failed. Please try again.');
+        if (errorMsg.includes('not configured')) {
+          // Show custom toast with settings button
+          toast.error(
+            (t) => (
+              <div className="flex items-center gap-3">
+                <span className="flex-1">{errorMsg}</span>
+                <button
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    window.location.href = '/settings';
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors"
+                >
+                  <Settings size={14} />
+                  Settings
+                </button>
+              </div>
+            ),
+            { duration: 6000, id: 'config-error' }
+          );
+        }
+        console.error('Refinement error:', err);
       }
     } finally {
       setRefining(false);

@@ -26,6 +26,9 @@ class IntegrationType(str, enum.Enum):
     """Integration platform types"""
     JIRA = "jira"
     AZURE_DEVOPS = "azure_devops"
+    XRAY = "xray"
+    ZEPHYR = "zephyr"
+    TESTRAIL = "testrail"
 
 
 class User(Base):

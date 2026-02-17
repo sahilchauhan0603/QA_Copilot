@@ -8,6 +8,7 @@ import logging
 from integrations.xray_integration import XrayIntegration
 from integrations.zephyr_integration import ZephyrIntegration
 from integrations.testrail_integration import TestRailIntegration
+from auth.integration_service import IntegrationService
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +16,14 @@ logger = logging.getLogger(__name__)
 class TestManagementService:
     """Service for managing test case exports"""
     
-    @staticmethod
+    def __init__(self):
+        self.integration_service = IntegrationService()
+    
     def export_to_xray(
+        self,
         test_cases: List[Dict[str, Any]],
+        user_id: int,
+        team_id: Optional[int] = None,
         suite_name: str = None,
         ticket_id: str = None,
         project_key: str = None
@@ -27,15 +33,35 @@ class TestManagementService:
         
         Args:
             test_cases: List of generated test cases
+            user_id: User ID for credential lookup
+            team_id: Optional team ID for credential lookup
             suite_name: Optional test set name
             ticket_id: Optional Jira ticket to link
-            project_key: Jira project key
+            project_key: Jira project key (from config or override)
         
         Returns:
             Export results summary
         """
         try:
-            xray = XrayIntegration(project_key=project_key)
+            # Get Jira credentials (Xray uses Jira)
+            jira_creds = self.integration_service.get_credentials('jira', user_id=user_id, team_id=team_id)
+            if not jira_creds:
+                return {'success': False, 'error': 'Jira integration not configured. Please configure Jira credentials first.'}
+            
+            # Get Xray config for project key
+            xray_config = self.integration_service.get_credentials('xray', user_id=user_id, team_id=team_id)
+            if not project_key:
+                project_key = xray_config.get('project_key') if xray_config else None
+            
+            if not project_key:
+                return {'success': False, 'error': 'Xray project key not configured. Please configure Xray settings.'}
+            
+            xray = XrayIntegration(
+                jira_url=jira_creds.get('url'),
+                email=jira_creds.get('email'),
+                api_token=jira_creds.get('api_token'),
+                project_key=project_key
+            )
             
             if not xray.connect():
                 return {'success': False, 'error': 'Failed to connect to Xray'}
@@ -66,9 +92,11 @@ class TestManagementService:
             logger.error(f"Export to Xray failed: {e}")
             return {'success': False, 'error': 'Failed to export to Xray. Please try again.'}
     
-    @staticmethod
     def export_to_zephyr(
+        self,
         test_cases: List[Dict[str, Any]],
+        user_id: int,
+        team_id: Optional[int] = None,
         suite_name: str = None,
         ticket_id: str = None,
         project_key: str = None
@@ -78,15 +106,38 @@ class TestManagementService:
         
         Args:
             test_cases: List of generated test cases
+            user_id: User ID for credential lookup
+            team_id: Optional team ID for credential lookup
             suite_name: Optional test cycle name
             ticket_id: Optional Jira ticket to link
-            project_key: Jira project key
+            project_key: Jira project key (from config or override)
         
         Returns:
             Export results summary
         """
         try:
-            zephyr = ZephyrIntegration(project_key=project_key)
+            # Get Jira credentials (Zephyr uses Jira)
+            jira_creds = self.integration_service.get_credentials('jira', user_id=user_id, team_id=team_id)
+            if not jira_creds:
+                return {'success': False, 'error': 'Jira integration not configured. Please configure Jira credentials first.'}
+            
+            # Get Zephyr config for project key and optional Zephyr token
+            zephyr_config = self.integration_service.get_credentials('zephyr', user_id=user_id, team_id=team_id)
+            if not project_key:
+                project_key = zephyr_config.get('project_key') if zephyr_config else None
+            
+            if not project_key:
+                return {'success': False, 'error': 'Zephyr project key not configured. Please configure Zephyr settings.'}
+            
+            zephyr_token = zephyr_config.get('zephyr_token') if zephyr_config else None
+            
+            zephyr = ZephyrIntegration(
+                jira_url=jira_creds.get('url'),
+                email=jira_creds.get('email'),
+                api_token=jira_creds.get('api_token'),
+                zephyr_token=zephyr_token,
+                project_key=project_key
+            )
             
             if not zephyr.connect():
                 return {'success': False, 'error': 'Failed to connect to Zephyr'}
@@ -117,9 +168,11 @@ class TestManagementService:
             logger.error(f"Export to Zephyr failed: {e}")
             return {'success': False, 'error': 'Failed to export to Zephyr Scale. Please try again.'}
     
-    @staticmethod
     def export_to_testrail(
+        self,
         test_cases: List[Dict[str, Any]],
+        user_id: int,
+        team_id: Optional[int] = None,
         suite_name: str = None,
         ticket_id: str = None,
         project_id: int = None
@@ -129,15 +182,30 @@ class TestManagementService:
         
         Args:
             test_cases: List of generated test cases
+            user_id: User ID for credential lookup
+            team_id: Optional team ID for credential lookup
             suite_name: Test suite name (required for TestRail)
             ticket_id: Optional external ticket reference
-            project_id: TestRail project ID
+            project_id: TestRail project ID (from config or override)
         
         Returns:
             Export results summary
         """
         try:
-            testrail = TestRailIntegration(project_id=project_id)
+            # Get TestRail credentials
+            testrail_creds = self.integration_service.get_credentials('testrail', user_id=user_id, team_id=team_id)
+            if not testrail_creds:
+                return {'success': False, 'error': 'TestRail integration not configured. Please configure TestRail credentials first.'}
+            
+            if not project_id:
+                project_id = int(testrail_creds.get('project_id', 0)) if testrail_creds.get('project_id') else None
+            
+            testrail = TestRailIntegration(
+                url=testrail_creds.get('url'),
+                email=testrail_creds.get('email'),
+                api_key=testrail_creds.get('api_key'),
+                project_id=project_id
+            )
             
             if not testrail.connect():
                 return {'success': False, 'error': 'Failed to connect to TestRail'}

@@ -3,11 +3,11 @@
  * Dropdown menu + dialog for exporting to Xray, Zephyr Scale, TestRail
  */
 import { useState } from 'react';
-import { UploadCloud, Loader } from 'lucide-react';
+import { UploadCloud, Loader, Settings } from 'lucide-react';
 import { testManagementAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
-const ExportMenu = ({ generationId, ticketId }) => {
+const ExportMenu = ({ generationId, ticketId, onClose }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [exporting, setExporting] = useState(null);
   const [exportSuiteName, setExportSuiteName] = useState('');
@@ -44,8 +44,39 @@ const ExportMenu = ({ generationId, ticketId }) => {
         result = await testManagementAPI.exportToTestRail(generationId, suiteName, ticketId || null);
         toast.success(`Exported ${result.result.created} test cases to TestRail`);
       }
+      
+      // Close modal after successful export
+      if (onClose) {
+        setTimeout(() => {
+          onClose();
+        }, 1500);
+      }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Export failed. Please try again.');
+      // Check if it's a configuration error
+      const errorMsg = err.response?.data?.error || '';
+      if (errorMsg.includes('not configured')) {
+        // Show custom toast with settings button
+        toast.error(
+          (t) => (
+            <div className="flex items-center gap-3">
+              <span className="flex-1">{errorMsg}</span>
+              <button
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  window.location.href = '/settings';
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors"
+              >
+                <Settings size={14} />
+                Settings
+              </button>
+            </div>
+          ),
+          { duration: 6000, id: 'config-error' }
+        );
+      }
+      console.error('Export error:', err);
+      // Don't close modal on error - let user try again or cancel
     } finally {
       setExporting(null);
       setExportSuiteName('');
@@ -111,7 +142,7 @@ const ExportMenu = ({ generationId, ticketId }) => {
 
       {/* Export Dialog */}
       {showDialog && (
-        <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50 rounded-xl">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
             <h4 className="text-lg font-bold text-gray-900 mb-4">
               Export to {selectedTool === 'xray' ? 'Xray' : selectedTool === 'zephyr' ? 'Zephyr Scale' : 'TestRail'}

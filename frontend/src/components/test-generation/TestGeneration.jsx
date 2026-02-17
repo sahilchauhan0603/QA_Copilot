@@ -27,6 +27,7 @@ const TestGeneration = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [activeTab, setActiveTab] = useState('custom');
+  const [loadingView, setLoadingView] = useState(false);
 
   // ──── History Filters ────
   const [searchQuery, setSearchQuery] = useState('');
@@ -182,12 +183,15 @@ const TestGeneration = () => {
 
   // ──── Shared Actions ────
   const viewGeneration = async (id) => {
+    setLoadingView(true);
     try {
       const data = await testGenAPI.getGeneration(id);
       setSelectedGeneration(data);
       setShowDetails(true);
     } catch {
       toast.error('Failed to load generation details');
+    } finally {
+      setLoadingView(false);
     }
   };
 
@@ -314,6 +318,18 @@ const TestGeneration = () => {
         onDownload={downloadExcel}
         onDelete={deleteGeneration}
       />
+
+      {/* ─── Loading Overlay ─── */}
+      {loadingView && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-lg p-6 shadow-xl">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm text-gray-600">Loading generation details...</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Detail Modal ─── */}
       {showDetails && selectedGeneration && (

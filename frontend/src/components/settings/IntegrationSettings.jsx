@@ -42,9 +42,24 @@ const IntegrationSettings = () => {
   const [adoTesting, setAdoTesting] = useState(false);
   const [adoSaving, setAdoSaving] = useState(false);
 
+  // Xray form (uses Jira credentials)
+  const [xrayForm, setXrayForm] = useState({ project_key: '' });
+  const [xrayTesting, setXrayTesting] = useState(false);
+  const [xraySaving, setXraySaving] = useState(false);
+
+  // Zephyr form (uses Jira credentials + optional Zephyr token)
+  const [zephyrForm, setZephyrForm] = useState({ zephyr_token: '', project_key: '' });
+  const [zephyrTesting, setZephyrTesting] = useState(false);
+  const [zephyrSaving, setZephyrSaving] = useState(false);
+
+  // TestRail form
+  const [testrailForm, setTestrailForm] = useState({ url: '', email: '', api_key: '', project_id: '' });
+  const [testrailTesting, setTestrailTesting] = useState(false);
+  const [testrailSaving, setTestrailSaving] = useState(false);
+
   // Password modal for viewing credentials
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [viewIntegrationType, setViewIntegrationType] = useState(null); // 'jira' or 'azure_devops'
+  const [viewIntegrationType, setViewIntegrationType] = useState(null);
   const [verifyPassword, setVerifyPassword] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [revealedToken, setRevealedToken] = useState(null);
@@ -79,6 +94,39 @@ const IntegrationSettings = () => {
           ...prev,
           organization_url: adoConfig.config.organization_url || '',
           project: adoConfig.config.project || '',
+        }));
+      }
+
+      // Pre-fill test management tools
+      const xrayConfig = (data.integrations || []).find(
+        (c) => c.integration_type === 'xray'
+      );
+      if (xrayConfig?.config) {
+        setXrayForm((prev) => ({
+          ...prev,
+          project_key: xrayConfig.config.project_key || '',
+        }));
+      }
+
+      const zephyrConfig = (data.integrations || []).find(
+        (c) => c.integration_type === 'zephyr'
+      );
+      if (zephyrConfig?.config) {
+        setZephyrForm((prev) => ({
+          ...prev,
+          project_key: zephyrConfig.config.project_key || '',
+        }));
+      }
+
+      const testrailConfig = (data.integrations || []).find(
+        (c) => c.integration_type === 'testrail'
+      );
+      if (testrailConfig?.config) {
+        setTestrailForm((prev) => ({
+          ...prev,
+          url: testrailConfig.config.url || '',
+          email: testrailConfig.config.email || '',
+          project_id: testrailConfig.config.project_id || '',
         }));
       }
     } catch (err) {
@@ -206,6 +254,138 @@ const IntegrationSettings = () => {
     }
   };
 
+  // ── Xray handlers ──
+  const handleXraySave = async () => {
+    if (!xrayForm.project_key) {
+      toast.error('Please enter Xray project key');
+      return;
+    }
+    // Check if Jira is configured
+    if (!isConfigured('jira')) {
+      toast.error('Jira must be configured first (Xray uses Jira credentials)');
+      return;
+    }
+    setXraySaving(true);
+    try {
+      await integrationAPI.saveConfig(
+        'xray',
+        {},
+        { project_key: xrayForm.project_key }
+      );
+      toast.success('Xray configuration saved!');
+      loadConfigs();
+    } catch (err) {
+      // handled by interceptor
+    } finally {
+      setXraySaving(false);
+    }
+  };
+
+  const handleXrayDelete = async () => {
+    if (!confirm('Remove Xray configuration?')) return;
+    try {
+      await integrationAPI.deleteConfig('xray');
+      toast.success('Xray configuration removed');
+      setXrayForm({ project_key: '' });
+      loadConfigs();
+    } catch (err) {
+      // handled by interceptor
+    }
+  };
+
+  // ── Zephyr handlers ──
+  const handleZephyrSave = async () => {
+    if (!zephyrForm.project_key) {
+      toast.error('Please enter Zephyr project key');
+      return;
+    }
+    // Check if Jira is configured
+    if (!isConfigured('jira')) {
+      toast.error('Jira must be configured first (Zephyr uses Jira credentials)');
+      return;
+    }
+    setZephyrSaving(true);
+    try {
+      await integrationAPI.saveConfig(
+        'zephyr',
+        zephyrForm.zephyr_token ? { zephyr_token: zephyrForm.zephyr_token } : {},
+        { project_key: zephyrForm.project_key }
+      );
+      toast.success('Zephyr configuration saved!');
+      loadConfigs();
+    } catch (err) {
+      // handled by interceptor
+    } finally {
+      setZephyrSaving(false);
+    }
+  };
+
+  const handleZephyrDelete = async () => {
+    if (!confirm('Remove Zephyr configuration?')) return;
+    try {
+      await integrationAPI.deleteConfig('zephyr');
+      toast.success('Zephyr configuration removed');
+      setZephyrForm({ zephyr_token: '', project_key: '' });
+      loadConfigs();
+    } catch (err) {
+      // handled by interceptor
+    }
+  };
+
+  // ── TestRail handlers ──
+  const handleTestrailTest = async () => {
+    if (!testrailForm.url || !testrailForm.email || !testrailForm.api_key) {
+      toast.error('Please fill in all TestRail fields');
+      return;
+    }
+    setTestrailTesting(true);
+    try {
+      const result = await integrationAPI.testConnection(
+        'testrail',
+        { api_key: testrailForm.api_key },
+        { url: testrailForm.url, email: testrailForm.email, project_id: testrailForm.project_id }
+      );
+      toast.success(result.message || 'TestRail connection successful!');
+    } catch (err) {
+      // handled by interceptor
+    } finally {
+      setTestrailTesting(false);
+    }
+  };
+
+  const handleTestrailSave = async () => {
+    if (!testrailForm.url || !testrailForm.email || !testrailForm.api_key) {
+      toast.error('Please fill in all TestRail fields');
+      return;
+    }
+    setTestrailSaving(true);
+    try {
+      await integrationAPI.saveConfig(
+        'testrail',
+        { api_key: testrailForm.api_key },
+        { url: testrailForm.url, email: testrailForm.email, project_id: testrailForm.project_id }
+      );
+      toast.success('TestRail configuration saved!');
+      loadConfigs();
+    } catch (err) {
+      // handled by interceptor
+    } finally {
+      setTestrailSaving(false);
+    }
+  };
+
+  const handleTestrailDelete = async () => {
+    if (!confirm('Remove TestRail configuration?')) return;
+    try {
+      await integrationAPI.deleteConfig('testrail');
+      toast.success('TestRail configuration removed');
+      setTestrailForm({ url: '', email: '', api_key: '', project_id: '' });
+      loadConfigs();
+    } catch (err) {
+      // handled by interceptor
+    }
+  };
+
   // ── View credentials handlers ──
   const handleViewToken = (integrationType) => {
     if (!isConfigured(integrationType)) {
@@ -271,7 +451,7 @@ const IntegrationSettings = () => {
             Your credentials are encrypted and stored securely
           </p>
           <p className="text-xs text-blue-700 mt-1">
-            Integration credentials are scoped to your current workspace (personal or team). API tokens and PATs are encrypted at rest using AES-256.
+            Integration credentials are scoped to your current workspace (personal or team). Configure ticket tracking integrations (Jira, Azure DevOps) and test management tools (Xray, Zephyr, TestRail) to automate your workflow. All API tokens and keys are encrypted at rest using AES-256.
           </p>
         </div>
       </div>
@@ -548,6 +728,348 @@ const IntegrationSettings = () => {
         )}
       </div>
 
+      {/* ── Xray Integration ── */}
+      <div className="card">
+        <button
+          onClick={() => toggleSection('xray')}
+          className="w-full flex items-center justify-between mb-0 focus:outline-none group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center text-white font-bold">
+              X
+            </div>
+            <div className="text-left">
+              <h3 className="text-lg font-semibold text-gray-900">Xray for Jira</h3>
+              <div className="flex items-center gap-2 text-xs">
+                {isConfigured('xray') ? (
+                  <span className="text-green-600 flex items-center gap-1">
+                    <CheckCircle size={12} /> Connected
+                  </span>
+                ) : (
+                  <span className="text-gray-500 flex items-center gap-1">
+                    <XCircle size={12} /> Not configured
+                  </span>
+                )}
+                {getLastUpdated('xray') && (
+                  <span className="text-gray-400">
+                    &bull; Updated {getLastUpdated('xray')}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          {expandedSection === 'xray' ? (
+            <ChevronDown size={20} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+          ) : (
+            <ChevronRight size={20} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+          )}
+        </button>
+
+        {expandedSection === 'xray' && (
+          <div className="space-y-4 mt-5 pt-5 border-t border-gray-200">
+            {!isConfigured('jira') && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-2">
+                <AlertCircle size={16} className="text-yellow-600 mt-0.5 shrink-0" />
+                <p className="text-sm text-yellow-800">
+                  Xray uses your Jira credentials. Please configure Jira first.
+                </p>
+              </div>
+            )}
+            <div>
+              <label className="input-label">Jira Project Key</label>
+              <input
+                type="text"
+                value={xrayForm.project_key}
+                onChange={(e) => setXrayForm((p) => ({ ...p, project_key: e.target.value }))}
+                className="input"
+                placeholder="e.g., PROJ"
+              />
+              <p className="input-hint">
+                The project where Xray test cases will be created
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={handleXraySave}
+                disabled={xraySaving || !isConfigured('jira')}
+                className="btn-primary flex items-center gap-2 text-sm"
+              >
+                {xraySaving ? (
+                  <Loader size={14} className="animate-spin" />
+                ) : (
+                  <CheckCircle size={14} />
+                )}
+                Save
+              </button>
+              {isConfigured('xray') && (
+                <button
+                  onClick={handleXrayDelete}
+                  className="btn-secondary text-red-600 hover:text-red-700 flex items-center gap-1 text-sm ml-auto"
+                >
+                  <Trash2 size={14} />
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Zephyr Scale Integration ── */}
+      <div className="card">
+        <button
+          onClick={() => toggleSection('zephyr')}
+          className="w-full flex items-center justify-between mb-0 focus:outline-none group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold">
+              Z
+            </div>
+            <div className="text-left">
+              <h3 className="text-lg font-semibold text-gray-900">Zephyr Scale</h3>
+              <div className="flex items-center gap-2 text-xs">
+                {isConfigured('zephyr') ? (
+                  <span className="text-green-600 flex items-center gap-1">
+                    <CheckCircle size={12} /> Connected
+                  </span>
+                ) : (
+                  <span className="text-gray-500 flex items-center gap-1">
+                    <XCircle size={12} /> Not configured
+                  </span>
+                )}
+                {getLastUpdated('zephyr') && (
+                  <span className="text-gray-400">
+                    &bull; Updated {getLastUpdated('zephyr')}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          {expandedSection === 'zephyr' ? (
+            <ChevronDown size={20} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+          ) : (
+            <ChevronRight size={20} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+          )}
+        </button>
+
+        {expandedSection === 'zephyr' && (
+          <div className="space-y-4 mt-5 pt-5 border-t border-gray-200">
+            {!isConfigured('jira') && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-2">
+                <AlertCircle size={16} className="text-yellow-600 mt-0.5 shrink-0" />
+                <p className="text-sm text-yellow-800">
+                  Zephyr uses your Jira credentials. Please configure Jira first.
+                </p>
+              </div>
+            )}
+            <div>
+              <label className="input-label">Jira Project Key</label>
+              <input
+                type="text"
+                value={zephyrForm.project_key}
+                onChange={(e) => setZephyrForm((p) => ({ ...p, project_key: e.target.value }))}
+                className="input"
+                placeholder="e.g., PROJ"
+              />
+              <p className="input-hint">
+                The project where Zephyr test cases will be created
+              </p>
+            </div>
+            <div>
+              <label className="input-label">Zephyr API Token (Optional - for Cloud)</label>
+              <div className="relative">
+                <input
+                  type="password"
+                  value={zephyrForm.zephyr_token}
+                  onChange={(e) => setZephyrForm((p) => ({ ...p, zephyr_token: e.target.value }))}
+                  className="input"
+                  placeholder={isConfigured('zephyr') ? '••••••••••••••••' : 'Leave blank for Zephyr Server'}
+                />
+              </div>
+              <p className="input-hint">
+                <a
+                  href="https://support.smartbear.com/zephyr-scale-cloud/docs/rest-api/generating-api-access-tokens.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-600 hover:underline inline-flex items-center gap-1"
+                >
+                  Learn how to generate Zephyr API token <ExternalLink size={10} />
+                </a>
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={handleZephyrSave}
+                disabled={zephyrSaving || !isConfigured('jira')}
+                className="btn-primary flex items-center gap-2 text-sm"
+              >
+                {zephyrSaving ? (
+                  <Loader size={14} className="animate-spin" />
+                ) : (
+                  <CheckCircle size={14} />
+                )}
+                Save
+              </button>
+              {isConfigured('zephyr') && (
+                <button
+                  onClick={handleZephyrDelete}
+                  className="btn-secondary text-red-600 hover:text-red-700 flex items-center gap-1 text-sm ml-auto"
+                >
+                  <Trash2 size={14} />
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── TestRail Integration ── */}
+      <div className="card">
+        <button
+          onClick={() => toggleSection('testrail')}
+          className="w-full flex items-center justify-between mb-0 focus:outline-none group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-green-600 flex items-center justify-center text-white font-bold">
+              T
+            </div>
+            <div className="text-left">
+              <h3 className="text-lg font-semibold text-gray-900">TestRail</h3>
+              <div className="flex items-center gap-2 text-xs">
+                {isConfigured('testrail') ? (
+                  <span className="text-green-600 flex items-center gap-1">
+                    <CheckCircle size={12} /> Connected
+                  </span>
+                ) : (
+                  <span className="text-gray-500 flex items-center gap-1">
+                    <XCircle size={12} /> Not configured
+                  </span>
+                )}
+                {getLastUpdated('testrail') && (
+                  <span className="text-gray-400">
+                    &bull; Updated {getLastUpdated('testrail')}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          {expandedSection === 'testrail' ? (
+            <ChevronDown size={20} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+          ) : (
+            <ChevronRight size={20} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+          )}
+        </button>
+
+        {expandedSection === 'testrail' && (
+          <div className="space-y-4 mt-5 pt-5 border-t border-gray-200">
+            <div>
+              <label className="input-label">TestRail URL</label>
+              <input
+                type="url"
+                value={testrailForm.url}
+                onChange={(e) => setTestrailForm((p) => ({ ...p, url: e.target.value }))}
+                className="input"
+                placeholder="https://your-org.testrail.io"
+              />
+            </div>
+            <div>
+              <label className="input-label">Email</label>
+              <input
+                type="email"
+                value={testrailForm.email}
+                onChange={(e) => setTestrailForm((p) => ({ ...p, email: e.target.value }))}
+                className="input"
+                placeholder="your-email@company.com"
+              />
+            </div>
+            <div>
+              <label className="input-label">API Key</label>
+              <div className="relative">
+                <input
+                  type="password"
+                  value={testrailForm.api_key}
+                  onChange={(e) => setTestrailForm((p) => ({ ...p, api_key: e.target.value }))}
+                  className="input pr-10"
+                  placeholder={isConfigured('testrail') ? '••••••••••••••••' : 'Your TestRail API key'}
+                />
+                {isConfigured('testrail') && (
+                  <button
+                    type="button"
+                    onClick={() => handleViewToken('testrail')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="View stored key (requires password)"
+                  >
+                    <Eye size={18} />
+                  </button>
+                )}
+              </div>
+              <p className="input-hint">
+                <a
+                  href="https://support.testrail.com/hc/en-us/articles/7077039051284-Accessing-the-TestRail-API"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-600 hover:underline inline-flex items-center gap-1"
+                >
+                  Learn how to generate API key <ExternalLink size={10} />
+                </a>
+              </p>
+            </div>
+            <div>
+              <label className="input-label">Project ID (Optional)</label>
+              <input
+                type="text"
+                value={testrailForm.project_id}
+                onChange={(e) => setTestrailForm((p) => ({ ...p, project_id: e.target.value }))}
+                className="input"
+                placeholder="e.g., 1"
+              />
+              <p className="input-hint">
+                Default project ID for test case exports
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={handleTestrailTest}
+                disabled={testrailTesting}
+                className="btn-secondary flex items-center gap-2 text-sm"
+              >
+                {testrailTesting ? (
+                  <Loader size={14} className="animate-spin" />
+                ) : (
+                  <Link2 size={14} />
+                )}
+                Test Connection
+              </button>
+              <button
+                onClick={handleTestrailSave}
+                disabled={testrailSaving}
+                className="btn-primary flex items-center gap-2 text-sm"
+              >
+                {testrailSaving ? (
+                  <Loader size={14} className="animate-spin" />
+                ) : (
+                  <CheckCircle size={14} />
+                )}
+                Save
+              </button>
+              {isConfigured('testrail') && (
+                <button
+                  onClick={handleTestrailDelete}
+                  className="btn-secondary text-red-600 hover:text-red-700 flex items-center gap-1 text-sm ml-auto"
+                >
+                  <Trash2 size={14} />
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Password Verification Modal ── */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -576,7 +1098,7 @@ const IntegrationSettings = () => {
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-2">
                 <Shield size={16} className="text-yellow-600 mt-0.5 shrink-0" />
                 <p className="text-sm text-yellow-800">
-                  Enter your account password to decrypt and view the stored {viewIntegrationType === 'jira' ? 'Jira API token' : 'Azure DevOps PAT'}.
+                  Enter your account password to decrypt and view the stored credentials.
                 </p>
               </div>
 
