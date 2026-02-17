@@ -36,7 +36,10 @@ const MyTeams = ({ onCreateTeam }) => {
   const handleSwitchToTeam = async (teamId) => {
     try {
       await switchWorkspace(teamId);
-      // Page will automatically update due to auth store change
+      // Delay reload to allow toast to be visible
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (err) {
       console.error('Failed to switch workspace:', err);
     }
@@ -119,7 +122,7 @@ const MyTeams = ({ onCreateTeam }) => {
                    'Member'}
                 </span>
               </div>
-              <button className="text-sm text-primary-600 hover:text-primary-700 font-medium group-hover:underline">
+              <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">
                 Switch to Team →
               </button>
             </div>

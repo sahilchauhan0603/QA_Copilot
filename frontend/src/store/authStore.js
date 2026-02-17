@@ -119,7 +119,7 @@ const useAuthStore = create(
             isLoading: false,
           });
           const workspaceName = teamId === null ? 'Personal Workspace' : 'Team Workspace';
-          toast.success(`Switched to ${workspaceName}`);
+          toast.success(`Switched to ${workspaceName}`, { duration: 2500 });
           return { success: true };
         } catch (error) {
           const errorMessage = error.response?.data?.error || 'Failed to switch workspace';

@@ -54,7 +54,7 @@ const TeamManagement = ({ onCancel }) => {
       setShowCreateModal(false);
       setNewTeamName('');
       setNewTeamDesc('');
-      toast.success(`Team "${newTeamName}" created successfully!`);
+      toast.success(`Team "${newTeamName}" created successfully!`, { duration: 3000 });
       
       // Small delay to ensure database commit completes
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -196,17 +196,21 @@ const TeamManagement = ({ onCancel }) => {
       const teamName = adminTeams.find(t => t.id === parseInt(teamToDelete))?.name;
       await teamAPI.deleteTeam(parseInt(teamToDelete));
       
-      toast.success(`Team "${teamName}" deleted successfully!`);
+      toast.success(`Team "${teamName}" deleted successfully!`, { duration: 2500 });
       setShowDeleteTeamModal(false);
       setTeamToDelete('');
       
       // Switch to personal workspace if deleted team was active
       if (activeWorkspace?.id === parseInt(teamToDelete)) {
         await switchWorkspace(null);
+        // Delay reload to allow toasts to be visible
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        // Refresh workspaces
+        await fetchWorkspaces();
       }
-      
-      // Refresh workspaces
-      await fetchWorkspaces();
     } catch (err) {
       toast.error('Failed to delete team. Please try again.');
     } finally {

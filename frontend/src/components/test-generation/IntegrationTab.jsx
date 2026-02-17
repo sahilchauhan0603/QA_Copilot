@@ -52,7 +52,7 @@ const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
       ticket_type: fetchedTicket.ticket_type || 'story',
       priority: fetchedTicket.priority || 'P2',
       acceptance_criteria: fetchedTicket.acceptance_criteria || [],
-      source_integration: integrationType,
+      integration_type: integrationType, // Backend expects 'integration_type'
     };
     onGenerate(ticketData);
   };

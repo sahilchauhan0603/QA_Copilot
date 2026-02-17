@@ -25,7 +25,8 @@ const agentSteps = [
 const GenerationProgress = ({ generationProgress, onCancel }) => {
   const { progress, currentLabel, steps } = generationProgress;
 
-  if (progress <= 0) return null;
+  // Show when progress starts (even at 0)
+  if (!currentLabel && progress === 0) return null;
 
   return (
     <div className="card mb-6 border-l-4 border-l-primary-500">

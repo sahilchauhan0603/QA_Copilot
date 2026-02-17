@@ -140,13 +140,22 @@ const TestGeneration = () => {
   // ──── Generate Test Cases (shared by both tabs) ────
   const handleGenerate = async (ticketData) => {
     setGenerating(true);
-    resetProgress();
+    // Initialize progress immediately for visibility
+    setGenerationProgress({ progress: 5, currentLabel: 'Starting generation...', steps: {} });
+    
     try {
       const { promise, cancel } = testGenAPI.generate(ticketData, handleProgressUpdate);
       setCurrentCancelFn(() => cancel);
       await promise;
-      toast.success('Test cases generated successfully!');
+      
+      // Show completion state before closing
+      setGenerationProgress({ progress: 100, currentLabel: 'Generation complete!', steps: {} });
+      toast.success('Test cases generated successfully!', { duration: 3000 });
+      
+      // Delay before closing form to show success
+      await new Promise(resolve => setTimeout(resolve, 1500));
       setShowNewForm(false);
+      
       await loadGenerations();
       await loadStatistics();
     } catch (err) {
@@ -156,7 +165,7 @@ const TestGeneration = () => {
     } finally {
       setGenerating(false);
       setCurrentCancelFn(null);
-      setTimeout(resetProgress, 2000);
+      setTimeout(resetProgress, 500);
     }
   };
 
