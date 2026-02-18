@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader,
+  GitBranch,
 } from 'lucide-react';
 
 const itemsPerPage = 9;
@@ -154,13 +155,26 @@ const GenerationHistory = ({
                           </span>
                           {gen.generation_metadata?.refinement?.is_refined && (
                             <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
-                              🔄 {gen.generation_metadata.refinement.refinement_type}
+                              ✨ Refined Generation - {gen.generation_metadata.refinement.refinement_type}
                             </span>
                           )}
                         </div>
                         <h4 className="text-sm font-medium text-gray-900 line-clamp-2">
                           {gen.ticket_title}
                         </h4>
+                        {gen.generation_metadata?.refinement?.is_refined && gen.generation_metadata?.refinement?.original_generation_id && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onView(gen.generation_metadata.refinement.original_generation_id);
+                            }}
+                            className="mt-1.5 flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 hover:underline"
+                            title="View original generation"
+                          >
+                            <GitBranch size={12} />
+                            <span>View original</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -237,8 +251,23 @@ const GenerationHistory = ({
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">
                           {gen.ticket_id}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 max-w-xs truncate">
-                          {gen.ticket_title}
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          <div className="max-w-xs">
+                            <div className="truncate">{gen.ticket_title}</div>
+                            {gen.generation_metadata?.refinement?.is_refined && gen.generation_metadata?.refinement?.original_generation_id && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onView(gen.generation_metadata.refinement.original_generation_id);
+                                }}
+                                className="mt-1 flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 hover:underline"
+                                title="View original generation"
+                              >
+                                <GitBranch size={11} />
+                                <span>View original</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <div className="flex flex-col gap-1">
@@ -247,7 +276,7 @@ const GenerationHistory = ({
                             </span>
                             {gen.generation_metadata?.refinement?.is_refined && (
                               <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs inline-block">
-                                🔄 {gen.generation_metadata.refinement.refinement_type}
+                                ✨ Refined Generation - {gen.generation_metadata.refinement.refinement_type}
                               </span>
                             )}
                           </div>

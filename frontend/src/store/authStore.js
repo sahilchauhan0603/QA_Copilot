@@ -138,10 +138,44 @@ const useAuthStore = create(
             activeWorkspace: data.workspaces.active_workspace,
             isAuthenticated: true,
           });
+          return { success: true };
         } catch (error) {
           console.error('Get current user error:', error);
           // Clear auth state if token is invalid
-          get().logout();
+          localStorage.removeItem('auth_token');
+          set({
+            user: null,
+            token: null,
+            workspaces: [],
+            activeWorkspace: null,
+            isAuthenticated: false,
+            error: null,
+          });
+          return { success: false };
+        }
+      },
+      
+      // Initialize and validate session on app load
+      initializeAuth: async () => {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          // No token, ensure state is cleared
+          set({
+            user: null,
+            token: null,
+            workspaces: [],
+            activeWorkspace: null,
+            isAuthenticated: false,
+            error: null,
+          });
+          return;
+        }
+        
+        // Token exists, validate it
+        const result = await get().getCurrentUser();
+        if (!result.success) {
+          // Token invalid, state already cleared by getCurrentUser
+          console.log('Session invalid or expired');
         }
       },
 
@@ -157,9 +191,9 @@ const useAuthStore = create(
     {
       name: 'auth-storage',
       partialize: (state) => ({
-        token: state.token,
+        // Only persist user data, not authentication state
+        // Authentication will be validated on app initialization
         user: state.user,
-        isAuthenticated: state.isAuthenticated,
       }),
     }
   )

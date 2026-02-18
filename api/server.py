@@ -62,7 +62,7 @@ CORS(app,
      supports_credentials=False,
      allow_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     expose_headers=["Content-Type", "Authorization"]
+     expose_headers=["Content-Type", "Authorization", "Content-Disposition"]
 )
 
 # Initialize services
@@ -1003,12 +1003,17 @@ def download_excel(current_user, generation_id):
         excel_buffer = export_to_excel_bytes(state)
         filename = get_excel_filename(state)
         
-        return send_file(
+        response = send_file(
             excel_buffer,
             as_attachment=True,
             download_name=filename,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
+        
+        # Explicitly set Content-Disposition header to ensure it's properly formatted
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        return response
         
     except Exception as e:
         logger.error(f"Download Excel error: {e}")
@@ -1159,6 +1164,7 @@ def refine_tests(current_user):
                 'test_cases': generation_data.get('test_cases', []),
                 'coverage_gaps': generation_data.get('coverage_gaps', []),
                 'qa_roadmap': generation_data.get('qa_roadmap', {}),
+                'source_integration': meta.get('source_integration'),
             }
             
             # Get refinement context (e.g., focus_area)
@@ -1182,6 +1188,10 @@ def refine_tests(current_user):
             # Perform refinement
             logger.info(f"Refining generation {generation_id} with type: {refinement_type}")
             refined_state = refine_agent.refine(state, refinement_type, refinement_context)
+            
+            # Preserve source integration from original generation
+            if state.get('source_integration'):
+                refined_state['source_integration'] = state['source_integration']
             
             # Add refinement metadata
             if 'refinement' not in refined_state:

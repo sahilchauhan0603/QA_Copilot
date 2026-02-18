@@ -177,11 +177,6 @@ You should see: **"🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!"**
 
 ## 🎉 Deployment Complete!
 
-Your app is now live:
-- **Frontend**: `https://tickettotest-frontend.onrender.com`
-- **Backend**: `https://tickettotest-backend.onrender.com`
-- **Database**: Supabase (500MB free)
-
 ### Important Notes
 - **Free tier limitations**: Services sleep after 15 min inactivity (30s cold start)
 - **Auto-deploy**: Push to GitHub → Automatic deployment
@@ -189,24 +184,3 @@ Your app is now live:
 - **Custom domain**: Can add in Render settings
 
 ---
-
-## Troubleshooting
-
-**Backend won't start?**
-- Check environment variables are set correctly
-- View logs in Render dashboard
-
-**Frontend not connecting to backend?**
-- Verify `VITE_API_URL` is correct
-- Check CORS settings in backend
-
-**Database connection failed?**
-- Verify DATABASE_URL is correct
-- Check Supabase project is active
-- Add `?sslmode=require` to DATABASE_URL if needed
-
-**Need to run migrations again?**
-```powershell
-$env:DATABASE_URL="your-supabase-url"
-python scripts/run_migration.py
-```

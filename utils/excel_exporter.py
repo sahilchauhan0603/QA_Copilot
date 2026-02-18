@@ -430,10 +430,31 @@ def export_to_excel_bytes(state: dict) -> BytesIO:
 
 def get_excel_filename(state: dict) -> str:
     """
-    Generate filename: TestCases_{TicketID}_{Timestamp}.xlsx
+    Generate descriptive filename: {TicketID}_{TicketTitle}_{TestCount}tests_{Date}.xlsx
+    Example: KAN-123_Payment_API_Validation_42tests_20260218.xlsx
     """
-    ticket_id = state.get("ticket_info", {}).get("ticket_id", "unknown")
-    # Sanitise ticket ID for safe filenames
+    ticket_info = state.get("ticket_info", {})
+    ticket_id = ticket_info.get("ticket_id", "unknown")
+    ticket_title = ticket_info.get("title", "")
+    test_cases = state.get("test_cases", [])
+    test_count = len(test_cases)
+    
+    # Sanitize ticket ID for safe filenames
     safe_id = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in str(ticket_id))
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return f"TestCases_{safe_id}_{timestamp}.xlsx"
+    
+    # Sanitize and shorten title (max 50 chars, replace spaces with underscores)
+    if ticket_title:
+        # Remove special characters, keep only alphanumeric, spaces, and hyphens
+        clean_title = "".join(c if c.isalnum() or c in (" ", "-") else "" for c in ticket_title)
+        # Replace spaces with underscores and limit length
+        safe_title = clean_title.replace(" ", "_")[:50].strip("_")
+        # Remove consecutive underscores
+        while "__" in safe_title:
+            safe_title = safe_title.replace("__", "_")
+    else:
+        safe_title = "TestCases"
+    
+    # Format: TicketID_Title_#tests_Date.xlsx
+    date_stamp = datetime.now().strftime("%Y%m%d")
+    
+    return f"{safe_id}_{safe_title}_{test_count}tests_{date_stamp}.xlsx"

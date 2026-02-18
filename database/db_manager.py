@@ -187,7 +187,8 @@ class DatabaseManager:
                         'timestamp': g.timestamp.isoformat() if g.timestamp else None,
                         'total_test_cases': g.total_test_cases,
                         'excel_file_path': g.excel_file_path,
-                        'status': g.status
+                        'status': g.status,
+                        'generation_metadata': g.generation_metadata or {},
                     }
                     for g in generations
                 ]
@@ -331,7 +332,8 @@ class DatabaseManager:
                         'timestamp': g.timestamp.isoformat() if g.timestamp else None,
                         'total_test_cases': g.total_test_cases,
                         'excel_file_path': g.excel_file_path,
-                        'status': g.status
+                        'status': g.status,
+                        'generation_metadata': g.generation_metadata or {},
                     }
                     for g in generations
                 ]

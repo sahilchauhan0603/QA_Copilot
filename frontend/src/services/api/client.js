@@ -7,6 +7,9 @@ import toast from 'react-hot-toast';
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// Flag to prevent multiple session expiry redirects
+let isRedirecting = false;
+
 // Create axios instance
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -15,6 +18,11 @@ const apiClient = axios.create({
 // Request interceptor - add auth token
 apiClient.interceptors.request.use(
   (config) => {
+    // Don't send requests if we're already redirecting to login
+    if (isRedirecting) {
+      return Promise.reject(new axios.Cancel('Session expired, redirecting to login'));
+    }
+    
     const token = localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -22,7 +30,9 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
-    toast.error('Request failed. Please try again.', { id: 'request-error' });
+    if (!axios.isCancel(error)) {
+      toast.error('Request failed. Please try again.', { id: 'request-error' });
+    }
     return Promise.reject(error);
   }
 );
@@ -31,6 +41,11 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Don't handle cancelled requests
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
+    
     const isLoginEndpoint = error.config?.url?.includes('/auth/login');
     const isViewCredentials = error.config?.url?.includes('/view-credentials');
     const errorMsg = error.response?.data?.error || '';
@@ -41,12 +56,19 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       if (isLoginEndpoint || isViewCredentials) {
         toast.error(errorMsg || 'Invalid credentials', { id: 'auth-error' });
-      } else {
-        toast.error('Session expired. Please login again.', { id: 'session-expired' });
+      } else if (!isRedirecting) {
+        // Session expired - handle once
+        isRedirecting = true;
         localStorage.removeItem('auth_token');
+        toast.error('Session expired. Please login again.', { 
+          id: 'session-expired',
+          duration: 4000
+        });
+        
+        // Redirect immediately to login page
         setTimeout(() => {
           window.location.href = '/login';
-        }, 1500);
+        }, 500);
       }
     } else if (error.response?.status === 403) {
       toast.error('Access denied. You don\'t have permission.', { id: 'access-denied' });

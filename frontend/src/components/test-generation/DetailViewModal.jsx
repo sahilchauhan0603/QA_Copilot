@@ -49,13 +49,11 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
   // Source integration from metadata
   const sourceIntegration =
     selectedGeneration.source_integration ||
-    gen?.generation_metadata?.source_integration ||
+    gen?.metadata?.source_integration ||
     null;
 
-  // Check if we can sync (integration is configured)
-  const canSync =
-    sourceIntegration &&
-    integrationConfigs.some((c) => c.integration_type === sourceIntegration && c.configured);
+  // Show sync button if source integration exists (even if config is in another workspace)
+  const canSync = !!sourceIntegration;
 
   const integrationLabel =
     sourceIntegration === 'jira'
@@ -159,15 +157,15 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
                     {gen.ticket_type}
                   </span>
                 )}
-                {gen.generation_metadata?.refinement?.is_refined && (
+                {gen.metadata?.refinement?.is_refined && (
                   <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium whitespace-nowrap">
-                    🔄 {gen.generation_metadata.refinement.refinement_type}
+                    ✨ Refined Generation - {gen.metadata.refinement.refinement_type}
                   </span>
                 )}
                 {sourceIntegration && (
                   <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium flex items-center gap-1 whitespace-nowrap">
                     <ExternalLink size={10} />
-                    {integrationLabel}
+                    Ticket Fetched From - {integrationLabel}
                   </span>
                 )}
               </div>

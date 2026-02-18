@@ -5,6 +5,7 @@
  *   - IntegrationTab, GenerationHistory, DetailViewModal
  */
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { testGenAPI, integrationAPI } from '../../services/api';
@@ -46,6 +47,7 @@ const TestGeneration = () => {
   // ──── Delete Confirmation ────
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [generationToDelete, setGenerationToDelete] = useState(null);
+  const [deletingGeneration, setDeletingGeneration] = useState(false);
 
   // ──── Cancellation ────
   const [currentCancelFn, setCurrentCancelFn] = useState(null);
@@ -201,10 +203,19 @@ const TestGeneration = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
+      
+      // Extract filename from Content-Disposition header
       const disposition = response.headers['content-disposition'];
-      const filename = disposition
-        ? disposition.split('filename=')[1]?.replace(/"/g, '')
-        : `test_cases_${id}.xlsx`;
+      let filename = `test_cases_${id}.xlsx`; // fallback
+      
+      if (disposition) {
+        // Handle both: filename="file.xlsx" and filename=file.xlsx
+        const filenameMatch = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
       link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
@@ -224,6 +235,7 @@ const TestGeneration = () => {
 
   const confirmDelete = async () => {
     if (!generationToDelete) return;
+    setDeletingGeneration(true);
     try {
       await testGenAPI.deleteGeneration(generationToDelete.id);
       toast.success('Generation deleted');
@@ -232,6 +244,7 @@ const TestGeneration = () => {
     } catch {
       toast.error('Delete failed');
     } finally {
+      setDeletingGeneration(false);
       setShowDeleteConfirm(false);
       setGenerationToDelete(null);
     }
@@ -320,7 +333,7 @@ const TestGeneration = () => {
       />
 
       {/* ─── Loading Overlay ─── */}
-      {loadingView && (
+      {loadingView && createPortal(
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
           <div className="bg-white rounded-lg p-6 shadow-xl">
             <div className="flex flex-col items-center gap-3">
@@ -328,7 +341,8 @@ const TestGeneration = () => {
               <p className="text-sm text-gray-600">Loading generation details...</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ─── Detail Modal ─── */}
@@ -375,15 +389,24 @@ const TestGeneration = () => {
                   setShowDeleteConfirm(false);
                   setGenerationToDelete(null);
                 }}
-                className="btn-secondary"
+                disabled={deletingGeneration}
+                className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                disabled={deletingGeneration}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-400 transition-colors font-medium flex items-center gap-2 disabled:cursor-not-allowed"
               >
-                Delete Generation
+                {deletingGeneration ? (
+                  <>
+                    <Loader size={16} className="animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete Generation'
+                )}
               </button>
             </div>
           </div>
