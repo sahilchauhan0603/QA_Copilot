@@ -255,18 +255,20 @@ const TestGeneration = () => {
       {/* ─── Statistics ─── */}
       <StatisticsCards statistics={statistics} />
 
-      {/* ─── Generation Progress ─── */}
-      {generating && <GenerationProgress generationProgress={generationProgress} onCancel={handleCancelGeneration} />}
 
       {/* ─── New Generation Form ─── */}
       {!showNewForm ? (
-        <button
-          onClick={() => setShowNewForm(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus size={18} />
-          New Generation
-        </button>
+        <>
+          <button
+            onClick={() => setShowNewForm(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus size={18} />
+            New Generation
+          </button>
+          {/* ─── Generation Progress (moved below button) ─── */}
+          {generating && <GenerationProgress generationProgress={generationProgress} onCancel={handleCancelGeneration} />}
+        </>
       ) : (
         <div className="card">
           <div className="flex items-center justify-between mb-5">
