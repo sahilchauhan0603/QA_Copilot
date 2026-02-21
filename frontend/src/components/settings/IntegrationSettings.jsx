@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { integrationAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+import { createPortal } from 'react-dom';
 
 const IntegrationSettings = () => {
   const [integrationConfigs, setIntegrationConfigs] = useState([]);
@@ -1107,8 +1108,9 @@ const IntegrationSettings = () => {
       </div>
 
       {/* ── Password Verification Modal ── */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+      {showPasswordModal &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
           <div className="bg-white rounded-xl max-w-md w-full shadow-2xl">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -1204,8 +1206,10 @@ const IntegrationSettings = () => {
               )}
             </div>
           </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )
+      }
     </div>
   );
 };
