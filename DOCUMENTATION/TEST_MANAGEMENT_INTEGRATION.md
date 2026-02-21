@@ -200,26 +200,6 @@ Each exported test case includes:
 
 ---
 
-## Linking to Source Tickets
-
-### Automatic Linking
-
-If your test generation originated from a Jira or Azure DevOps ticket, the export feature automatically creates links:
-
-**Xray:**
-- Creates issue link between Test and Story/Bug
-- Link type: "Tests" relationship
-
-**Zephyr Scale:**
-- Links test cases to Jira issues
-- Visible in the "Links" section of test cases
-
-**TestRail:**
-- Adds ticket ID to the `refs` field
-- Format: `JIRA-123` or `ADO-45678`
-
----
-
 ## Troubleshooting
 
 ### Common Issues

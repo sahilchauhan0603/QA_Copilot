@@ -260,16 +260,29 @@ const IntegrationSettings = () => {
       toast.error('Please enter Xray project key');
       return;
     }
-    // Check if Jira is configured
     if (!isConfigured('jira')) {
       toast.error('Jira must be configured first (Xray uses Jira credentials)');
+      return;
+    }
+    // If Jira token missing, fetch it via password modal
+    if (!jiraForm.api_token) {
+      setViewIntegrationType('jira');
+      setShowPasswordModal(true);
+      setVerifyPassword('');
+      setRevealedToken(null);
+      // After modal, user will retry save
+      toast('Please verify password to fetch Jira token.');
       return;
     }
     setXraySaving(true);
     try {
       await integrationAPI.saveConfig(
         'xray',
-        {},
+        {
+          jira_url: jiraForm.url,
+          jira_email: jiraForm.email,
+          jira_api_token: jiraForm.api_token
+        },
         { project_key: xrayForm.project_key }
       );
       toast.success('Xray configuration saved!');
@@ -299,16 +312,28 @@ const IntegrationSettings = () => {
       toast.error('Please enter Zephyr project key');
       return;
     }
-    // Check if Jira is configured
     if (!isConfigured('jira')) {
       toast.error('Jira must be configured first (Zephyr uses Jira credentials)');
+      return;
+    }
+    if (!jiraForm.api_token) {
+      setViewIntegrationType('jira');
+      setShowPasswordModal(true);
+      setVerifyPassword('');
+      setRevealedToken(null);
+      toast('Please verify password to fetch Jira token.');
       return;
     }
     setZephyrSaving(true);
     try {
       await integrationAPI.saveConfig(
         'zephyr',
-        zephyrForm.zephyr_token ? { zephyr_token: zephyrForm.zephyr_token } : {},
+        {
+          jira_url: jiraForm.url,
+          jira_email: jiraForm.email,
+          jira_api_token: jiraForm.api_token,
+          ...(zephyrForm.zephyr_token ? { zephyr_token: zephyrForm.zephyr_token } : {})
+        },
         { project_key: zephyrForm.project_key }
       );
       toast.success('Zephyr configuration saved!');
@@ -414,6 +439,17 @@ const IntegrationSettings = () => {
         : result.credentials?.personal_access_token;
       setRevealedToken(token || 'No token found');
       toast.success('Token revealed');
+      // If modal was triggered for dependent integration, auto-fill token and retry save
+      if (viewIntegrationType === 'jira' && !jiraForm.api_token && token) {
+        setJiraForm((prev) => ({ ...prev, api_token: token }));
+        setShowPasswordModal(false);
+        setVerifyPassword('');
+        setRevealedToken(null);
+        setViewIntegrationType(null);
+        // Optionally, retry the last save (Xray/Zephyr)
+        if (xraySaving) handleXraySave();
+        if (zephyrSaving) handleZephyrSave();
+      }
     } catch (err) {
       // Error handled by interceptor
       setRevealedToken(null);
@@ -1072,7 +1108,7 @@ const IntegrationSettings = () => {
 
       {/* ── Password Verification Modal ── */}
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
           <div className="bg-white rounded-xl max-w-md w-full shadow-2xl">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
