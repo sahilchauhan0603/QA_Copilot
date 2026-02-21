@@ -36,7 +36,6 @@
 
 **All necessary  materials are available in the [`DOCUMENTATION`](./DOCUMENTATION/) folder:**
 
-- 📊 **Presentation Slides** - [Pitch Deck (PDF)](./DOCUMENTATION/Ticket-to-Test%20AI_%20Pitch%20Deck.pdf)
 - 🛠️ **Installation Instructions** - [Setup Guide](./DOCUMENTATION/INSTALLATION_GUIDE.md)
 
 ---
