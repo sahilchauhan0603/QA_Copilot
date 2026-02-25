@@ -187,10 +187,10 @@ const GenerationHistory = ({
                               onView(gen.generation_metadata.refinement.original_generation_id);
                             }}
                             className="mt-1.5 flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 hover:underline"
-                            title="View original generation"
+                            title="View parent generation"
                           >
                             <GitBranch size={12} />
-                            <span>View original</span>
+                            <span>View parent</span>
                           </button>
                         )}
                       </div>
@@ -278,10 +278,10 @@ const GenerationHistory = ({
                                   onView(gen.generation_metadata.refinement.original_generation_id);
                                 }}
                                 className="mt-1 flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 hover:underline"
-                                title="View original generation"
+                                title="View parent generation"
                               >
                                 <GitBranch size={11} />
-                                <span>View original</span>
+                                <span>View parent</span>
                               </button>
                             )}
                           </div>

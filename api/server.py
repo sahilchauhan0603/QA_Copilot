@@ -1083,7 +1083,7 @@ def download_excel(current_user, generation_id):
                 return jsonify({'error': 'Access denied'}), 403
         
         # Reconstruct full state from database
-        meta = generation.get('generation_metadata', {})
+        meta = generation.get('metadata', {}) or {}
         state = {
             'ticket_info': {
                 'ticket_id': generation['ticket_id'],
@@ -1165,7 +1165,8 @@ def refine_tests(current_user):
         # If regenerate entire, run full pipeline again
         if refinement_type == 'regenerate':
             # Get original ticket info
-            meta = generation.get('generation_metadata', {})
+            meta = generation.get('metadata', {}) or {}
+            source_integration = generation_data.get('source_integration') or meta.get('source_integration')
             ticket_info = TicketInfo(
                 ticket_id=generation['ticket_id'],
                 title=generation['ticket_title'],
@@ -1206,8 +1207,8 @@ def refine_tests(current_user):
                     final_state = orch.process_ticket(ticket_info)
                     
                     # Preserve source integration
-                    if meta.get('source_integration'):
-                        final_state['source_integration'] = meta['source_integration']
+                    if source_integration:
+                        final_state['source_integration'] = source_integration
                     
                     # Add refinement metadata
                     if 'refinement' not in final_state:
@@ -1258,7 +1259,8 @@ def refine_tests(current_user):
         # For all other refinement types, use RefineAgent
         else:
             # Reconstruct state from generation
-            meta = generation.get('generation_metadata', {})
+            meta = generation.get('metadata', {}) or {}
+            source_integration = generation_data.get('source_integration') or meta.get('source_integration')
             state = {
                 'ticket_info': {
                     'ticket_id': generation['ticket_id'],
@@ -1271,7 +1273,7 @@ def refine_tests(current_user):
                 'test_cases': generation_data.get('test_cases', []),
                 'coverage_gaps': generation_data.get('coverage_gaps', []),
                 'qa_roadmap': generation_data.get('qa_roadmap', {}),
-                'source_integration': meta.get('source_integration'),
+                'source_integration': source_integration,
             }
             
             # Get refinement context (e.g., focus_area)
@@ -1661,7 +1663,7 @@ def sync_attach_excel(current_user):
                 return jsonify({'error': 'Access denied'}), 403
 
         # Generate Excel in-memory
-        meta = generation.get('generation_metadata', {})
+        meta = generation.get('metadata', {}) or {}
         state = {
             'ticket_info': {
                 'ticket_id': generation['ticket_id'],
@@ -1744,7 +1746,7 @@ def sync_add_comment(current_user):
             test_cases = generation_data.get('test_cases', [])
             coverage_gaps = generation_data.get('coverage_gaps', [])
             risk_areas = generation_data.get('risk_areas', [])
-            meta = generation.get('generation_metadata', {})
+            meta = generation.get('metadata', {}) or {}
 
             # Priority breakdown
             priority_counts = {}
@@ -1888,7 +1890,7 @@ def sync_full_job(current_user):
             else:
                 raise Exception('Access denied')
         # 1. Attach Excel
-        meta = generation.get('generation_metadata', {})
+        meta = generation.get('metadata', {}) or {}
         state = {
             'ticket_info': {
                 'ticket_id': generation['ticket_id'],
