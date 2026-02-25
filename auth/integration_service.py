@@ -51,13 +51,21 @@ class IntegrationService:
                     )
 
                 existing = query.first()
-                encrypted = self.encryption.encrypt_dict(credentials)
+                merged_credentials = credentials or {}
 
                 if existing:
-                    existing.encrypted_credentials = encrypted
+                    # Preserve previously stored credential keys when callers
+                    # update non-sensitive config only (e.g., project key).
+                    try:
+                        existing_creds = self.encryption.decrypt_dict(existing.encrypted_credentials) or {}
+                    except Exception:
+                        existing_creds = {}
+                    merged_credentials = {**existing_creds, **merged_credentials}
+                    existing.encrypted_credentials = self.encryption.encrypt_dict(merged_credentials)
                     existing.config = config
                     existing.is_active = True
                 else:
+                    encrypted = self.encryption.encrypt_dict(merged_credentials)
                     new_cred = IntegrationCredential(
                         user_id=user_id if not team_id else None,
                         team_id=team_id,

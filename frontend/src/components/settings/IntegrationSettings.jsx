@@ -31,6 +31,7 @@ const IntegrationSettings = () => {
 
   // Jira form
   const [jiraForm, setJiraForm] = useState({ url: '', email: '', api_token: '' });
+  const [initialJiraForm, setInitialJiraForm] = useState({ url: '', email: '', api_token: '' });
   const [jiraTesting, setJiraTesting] = useState(false);
   const [jiraSaving, setJiraSaving] = useState(false);
 
@@ -40,21 +41,29 @@ const IntegrationSettings = () => {
     project: '',
     personal_access_token: '',
   });
+  const [initialAdoForm, setInitialAdoForm] = useState({
+    organization_url: '',
+    project: '',
+    personal_access_token: '',
+  });
   const [adoTesting, setAdoTesting] = useState(false);
   const [adoSaving, setAdoSaving] = useState(false);
 
   // Xray form (uses Jira credentials)
   const [xrayForm, setXrayForm] = useState({ project_key: '' });
+  const [initialXrayForm, setInitialXrayForm] = useState({ project_key: '' });
   const [xrayTesting, setXrayTesting] = useState(false);
   const [xraySaving, setXraySaving] = useState(false);
 
   // Zephyr form (uses Jira credentials + optional Zephyr token)
   const [zephyrForm, setZephyrForm] = useState({ zephyr_token: '', project_key: '' });
+  const [initialZephyrForm, setInitialZephyrForm] = useState({ zephyr_token: '', project_key: '' });
   const [zephyrTesting, setZephyrTesting] = useState(false);
   const [zephyrSaving, setZephyrSaving] = useState(false);
 
   // TestRail form
   const [testrailForm, setTestrailForm] = useState({ url: '', email: '', api_key: '', project_id: '' });
+  const [initialTestrailForm, setInitialTestrailForm] = useState({ url: '', email: '', api_key: '', project_id: '' });
   const [testrailTesting, setTestrailTesting] = useState(false);
   const [testrailSaving, setTestrailSaving] = useState(false);
 
@@ -64,6 +73,11 @@ const IntegrationSettings = () => {
   const [verifyPassword, setVerifyPassword] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [revealedToken, setRevealedToken] = useState(null);
+
+  // Delete confirmation modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [pendingDeleteType, setPendingDeleteType] = useState(null);
+  const [deletingIntegration, setDeletingIntegration] = useState(false);
 
   useEffect(() => {
     loadConfigs();
@@ -80,22 +94,34 @@ const IntegrationSettings = () => {
         (c) => c.integration_type === 'jira'
       );
       if (jiraConfig?.config) {
-        setJiraForm((prev) => ({
-          ...prev,
+        const nextJira = {
           url: jiraConfig.config.url || '',
           email: jiraConfig.config.email || '',
-        }));
+          api_token: '',
+        };
+        setJiraForm(nextJira);
+        setInitialJiraForm(nextJira);
+      } else {
+        const emptyJira = { url: '', email: '', api_token: '' };
+        setJiraForm(emptyJira);
+        setInitialJiraForm(emptyJira);
       }
 
       const adoConfig = (data.integrations || []).find(
         (c) => c.integration_type === 'azure_devops'
       );
       if (adoConfig?.config) {
-        setAdoForm((prev) => ({
-          ...prev,
+        const nextAdo = {
           organization_url: adoConfig.config.organization_url || '',
           project: adoConfig.config.project || '',
-        }));
+          personal_access_token: '',
+        };
+        setAdoForm(nextAdo);
+        setInitialAdoForm(nextAdo);
+      } else {
+        const emptyAdo = { organization_url: '', project: '', personal_access_token: '' };
+        setAdoForm(emptyAdo);
+        setInitialAdoForm(emptyAdo);
       }
 
       // Pre-fill test management tools
@@ -103,32 +129,49 @@ const IntegrationSettings = () => {
         (c) => c.integration_type === 'xray'
       );
       if (xrayConfig?.config) {
-        setXrayForm((prev) => ({
-          ...prev,
+        const nextXray = {
           project_key: xrayConfig.config.project_key || '',
-        }));
+        };
+        setXrayForm(nextXray);
+        setInitialXrayForm(nextXray);
+      } else {
+        const emptyXray = { project_key: '' };
+        setXrayForm(emptyXray);
+        setInitialXrayForm(emptyXray);
       }
 
       const zephyrConfig = (data.integrations || []).find(
         (c) => c.integration_type === 'zephyr'
       );
       if (zephyrConfig?.config) {
-        setZephyrForm((prev) => ({
-          ...prev,
+        const nextZephyr = {
           project_key: zephyrConfig.config.project_key || '',
-        }));
+          zephyr_token: '',
+        };
+        setZephyrForm(nextZephyr);
+        setInitialZephyrForm(nextZephyr);
+      } else {
+        const emptyZephyr = { project_key: '', zephyr_token: '' };
+        setZephyrForm(emptyZephyr);
+        setInitialZephyrForm(emptyZephyr);
       }
 
       const testrailConfig = (data.integrations || []).find(
         (c) => c.integration_type === 'testrail'
       );
       if (testrailConfig?.config) {
-        setTestrailForm((prev) => ({
-          ...prev,
+        const nextTestrail = {
           url: testrailConfig.config.url || '',
           email: testrailConfig.config.email || '',
           project_id: testrailConfig.config.project_id || '',
-        }));
+          api_key: '',
+        };
+        setTestrailForm(nextTestrail);
+        setInitialTestrailForm(nextTestrail);
+      } else {
+        const emptyTestrail = { url: '', email: '', project_id: '', api_key: '' };
+        setTestrailForm(emptyTestrail);
+        setInitialTestrailForm(emptyTestrail);
       }
     } catch (err) {
       console.error('Failed to load configs:', err);
@@ -147,17 +190,94 @@ const IntegrationSettings = () => {
       : null;
   };
 
+  const jiraHasChanges = (
+    jiraForm.url !== initialJiraForm.url ||
+    jiraForm.email !== initialJiraForm.email ||
+    !!jiraForm.api_token?.trim()
+  );
+
+  const adoHasChanges = (
+    adoForm.organization_url !== initialAdoForm.organization_url ||
+    adoForm.project !== initialAdoForm.project ||
+    !!adoForm.personal_access_token?.trim()
+  );
+
+  const xrayHasChanges = (
+    xrayForm.project_key !== initialXrayForm.project_key
+  );
+
+  const zephyrHasChanges = (
+    zephyrForm.project_key !== initialZephyrForm.project_key ||
+    !!zephyrForm.zephyr_token?.trim()
+  );
+
+  const testrailHasChanges = (
+    testrailForm.url !== initialTestrailForm.url ||
+    testrailForm.email !== initialTestrailForm.email ||
+    testrailForm.project_id !== initialTestrailForm.project_id ||
+    !!testrailForm.api_key?.trim()
+  );
+
+  const integrationLabels = {
+    jira: 'Jira',
+    azure_devops: 'Azure DevOps',
+    xray: 'Xray',
+    zephyr: 'Zephyr',
+    testrail: 'TestRail',
+  };
+
+  const openDeleteModal = (integrationType) => {
+    setPendingDeleteType(integrationType);
+    setShowDeleteModal(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (deletingIntegration) return;
+    setShowDeleteModal(false);
+    setPendingDeleteType(null);
+  };
+
+  const confirmDeleteIntegration = async () => {
+    if (!pendingDeleteType) return;
+
+    setDeletingIntegration(true);
+    try {
+      await integrationAPI.deleteConfig(pendingDeleteType);
+      toast.success(`${integrationLabels[pendingDeleteType] || 'Integration'} configuration removed`);
+
+      if (pendingDeleteType === 'jira') {
+        setJiraForm({ url: '', email: '', api_token: '' });
+      } else if (pendingDeleteType === 'azure_devops') {
+        setAdoForm({ organization_url: '', project: '', personal_access_token: '' });
+      } else if (pendingDeleteType === 'xray') {
+        setXrayForm({ project_key: '' });
+      } else if (pendingDeleteType === 'zephyr') {
+        setZephyrForm({ zephyr_token: '', project_key: '' });
+      } else if (pendingDeleteType === 'testrail') {
+        setTestrailForm({ url: '', email: '', api_key: '', project_id: '' });
+      }
+
+      await loadConfigs();
+      closeDeleteModal();
+    } catch (err) {
+      // handled by interceptor
+    } finally {
+      setDeletingIntegration(false);
+    }
+  };
   // â”€â”€ Jira handlers â”€â”€
   const handleJiraTest = async () => {
-    if (!jiraForm.url || !jiraForm.email || !jiraForm.api_token) {
-      toast.error('Please fill in all Jira fields');
+    if (!jiraForm.url || !jiraForm.email) {
+      toast.error('Please fill in Jira URL and Email');
       return;
     }
     setJiraTesting(true);
     try {
       const result = await integrationAPI.testConnection(
         'jira',
-        { api_token: jiraForm.api_token },
+        jiraForm.api_token?.trim()
+          ? { api_token: jiraForm.api_token.trim() }
+          : { provider: 'jira' },
         { url: jiraForm.url, email: jiraForm.email }
       );
       toast.success(result.message || 'Jira connection successful!');
@@ -169,15 +289,17 @@ const IntegrationSettings = () => {
   };
 
   const handleJiraSave = async () => {
-    if (!jiraForm.url || !jiraForm.email || !jiraForm.api_token) {
-      toast.error('Please fill in all Jira fields');
+    if (!jiraForm.url || !jiraForm.email) {
+      toast.error('Please fill in Jira URL and Email');
       return;
     }
     setJiraSaving(true);
     try {
       await integrationAPI.saveConfig(
         'jira',
-        { api_token: jiraForm.api_token },
+        jiraForm.api_token?.trim()
+          ? { api_token: jiraForm.api_token.trim() }
+          : { provider: 'jira' },
         { url: jiraForm.url, email: jiraForm.email }
       );
       toast.success('Jira configuration saved!');
@@ -189,29 +311,23 @@ const IntegrationSettings = () => {
     }
   };
 
-  const handleJiraDelete = async () => {
-    if (!confirm('Remove Jira configuration?')) return;
-    try {
-      await integrationAPI.deleteConfig('jira');
-      toast.success('Jira configuration removed');
-      setJiraForm({ url: '', email: '', api_token: '' });
-      loadConfigs();
-    } catch (err) {
-      // handled by interceptor
-    }
+  const handleJiraDelete = () => {
+    openDeleteModal('jira');
   };
 
   // â”€â”€ Azure DevOps handlers â”€â”€
   const handleAdoTest = async () => {
-    if (!adoForm.organization_url || !adoForm.personal_access_token || !adoForm.project) {
-      toast.error('Please fill in all Azure DevOps fields');
+    if (!adoForm.organization_url || !adoForm.project) {
+      toast.error('Please fill in Azure DevOps Organization URL and Project');
       return;
     }
     setAdoTesting(true);
     try {
       const result = await integrationAPI.testConnection(
         'azure_devops',
-        { personal_access_token: adoForm.personal_access_token },
+        adoForm.personal_access_token?.trim()
+          ? { personal_access_token: adoForm.personal_access_token.trim() }
+          : { provider: 'azure_devops' },
         { organization_url: adoForm.organization_url, project: adoForm.project }
       );
       toast.success(result.message || 'Azure DevOps connection successful!');
@@ -223,15 +339,17 @@ const IntegrationSettings = () => {
   };
 
   const handleAdoSave = async () => {
-    if (!adoForm.organization_url || !adoForm.personal_access_token || !adoForm.project) {
-      toast.error('Please fill in all Azure DevOps fields');
+    if (!adoForm.organization_url || !adoForm.project) {
+      toast.error('Please fill in Azure DevOps Organization URL and Project');
       return;
     }
     setAdoSaving(true);
     try {
       await integrationAPI.saveConfig(
         'azure_devops',
-        { personal_access_token: adoForm.personal_access_token },
+        adoForm.personal_access_token?.trim()
+          ? { personal_access_token: adoForm.personal_access_token.trim() }
+          : { provider: 'azure_devops' },
         { organization_url: adoForm.organization_url, project: adoForm.project }
       );
       toast.success('Azure DevOps configuration saved!');
@@ -243,16 +361,8 @@ const IntegrationSettings = () => {
     }
   };
 
-  const handleAdoDelete = async () => {
-    if (!confirm('Remove Azure DevOps configuration?')) return;
-    try {
-      await integrationAPI.deleteConfig('azure_devops');
-      toast.success('Azure DevOps configuration removed');
-      setAdoForm({ organization_url: '', project: '', personal_access_token: '' });
-      loadConfigs();
-    } catch (err) {
-      // handled by interceptor
-    }
+  const handleAdoDelete = () => {
+    openDeleteModal('azure_devops');
   };
 
   // â”€â”€ Xray handlers â”€â”€
@@ -281,16 +391,8 @@ const IntegrationSettings = () => {
     }
   };
 
-  const handleXrayDelete = async () => {
-    if (!confirm('Remove Xray configuration?')) return;
-    try {
-      await integrationAPI.deleteConfig('xray');
-      toast.success('Xray configuration removed');
-      setXrayForm({ project_key: '' });
-      loadConfigs();
-    } catch (err) {
-      // handled by interceptor
-    }
+  const handleXrayDelete = () => {
+    openDeleteModal('xray');
   };
 
   // â”€â”€ Zephyr handlers â”€â”€
@@ -303,17 +405,13 @@ const IntegrationSettings = () => {
       toast.error('Jira must be configured first (Zephyr uses Jira credentials)');
       return;
     }
-    if (!zephyrForm.zephyr_token?.trim()) {
-      toast.error('Zephyr API token is required');
-      return;
-    }
     setZephyrSaving(true);
     try {
       await integrationAPI.saveConfig(
         'zephyr',
-        {
-          zephyr_token: zephyrForm.zephyr_token.trim()
-        },
+        zephyrForm.zephyr_token?.trim()
+          ? { zephyr_token: zephyrForm.zephyr_token.trim() }
+          : { provider: 'zephyr' },
         { project_key: zephyrForm.project_key }
       );
       toast.success('Zephyr configuration saved!');
@@ -325,16 +423,8 @@ const IntegrationSettings = () => {
     }
   };
 
-  const handleZephyrDelete = async () => {
-    if (!confirm('Remove Zephyr configuration?')) return;
-    try {
-      await integrationAPI.deleteConfig('zephyr');
-      toast.success('Zephyr configuration removed');
-      setZephyrForm({ zephyr_token: '', project_key: '' });
-      loadConfigs();
-    } catch (err) {
-      // handled by interceptor
-    }
+  const handleZephyrDelete = () => {
+    openDeleteModal('zephyr');
   };
 
   // â”€â”€ TestRail handlers â”€â”€
@@ -359,15 +449,17 @@ const IntegrationSettings = () => {
   };
 
   const handleTestrailSave = async () => {
-    if (!testrailForm.url || !testrailForm.email || !testrailForm.api_key) {
-      toast.error('Please fill in all TestRail fields');
+    if (!testrailForm.url || !testrailForm.email) {
+      toast.error('Please fill in TestRail URL and Email');
       return;
     }
     setTestrailSaving(true);
     try {
       await integrationAPI.saveConfig(
         'testrail',
-        { api_key: testrailForm.api_key },
+        testrailForm.api_key?.trim()
+          ? { api_key: testrailForm.api_key.trim() }
+          : { provider: 'testrail' },
         { url: testrailForm.url, email: testrailForm.email, project_id: testrailForm.project_id }
       );
       toast.success('TestRail configuration saved!');
@@ -378,17 +470,8 @@ const IntegrationSettings = () => {
       setTestrailSaving(false);
     }
   };
-
-  const handleTestrailDelete = async () => {
-    if (!confirm('Remove TestRail configuration?')) return;
-    try {
-      await integrationAPI.deleteConfig('testrail');
-      toast.success('TestRail configuration removed');
-      setTestrailForm({ url: '', email: '', api_key: '', project_id: '' });
-      loadConfigs();
-    } catch (err) {
-      // handled by interceptor
-    }
+  const handleTestrailDelete = () => {
+    openDeleteModal('testrail');
   };
 
   // â”€â”€ View credentials handlers â”€â”€
@@ -579,8 +662,8 @@ const IntegrationSettings = () => {
               </button>
               <button
                 onClick={handleJiraSave}
-                disabled={jiraSaving}
-                className="btn-primary flex items-center gap-2 text-sm"
+                disabled={jiraSaving || !jiraHasChanges}
+                className="btn-primary flex items-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {jiraSaving ? (
                   <Loader size={14} className="animate-spin" />
@@ -720,8 +803,8 @@ const IntegrationSettings = () => {
               </button>
               <button
                 onClick={handleAdoSave}
-                disabled={adoSaving}
-                className="btn-primary flex items-center gap-2 text-sm"
+                disabled={adoSaving || !adoHasChanges}
+                className="btn-primary flex items-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {adoSaving ? (
                   <Loader size={14} className="animate-spin" />
@@ -808,8 +891,8 @@ const IntegrationSettings = () => {
             <div className="flex gap-2 pt-2">
               <button
                 onClick={handleXraySave}
-                disabled={xraySaving || !isConfigured('jira')}
-                className="btn-primary flex items-center gap-2 text-sm"
+                disabled={xraySaving || !isConfigured('jira') || !xrayHasChanges}
+                className="btn-primary flex items-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {xraySaving ? (
                   <Loader size={14} className="animate-spin" />
@@ -893,18 +976,18 @@ const IntegrationSettings = () => {
               </p>
             </div>
             <div>
-              <label className="input-label">Zephyr API Token</label>
+              <label className="input-label">Zephyr API Token (Optional)</label>
               <div className="relative">
                 <input
                   type="password"
                   value={zephyrForm.zephyr_token}
                   onChange={(e) => setZephyrForm((p) => ({ ...p, zephyr_token: e.target.value }))}
                   className="input"
-                  placeholder={isConfigured('zephyr') ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' : 'Enter Zephyr Scale API token'}
+                  placeholder={isConfigured('zephyr') ? '••••••••••••••••' : 'Enter Zephyr Scale API token'}
                 />
               </div>
               <p className="input-hint">
-                Required for Zephyr Scale cloud exports.
+                Optional here. Leave blank to keep your existing saved token.
               </p>
               <p className="input-hint">
                 <a
@@ -921,8 +1004,8 @@ const IntegrationSettings = () => {
             <div className="flex gap-2 pt-2">
               <button
                 onClick={handleZephyrSave}
-                disabled={zephyrSaving || !isConfigured('jira')}
-                className="btn-primary flex items-center gap-2 text-sm"
+                disabled={zephyrSaving || !isConfigured('jira') || !zephyrHasChanges}
+                className="btn-primary flex items-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {zephyrSaving ? (
                   <Loader size={14} className="animate-spin" />
@@ -1005,14 +1088,14 @@ const IntegrationSettings = () => {
               />
             </div>
             <div>
-              <label className="input-label">API Key</label>
+              <label className="input-label">API Key (Optional)</label>
               <div className="relative">
                 <input
                   type="password"
                   value={testrailForm.api_key}
                   onChange={(e) => setTestrailForm((p) => ({ ...p, api_key: e.target.value }))}
                   className="input pr-10"
-                  placeholder={isConfigured('testrail') ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' : 'Your TestRail API key'}
+                  placeholder={isConfigured('testrail') ? '••••••••••••••••' : 'Your TestRail API key'}
                 />
                 {isConfigured('testrail') && (
                   <button
@@ -1025,6 +1108,9 @@ const IntegrationSettings = () => {
                   </button>
                 )}
               </div>
+              <p className="input-hint">
+                Optional when already configured. Leave blank to keep your existing saved key.
+              </p>
               <p className="input-hint">
                 <a
                   href="https://support.testrail.com/hc/en-us/articles/7077039051284-Accessing-the-TestRail-API"
@@ -1065,8 +1151,8 @@ const IntegrationSettings = () => {
               </button>
               <button
                 onClick={handleTestrailSave}
-                disabled={testrailSaving}
-                className="btn-primary flex items-center gap-2 text-sm"
+                disabled={testrailSaving || !testrailHasChanges}
+                className="btn-primary flex items-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {testrailSaving ? (
                   <Loader size={14} className="animate-spin" />
@@ -1089,6 +1175,70 @@ const IntegrationSettings = () => {
         )}
       </div>
 
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+            <div className="bg-white rounded-xl max-w-md w-full shadow-2xl">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <AlertCircle size={20} className="text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Remove Integration</h3>
+                    <p className="text-xs text-gray-500">This will delete saved credentials</p>
+                  </div>
+                </div>
+                <button
+                  onClick={closeDeleteModal}
+                  disabled={deletingIntegration}
+                  className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="px-6 py-5">
+                <p className="text-sm text-gray-700">
+                  Remove <span className="font-semibold">{integrationLabels[pendingDeleteType] || 'this integration'}</span> configuration?
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  You can configure it again anytime.
+                </p>
+              </div>
+
+              <div className="px-6 py-4 bg-gray-50 rounded-b-xl flex items-center justify-end gap-2">
+                <button
+                  onClick={closeDeleteModal}
+                  disabled={deletingIntegration}
+                  className="btn-secondary text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteIntegration}
+                  disabled={deletingIntegration}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  {deletingIntegration ? (
+                    <>
+                      <Loader size={14} className="animate-spin" />
+                      Removing...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={14} />
+                      Remove
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      }
       {/* â”€â”€ Password Verification Modal â”€â”€ */}
       {showPasswordModal &&
         createPortal(
@@ -1197,3 +1347,26 @@ const IntegrationSettings = () => {
 };
 
 export default IntegrationSettings;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

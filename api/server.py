@@ -1535,11 +1535,47 @@ def test_integration_connection(current_user):
         data = request.get_json()
 
         integration_type = data.get('integration_type')
-        credentials = data.get('credentials', {})
-        config = data.get('config', {})
+        credentials = data.get('credentials', {}) or {}
+        config = data.get('config', {}) or {}
 
         if not integration_type:
             return jsonify({'error': 'integration_type is required'}), 400
+
+        # If sensitive credentials are omitted on the client (masked UI for already
+        # configured integrations), fall back to stored workspace credentials.
+        user_id = current_user['user_id']
+        team_id = workspace_service.get_active_workspace(user_id)
+        stored = integration_service.get_credentials(
+            integration_type=integration_type,
+            user_id=user_id if not team_id else None,
+            team_id=team_id
+        ) or {}
+
+        if integration_type == 'jira':
+            credentials = {
+                'api_token': credentials.get('api_token') or stored.get('api_token')
+            }
+            config = {
+                'url': config.get('url') or stored.get('url'),
+                'email': config.get('email') or stored.get('email'),
+            }
+        elif integration_type in ('azure_devops', 'ado', 'azure'):
+            credentials = {
+                'personal_access_token': credentials.get('personal_access_token') or stored.get('personal_access_token')
+            }
+            config = {
+                'organization_url': config.get('organization_url') or stored.get('organization_url'),
+                'project': config.get('project') or stored.get('project'),
+            }
+        elif integration_type == 'testrail':
+            credentials = {
+                'api_key': credentials.get('api_key') or stored.get('api_key')
+            }
+            config = {
+                'url': config.get('url') or stored.get('url'),
+                'email': config.get('email') or stored.get('email'),
+                'project_id': config.get('project_id') or stored.get('project_id'),
+            }
 
         success, message = integration_service.test_connection(
             integration_type=integration_type,
