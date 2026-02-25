@@ -6,6 +6,7 @@ import bcrypt
 import jwt
 import hashlib
 import secrets
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, Dict, Any
 import os
@@ -27,6 +28,7 @@ class AuthService:
         self.jwt_secret = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
         self.jwt_algorithm = 'HS256'
         self.jwt_expiration_hours = int(os.getenv('JWT_EXPIRATION_HOURS', '24'))
+        self.email_pattern = re.compile(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
     
     def hash_password(self, password: str) -> str:
         """
@@ -100,6 +102,40 @@ class AuthService:
                 'username_available': False,
                 'error': 'Failed to check availability'
             }
+
+    def is_valid_email(self, email: str) -> bool:
+        """Validate email format."""
+        if not email:
+            return False
+        return bool(self.email_pattern.match(email.strip()))
+
+    def validate_password_strength(self, password: str) -> Tuple[bool, Optional[str]]:
+        """
+        Validate password strength requirements.
+
+        Rules:
+        - At least 8 characters
+        - At least one uppercase letter
+        - At least one lowercase letter
+        - At least one digit
+        - At least one special character
+        - No whitespace
+        """
+        if not password:
+            return False, "Password is required"
+        if len(password) < 8:
+            return False, "Password must be at least 8 characters long"
+        if re.search(r'\s', password):
+            return False, "Password must not contain spaces"
+        if not re.search(r'[A-Z]', password):
+            return False, "Password must contain at least one uppercase letter"
+        if not re.search(r'[a-z]', password):
+            return False, "Password must contain at least one lowercase letter"
+        if not re.search(r'\d', password):
+            return False, "Password must contain at least one digit"
+        if not re.search(r'[^A-Za-z0-9]', password):
+            return False, "Password must contain at least one special character"
+        return True, None
     
     def create_user(
         self,
@@ -549,4 +585,34 @@ class AuthService:
                 
         except Exception as e:
             logger.error(f"Error getting username by email: {e}")
+            return None
+
+    def get_user_profile(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get user profile by ID.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            User profile dictionary or None if not found
+        """
+        try:
+            with self.db.get_session() as session:
+                user = session.query(User).filter(
+                    User.id == user_id,
+                    User.is_active == True
+                ).first()
+
+                if not user:
+                    return None
+
+                return {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'full_name': user.full_name
+                }
+        except Exception as e:
+            logger.error(f"Error getting user profile: {e}")
             return None

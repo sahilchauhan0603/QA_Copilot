@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogOut, Menu, X, Home, TestTube, Users, Settings } from 'lucide-react';
+import { LogOut, Menu, X, Home, TestTube, Users, Settings, UserCircle2, Mail } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import WorkspaceSelector from './WorkspaceSelector';
 
@@ -70,18 +70,45 @@ const Layout = ({ children }) => {
             </div>
             
             {/* Desktop User Menu */}
-            <div className="hidden md:flex items-center gap-4">
-              <div className="text-right">
-                <div className="text-sm font-medium text-gray-900">{user?.full_name || user?.username}</div>
-                <div className="text-xs text-gray-600">{user?.email}</div>
-              </div>
+            <div className="hidden md:block relative group">
               <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+                className="w-8 h-8 rounded-full bg-white text-gray-600 hover:bg-blue-50 transition-colors flex items-center justify-center"
+                aria-label="Open profile menu"
+                aria-haspopup="menu"
               >
-                <LogOut size={16} />
-                <span className="hidden lg:inline">Logout</span>
+                <UserCircle2 size={30} />
               </button>
+
+              <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg p-3 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 transition-all duration-150 z-50">
+                <div className="flex items-start gap-3 pb-3 border-b border-gray-100">
+                  <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-semibold">
+                    {(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-gray-900 truncate">
+                      {user?.full_name || 'No full name set'}
+                    </div>
+                    <div className="text-xs text-gray-600 truncate mt-0.5">
+                      @{user?.username}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate mt-0.5">
+                      ID: {user?.user_id || user?.id || 'N/A'}
+                    </div>
+                    <div className="text-xs text-gray-600 truncate flex items-center gap-1.5 mt-1">
+                      <Mail size={12} />
+                      {user?.email}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleLogout}
+                  className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                >
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </div>
             </div>
 
             {/* Mobile Menu Button */}
@@ -124,6 +151,7 @@ const Layout = ({ children }) => {
               {/* Mobile User Info */}
               <div className="px-4 py-3 bg-gray-50 rounded-lg mx-2">
                 <div className="text-sm font-medium text-gray-900">{user?.full_name || user?.username}</div>
+                <div className="text-xs text-gray-500">ID: {user?.user_id || user?.id || 'N/A'}</div>
                 <div className="text-xs text-gray-600">{user?.email}</div>
               </div>
 

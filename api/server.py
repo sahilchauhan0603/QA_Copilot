@@ -353,6 +353,15 @@ def signup():
         required_fields = ['email', 'username', 'password']
         if not all(field in data for field in required_fields):
             return jsonify({'error': 'Missing required fields'}), 400
+
+        # Validate email format
+        if not auth_service.is_valid_email(data['email']):
+            return jsonify({'error': 'Invalid email format'}), 400
+
+        # Validate password strength
+        password_ok, password_error = auth_service.validate_password_strength(data['password'])
+        if not password_ok:
+            return jsonify({'error': password_error}), 400
         
         # Create user
         user, error = auth_service.create_user(
@@ -457,11 +466,15 @@ def logout(current_user):
 def get_current_user(current_user):
     """Get current user information"""
     try:
+        user_profile = auth_service.get_user_profile(current_user['user_id'])
+        if not user_profile:
+            return jsonify({'error': 'User not found'}), 404
+
         # Get user workspaces
         workspaces = workspace_service.get_user_workspaces(current_user['user_id'])
         
         return jsonify({
-            'user': current_user,
+            'user': user_profile,
             'workspaces': workspaces
         }), 200
         
@@ -544,8 +557,9 @@ def reset_password():
         new_password = data['password']
         
         # Validate password strength
-        if len(new_password) < 8:
-            return jsonify({'error': 'Password must be at least 8 characters long'}), 400
+        password_ok, password_error = auth_service.validate_password_strength(new_password)
+        if not password_ok:
+            return jsonify({'error': password_error}), 400
         
         # Reset password
         success, error = auth_service.reset_password(token, new_password)
@@ -1481,9 +1495,9 @@ def delete_integration_config(current_user, integration_type):
 @app.route('/api/integrations/view-credentials/<integration_type>', methods=['POST'])
 @token_required
 def view_integration_credentials(current_user, integration_type):
-    """View decrypted credentials after password verification"""
+    """View decrypted credentials after password verification."""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         password = data.get('password')
 
         if not password:
@@ -1494,18 +1508,15 @@ def view_integration_credentials(current_user, integration_type):
         # Verify user's password
         from database.connection import get_db_connection
         from database.auth_models import User
-        
+
         db = get_db_connection()
         with db.get_session() as session:
             user = session.query(User).filter(User.id == user_id).first()
             if not user:
                 return jsonify({'error': 'User not found'}), 404
-
-            # Verify password
             if not auth_service.verify_password(password, user.password_hash):
                 return jsonify({'error': 'Invalid password'}), 401
 
-        # Password verified - get decrypted credentials
         team_id = workspace_service.get_active_workspace(user_id)
         credentials = integration_service.get_credentials(
             integration_type=integration_type,
@@ -1516,14 +1527,20 @@ def view_integration_credentials(current_user, integration_type):
         if not credentials:
             return jsonify({'error': 'Integration not configured'}), 404
 
-        # Return only sensitive fields
         sensitive_data = {}
         if integration_type == 'jira':
             sensitive_data['api_token'] = credentials.get('api_token', '')
         elif integration_type == 'azure_devops':
             sensitive_data['personal_access_token'] = credentials.get('personal_access_token', '')
+        elif integration_type == 'testrail':
+            sensitive_data['api_key'] = credentials.get('api_key', '')
+        else:
+            return jsonify({'error': 'Unsupported integration type'}), 400
 
-        return jsonify({'credentials': sensitive_data}), 200
+        response = jsonify({'credentials': sensitive_data})
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        return response, 200
 
     except Exception as e:
         logger.error(f"View credentials error: {e}")

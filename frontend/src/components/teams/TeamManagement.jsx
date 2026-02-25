@@ -3,7 +3,7 @@
  * Create teams, manage members, and assign roles
  */
 import { useState } from 'react';
-import { Users, Plus, UserPlus, Trash2, Shield, X } from 'lucide-react';
+import { Users, Plus, UserPlus, Trash2, Shield, X, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { teamAPI } from '../../services/api';
 import useAuthStore from '../../store/authStore';
@@ -382,15 +382,21 @@ const TeamManagement = ({ onCancel }) => {
                 </div>
                 <div className="flex items-center gap-3 sm:flex-shrink-0">
                   {isAdmin ? (
-                    <select
-                      value={member.role}
-                      onChange={(e) => handleUpdateRole(member.user_id, e.target.value)}
-                      className="px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-transparent w-full sm:w-auto"
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="qa_lead">QA Lead</option>
-                      <option value="qa_member">QA Member</option>
-                    </select>
+                    <div className="relative w-full sm:w-[170px]">
+                      <select
+                        value={member.role}
+                        onChange={(e) => handleUpdateRole(member.user_id, e.target.value)}
+                        className="appearance-none text-black w-full pl-3 pr-9 py-2 rounded-lg text-sm cursor-pointer font-medium border border-gray-300 bg-white shadow-sm hover:border-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="qa_lead">QA Lead</option>
+                        <option value="qa_member">QA Member</option>
+                      </select>
+                      <ChevronDown
+                        size={16}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                      />
+                    </div>
                   ) : (
                     <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
                       member.role === 'admin' ? 'bg-purple-100 text-purple-800' :
@@ -509,7 +515,7 @@ const TeamManagement = ({ onCancel }) => {
                   id="userId"
                   value={newMemberUserId}
                   onChange={(e) => setNewMemberUserId(e.target.value)}
-                  className="input-field"
+                  className="input-field bg-white text-black"
                   placeholder="Enter user ID (e.g., 2)"
                   required
                   autoFocus
@@ -522,16 +528,22 @@ const TeamManagement = ({ onCancel }) => {
                 <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
                   Role *
                 </label>
-                <select
-                  id="role"
-                  value={newMemberRole}
-                  onChange={(e) => setNewMemberRole(e.target.value)}
-                  className="input-field"
-                >
-                  <option value="qa_member">QA Member - Can generate tests, view team data</option>
-                  <option value="qa_lead">QA Lead - Can generate tests, view all team data</option>
-                  <option value="admin">Admin - Full team management access</option>
-                </select>
+                <div className="relative">
+                  <select
+                    id="role"
+                    value={newMemberRole}
+                    onChange={(e) => setNewMemberRole(e.target.value)}
+                    className="appearance-none w-full pl-4 pr-10 py-3 rounded-xl text-base text-gray-900 cursor-pointer font-medium border border-gray-300 bg-white shadow-sm hover:border-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
+                  >
+                    <option value="qa_member">QA Member - Can generate tests, view team data</option>
+                    <option value="qa_lead">QA Lead - Can generate tests, view all team data</option>
+                    <option value="admin">Admin - Full team management access</option>
+                  </select>
+                  <ChevronDown
+                    size={18}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                  />
+                </div>
               </div>
               <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
                 <button
@@ -733,20 +745,26 @@ const TeamManagement = ({ onCancel }) => {
                 <label htmlFor="teamSelect" className="block text-sm font-medium text-gray-700 mb-2">
                   Team to Delete *
                 </label>
-                <select
-                  id="teamSelect"
-                  value={teamToDelete}
-                  onChange={(e) => setTeamToDelete(e.target.value)}
-                  className="input-field"
-                  disabled={adminTeams.length === 0}
-                >
-                  <option value="">-- Select a team --</option>
-                  {adminTeams.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    id="teamSelect"
+                    value={teamToDelete}
+                    onChange={(e) => setTeamToDelete(e.target.value)}
+                    className="appearance-none w-full pl-4 pr-10 py-3 rounded-xl text-base text-gray-900 cursor-pointer font-medium border border-gray-300 bg-white shadow-sm hover:border-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+                    disabled={adminTeams.length === 0}
+                  >
+                    <option value="">-- Select a team --</option>
+                    {adminTeams.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={18}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                  />
+                </div>
                 {adminTeams.length === 0 && (
                   <p className="text-sm text-gray-500 mt-2">
                     You don't have admin access to any teams.

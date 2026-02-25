@@ -16,7 +16,6 @@ import {
   ChevronDown,
   ChevronRight,
   Eye,
-  EyeOff,
   Lock,
   X
 } from 'lucide-react';
@@ -265,7 +264,7 @@ const IntegrationSettings = () => {
       setDeletingIntegration(false);
     }
   };
-  // ── Jira handlers ──
+  //  Jira handlers 
   const handleJiraTest = async () => {
     if (!jiraForm.url || !jiraForm.email) {
       toast.error('Please fill in Jira URL and Email');
@@ -315,7 +314,7 @@ const IntegrationSettings = () => {
     openDeleteModal('jira');
   };
 
-  // ── Azure DevOps handlers ──
+  //  Azure DevOps handlers 
   const handleAdoTest = async () => {
     if (!adoForm.organization_url || !adoForm.project) {
       toast.error('Please fill in Azure DevOps Organization URL and Project');
@@ -365,7 +364,7 @@ const IntegrationSettings = () => {
     openDeleteModal('azure_devops');
   };
 
-  // ── Xray handlers ──
+  //  Xray handlers 
   const handleXraySave = async () => {
     if (!xrayForm.project_key) {
       toast.error('Please enter Xray project key');
@@ -395,7 +394,7 @@ const IntegrationSettings = () => {
     openDeleteModal('xray');
   };
 
-  // ── Zephyr handlers ──
+  //  Zephyr handlers 
   const handleZephyrSave = async () => {
     if (!zephyrForm.project_key) {
       toast.error('Please enter Zephyr project key');
@@ -427,7 +426,7 @@ const IntegrationSettings = () => {
     openDeleteModal('zephyr');
   };
 
-  // ── TestRail handlers ──
+  //  TestRail handlers 
   const handleTestrailTest = async () => {
     if (!testrailForm.url || !testrailForm.email || !testrailForm.api_key) {
       toast.error('Please fill in all TestRail fields');
@@ -474,7 +473,7 @@ const IntegrationSettings = () => {
     openDeleteModal('testrail');
   };
 
-  // ── View credentials handlers ──
+  //  View credentials handlers 
   const handleViewToken = (integrationType) => {
     if (!isConfigured(integrationType)) {
       toast.error('Integration not configured');
@@ -499,17 +498,14 @@ const IntegrationSettings = () => {
       );
       const token = viewIntegrationType === 'jira'
         ? result.credentials?.api_token
-        : result.credentials?.personal_access_token;
+        : viewIntegrationType === 'azure_devops'
+          ? result.credentials?.personal_access_token
+          : result.credentials?.api_key;
       setRevealedToken(token || 'No token found');
       toast.success('Token revealed');
-      // If modal was triggered for dependent integration, auto-fill token and retry save
-      if (viewIntegrationType === 'jira' && !jiraForm.api_token && token) {
-        setJiraForm((prev) => ({ ...prev, api_token: token }));
-        setShowPasswordModal(false);
-        setVerifyPassword('');
-        setRevealedToken(null);
-        setViewIntegrationType(null);
-        // Optionally, retry the last save (Xray/Zephyr)
+
+      // Optionally, retry the last save (Xray/Zephyr)
+      if (viewIntegrationType === 'jira') {
         if (xraySaving) handleXraySave();
         if (zephyrSaving) handleZephyrSave();
       }
@@ -518,6 +514,7 @@ const IntegrationSettings = () => {
       setRevealedToken(null);
     } finally {
       setVerifying(false);
+      setVerifyPassword('');
     }
   };
 
@@ -555,7 +552,7 @@ const IntegrationSettings = () => {
         </div>
       </div>
 
-      {/* ── Jira Integration ── */}
+      {/*  Jira Integration  */}
       <div className="card">
         <button
           onClick={() => toggleSection('jira')}
@@ -622,7 +619,7 @@ const IntegrationSettings = () => {
                   value={jiraForm.api_token}
                   onChange={(e) => setJiraForm((p) => ({ ...p, api_token: e.target.value }))}
                   className="input pr-10"
-                  placeholder={isConfigured('jira') ? '••••••••••••••••' : 'Your Jira API token'}
+                  placeholder={isConfigured('jira') ? '****************' : 'Your Jira API token'}
                 />
                 {isConfigured('jira') && (
                   <button
@@ -686,7 +683,7 @@ const IntegrationSettings = () => {
         )}
       </div>
 
-      {/* ── Azure DevOps Integration ── */}
+      {/*  Azure DevOps Integration  */}
       <div className="card">
         <button
           onClick={() => toggleSection('azure_devops')}
@@ -763,7 +760,7 @@ const IntegrationSettings = () => {
                     setAdoForm((p) => ({ ...p, personal_access_token: e.target.value }))
                   }
                   className="input pr-10"
-                  placeholder={isConfigured('azure_devops') ? '••••••••••••••••' : 'Your PAT'}
+                  placeholder={isConfigured('azure_devops') ? '****************' : 'Your PAT'}
                 />
                 {isConfigured('azure_devops') && (
                   <button
@@ -827,7 +824,7 @@ const IntegrationSettings = () => {
         )}
       </div>
 
-      {/* ── Xray Integration ── */}
+      {/*  Xray Integration  */}
       <div className="card">
         <button
           onClick={() => toggleSection('xray')}
@@ -915,7 +912,7 @@ const IntegrationSettings = () => {
         )}
       </div>
 
-      {/* ── Zephyr Scale Integration ── */}
+      {/*  Zephyr Scale Integration  */}
       <div className="card">
         <button
           onClick={() => toggleSection('zephyr')}
@@ -983,7 +980,7 @@ const IntegrationSettings = () => {
                   value={zephyrForm.zephyr_token}
                   onChange={(e) => setZephyrForm((p) => ({ ...p, zephyr_token: e.target.value }))}
                   className="input"
-                  placeholder={isConfigured('zephyr') ? '����������������' : 'Enter Zephyr Scale API token'}
+                  placeholder={isConfigured('zephyr') ? '****************' : 'Enter Zephyr Scale API token'}
                 />
               </div>
               <p className="input-hint">
@@ -1028,7 +1025,7 @@ const IntegrationSettings = () => {
         )}
       </div>
 
-      {/* ── TestRail Integration ── */}
+      {/*  TestRail Integration  */}
       <div className="card">
         <button
           onClick={() => toggleSection('testrail')}
@@ -1095,7 +1092,7 @@ const IntegrationSettings = () => {
                   value={testrailForm.api_key}
                   onChange={(e) => setTestrailForm((p) => ({ ...p, api_key: e.target.value }))}
                   className="input pr-10"
-                  placeholder={isConfigured('testrail') ? '����������������' : 'Your TestRail API key'}
+                  placeholder={isConfigured('testrail') ? '****************' : 'Your TestRail API key'}
                 />
                 {isConfigured('testrail') && (
                   <button
@@ -1239,7 +1236,7 @@ const IntegrationSettings = () => {
           document.body
         )
       }
-      {/* ── Password Verification Modal ── */}
+      {/*  Password Verification Modal  */}
       {showPasswordModal &&
         createPortal(
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
@@ -1298,7 +1295,7 @@ const IntegrationSettings = () => {
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Click to select all • Keep this token secure
+                    Click to select all - Keep this token secure
                   </p>
                 </div>
               )}
@@ -1347,6 +1344,8 @@ const IntegrationSettings = () => {
 };
 
 export default IntegrationSettings;
+
+
 
 
 

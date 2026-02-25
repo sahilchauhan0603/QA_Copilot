@@ -7,6 +7,19 @@ import { UserPlus, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
 
+const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
+const getPasswordValidationError = (password) => {
+  if (!password) return 'Password is required';
+  if (password.length < 8) return 'Password must be at least 8 characters';
+  if (/\s/.test(password)) return 'Password must not contain spaces';
+  if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
+  if (!/[a-z]/.test(password)) return 'Password must contain at least one lowercase letter';
+  if (!/\d/.test(password)) return 'Password must contain at least one digit';
+  if (!/[^A-Za-z0-9]/.test(password)) return 'Password must contain at least one special character';
+  return '';
+};
+
 const Signup = () => {
   const navigate = useNavigate();
   const { signup, isLoading } = useAuthStore();
@@ -94,6 +107,13 @@ const Signup = () => {
     e.preventDefault();
     setValidationError('');
 
+    // Validate email format
+    if (!EMAIL_PATTERN.test(formData.email.trim().toLowerCase())) {
+      setValidationError('Please enter a valid email address');
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
     // Check availability before proceeding
     if (availability.email.available === false) {
       setValidationError('Email is already registered');
@@ -115,9 +135,10 @@ const Signup = () => {
     }
 
     // Validate password strength
-    if (formData.password.length < 8) {
-      setValidationError('Password must be at least 8 characters');
-      toast.error('Password must be at least 8 characters');
+    const passwordError = getPasswordValidationError(formData.password);
+    if (passwordError) {
+      setValidationError(passwordError);
+      toast.error(passwordError);
       return;
     }
 
@@ -315,7 +336,7 @@ const Signup = () => {
                 required
               />
               <p className="input-hint">
-                Must be at least 8 characters
+                Min 8 chars with uppercase, lowercase, digit, and special character
               </p>
             </div>
 
