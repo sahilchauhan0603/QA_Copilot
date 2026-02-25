@@ -19,11 +19,12 @@ import {
   GitBranch,
 } from 'lucide-react';
 
-const itemsPerPage = 9;
-
 const GenerationHistory = ({
-  generations,
   filteredGenerations,
+  totalGenerations = 0,
+  currentPage = 1,
+  itemsPerPage = 6,
+  onPageChange,
   loading,
   showDetails,
   searchQuery,
@@ -35,7 +36,29 @@ const GenerationHistory = ({
   onDelete,
 }) => {
   const [viewMode, setViewMode] = useState('cards');
-  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(totalGenerations / itemsPerPage));
+  const rangeStart = totalGenerations === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const rangeEnd = Math.min(currentPage * itemsPerPage, totalGenerations);
+  const showPagination = totalPages > 1;
+
+  const getVisiblePages = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, idx) => idx + 1);
+    }
+
+    const pages = [1];
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    if (start > 2) pages.push('...');
+    for (let page = start; page <= end; page += 1) {
+      pages.push(page);
+    }
+    if (end < totalPages - 1) pages.push('...');
+
+    pages.push(totalPages);
+    return pages;
+  };
 
   return (
     <div className="card">
@@ -94,6 +117,11 @@ const GenerationHistory = ({
         </select>
       </div>
 
+      <div className="text-sm text-gray-500 mb-4">
+        Showing {rangeStart}-{rangeEnd} of {totalGenerations} generation
+        {totalGenerations !== 1 ? 's' : ''}
+      </div>
+
       {loading && !showDetails ? (
         <div className="flex items-center justify-center py-12">
           <Loader size={32} className="animate-spin text-primary-600" />
@@ -125,20 +153,10 @@ const GenerationHistory = ({
         </div>
       ) : (
         <>
-          {/* Results Count */}
-          <div className="text-sm text-gray-500 mb-4">
-            Showing{' '}
-            {Math.min((currentPage - 1) * itemsPerPage + 1, filteredGenerations.length)}-
-            {Math.min(currentPage * itemsPerPage, filteredGenerations.length)} of{' '}
-            {filteredGenerations.length} generation
-            {filteredGenerations.length !== 1 ? 's' : ''}
-          </div>
-
           {/* Cards View */}
           {viewMode === 'cards' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               {filteredGenerations
-                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                 .map((gen) => (
                   <div
                     key={gen.id}
@@ -245,7 +263,6 @@ const GenerationHistory = ({
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredGenerations
-                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                     .map((gen) => (
                       <tr key={gen.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">
@@ -322,14 +339,14 @@ const GenerationHistory = ({
           )}
 
           {/* Pagination */}
-          {filteredGenerations.length > itemsPerPage && (
+          {showPagination && (
             <div className="flex items-center justify-between border-t border-gray-200 pt-4">
               <div className="text-sm text-gray-500">
-                Page {currentPage} of {Math.ceil(filteredGenerations.length / itemsPerPage)}
+                Page {currentPage} of {totalPages}
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  onClick={() => onPageChange?.(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
                   className="btn-secondary px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -337,19 +354,34 @@ const GenerationHistory = ({
                   Previous
                 </button>
                 <button
-                  onClick={() =>
-                    setCurrentPage((p) =>
-                      Math.min(Math.ceil(filteredGenerations.length / itemsPerPage), p + 1)
-                    )
-                  }
-                  disabled={
-                    currentPage >= Math.ceil(filteredGenerations.length / itemsPerPage)
-                  }
+                  onClick={() => onPageChange?.(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage >= totalPages}
                   className="btn-secondary px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                   <ChevronRight size={16} className="inline" />
                 </button>
+                <div className="flex items-center gap-1">
+                  {getVisiblePages().map((page, idx) =>
+                    page === '...' ? (
+                      <span key={`dots-${idx}`} className="px-2 text-gray-400 select-none">
+                        ...
+                      </span>
+                    ) : (
+                      <button
+                        key={page}
+                        onClick={() => onPageChange?.(page)}
+                        className={`min-w-9 px-2 py-1.5 text-sm rounded-md border transition-colors ${
+                          currentPage === page
+                            ? 'bg-primary-600 text-white border-primary-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -360,3 +392,4 @@ const GenerationHistory = ({
 };
 
 export default GenerationHistory;
+

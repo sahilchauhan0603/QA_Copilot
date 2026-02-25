@@ -90,4 +90,45 @@ export const integrationAPI = {
     });
     return response.data;
   },
+
+  /** Start a cancellable full sync job (returns {promise, cancel}) */
+  getCancelableSync: (integrationType, ticketId, generationId, action = 'full') => {
+    if (action !== 'full') {
+      throw new Error('Only full sync supports cancellation in this implementation');
+    }
+    let jobId = null;
+    let cancelRequested = false;
+    const startJob = async () => {
+      const response = await apiClient.post('/integrations/sync/full-sync', {
+        integration_type: integrationType,
+        ticket_id: ticketId,
+        generation_id: generationId,
+      });
+      jobId = response.data.job_id;
+      return jobId;
+    };
+    const pollJob = async (jobId) => {
+      // Poll for job completion/cancellation (simple polling, can be improved)
+      while (!cancelRequested) {
+        const res = await apiClient.get(`/integrations/sync/job-status/${jobId}`);
+        const status = res.data.status;
+        if (status === 'completed') return res.data.result;
+        if (status === 'error') throw new Error(res.data.error || 'Sync failed');
+        if (status === 'cancelled') throw new Error('sync_cancelled');
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      throw new Error('sync_cancelled');
+    };
+    const promise = (async () => {
+      const jobId = await startJob();
+      return pollJob(jobId);
+    })();
+    const cancel = async () => {
+      cancelRequested = true;
+      if (jobId) {
+        await apiClient.post(`/integrations/sync/cancel/${jobId}`);
+      }
+    };
+    return { promise, cancel };
+  },
 };

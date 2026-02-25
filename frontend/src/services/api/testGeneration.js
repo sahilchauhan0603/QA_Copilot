@@ -115,8 +115,53 @@ export const testGenAPI = {
     };
 
     if (refinementType !== 'regenerate') {
-      // Non-SSE refinement types return a simple promise
-      return apiClient.post('/test-generation/refine', requestBody).then(r => r.data);
+      // Non-regenerate refinement runs as async job with polling + server-side cancel
+      let jobId = null;
+      let cancelRequested = false;
+
+      const pollJob = async (id) => {
+        while (!cancelRequested) {
+          const res = await apiClient.get(`/test-generation/refine/job-status/${id}`);
+          const status = res.data.status;
+          if (status === 'completed') return res.data.result;
+          if (status === 'error') throw new Error(res.data.error || 'Refinement failed');
+          if (status === 'cancelled') throw new Error('refine_cancelled');
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        throw new Error('refine_cancelled');
+      };
+
+      const promise = (async () => {
+        const response = await apiClient.post('/test-generation/refine', requestBody);
+        if (!response.data.job_id) {
+          return response.data;
+        }
+        jobId = response.data.job_id;
+
+        if (cancelRequested) {
+          try {
+            await apiClient.post(`/test-generation/refine/cancel/${jobId}`);
+          } catch (e) {
+            // Ignore cancel errors
+          }
+          throw new Error('refine_cancelled');
+        }
+
+        return pollJob(jobId);
+      })();
+
+      const cancel = async () => {
+        cancelRequested = true;
+        if (jobId) {
+          try {
+            await apiClient.post(`/test-generation/refine/cancel/${jobId}`);
+          } catch (e) {
+            // Ignore cancel errors
+          }
+        }
+      };
+
+      return { promise, cancel, get jobId() { return jobId; } };
     }
 
     // Regenerate uses SSE, so return { promise, cancel, jobId }

@@ -94,6 +94,10 @@ def get_orchestrator():
 _progress_store = {}
 _progress_lock = threading.Lock()
 
+# In-memory store for non-regenerate refinement jobs
+_refine_job_store = {}
+_refine_job_lock = threading.Lock()
+
 AGENT_STEPS = [
     {"agent": "ticket_reader", "label": "Reading Ticket", "order": 1},
     {"agent": "context_builder", "label": "Building Context", "order": 2},
@@ -224,6 +228,80 @@ def cancel_generation(current_user, job_id):
     except Exception as e:
         logger.error(f"Cancel generation error: {e}")
         return jsonify({'error': 'Failed to cancel generation'}), 500
+
+
+class RefineJobCancelledError(Exception):
+    """Raised when a refinement job is cancelled by the user."""
+
+
+def start_refine_job(owner_user_id, target, *args, **kwargs):
+    job_id = str(uuid_lib.uuid4())
+    with _refine_job_lock:
+        _refine_job_store[job_id] = {
+            'status': 'running',
+            'cancelled': False,
+            'result': None,
+            'error': None,
+            'owner_user_id': owner_user_id,
+        }
+
+    def job_wrapper():
+        try:
+            result = target(job_id, *args, **kwargs)
+            with _refine_job_lock:
+                if _refine_job_store.get(job_id, {}).get('cancelled'):
+                    return
+                _refine_job_store[job_id]['result'] = result
+                _refine_job_store[job_id]['status'] = 'completed'
+        except RefineJobCancelledError:
+            with _refine_job_lock:
+                if job_id in _refine_job_store:
+                    _refine_job_store[job_id]['cancelled'] = True
+                    _refine_job_store[job_id]['status'] = 'cancelled'
+                    _refine_job_store[job_id]['error'] = 'Cancelled by user'
+        except Exception as e:
+            with _refine_job_lock:
+                if _refine_job_store.get(job_id, {}).get('cancelled'):
+                    _refine_job_store[job_id]['status'] = 'cancelled'
+                    _refine_job_store[job_id]['error'] = 'Cancelled by user'
+                    return
+                _refine_job_store[job_id]['error'] = str(e)
+                _refine_job_store[job_id]['status'] = 'error'
+
+    t = threading.Thread(target=job_wrapper, daemon=True)
+    t.start()
+    return job_id
+
+
+def cancel_refine_job(job_id):
+    with _refine_job_lock:
+        if job_id in _refine_job_store:
+            if _refine_job_store[job_id].get('status') in ('completed', 'error', 'cancelled'):
+                return False
+            _refine_job_store[job_id]['cancelled'] = True
+            _refine_job_store[job_id]['status'] = 'cancelled'
+            _refine_job_store[job_id]['error'] = 'Cancelled by user'
+            return True
+    return False
+
+
+def is_refine_job_cancelled(job_id):
+    with _refine_job_lock:
+        return _refine_job_store.get(job_id, {}).get('cancelled', False)
+
+
+def get_refine_job_status_payload(current_user_id, job_id):
+    with _refine_job_lock:
+        job = _refine_job_store.get(job_id)
+        if not job:
+            return {'error': 'Job not found'}, 404
+        if job.get('owner_user_id') != current_user_id:
+            return {'error': 'Access denied'}, 403
+        return {
+            'status': job['status'],
+            'result': job.get('result'),
+            'error': job.get('error'),
+        }, 200
 
 
 # ============================================
@@ -845,6 +923,14 @@ def get_generations(current_user):
         
         # Get query parameters
         limit = request.args.get('limit', 100, type=int)
+        page = request.args.get('page', 1, type=int)
+        if page < 1:
+            page = 1
+        if limit < 1:
+            limit = 1
+        if limit > 100:
+            limit = 100
+        offset = (page - 1) * limit
         ticket_id = request.args.get('ticket_id')
         ticket_type = request.args.get('ticket_type')
         date_from = request.args.get('date_from')
@@ -858,16 +944,37 @@ def get_generations(current_user):
                 ticket_id=ticket_id,
                 ticket_type=ticket_type,
                 date_from=date_from,
-                date_to=date_to
+                date_to=date_to,
+                limit=limit,
+                offset=offset
             )
         else:
             generations = db_manager.get_all_generations(
                 user_id=user_id,
                 team_id=team_id,
-                limit=limit
+                limit=limit,
+                offset=offset
             )
-        
-        return jsonify({'generations': generations}), 200
+
+        total = db_manager.count_generations(
+            user_id=user_id,
+            team_id=team_id,
+            ticket_id=ticket_id,
+            ticket_type=ticket_type,
+            date_from=date_from,
+            date_to=date_to
+        )
+
+        total_pages = max(1, (total + limit - 1) // limit)
+        return jsonify({
+            'generations': generations,
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'total': total,
+                'total_pages': total_pages,
+            }
+        }), 200
         
     except Exception as e:
         logger.error(f"Get generations error: {e}")
@@ -1175,50 +1282,65 @@ def refine_tests(current_user):
                     return jsonify({'error': 'focus_area is required for focus refinement'}), 400
                 refinement_context['focus_area'] = focus_area
             
-            # Initialize RefineAgent
+            # Validate AI config before starting async job
             google_api_key = os.getenv('GOOGLE_API_KEY')
             if not google_api_key:
                 return jsonify({'error': 'AI service not configured'}), 500
-            
-            genai.configure(api_key=google_api_key)
-            rate_limiter = get_rate_limiter(max_requests=15, time_window=60)
-            api_cache = get_api_cache(ttl=3600)
-            refine_agent = RefineAgent(genai, rate_limiter, api_cache)
-            
-            # Perform refinement
-            logger.info(f"Refining generation {generation_id} with type: {refinement_type}")
-            refined_state = refine_agent.refine(state, refinement_type, refinement_context)
-            
-            # Preserve source integration from original generation
-            if state.get('source_integration'):
-                refined_state['source_integration'] = state['source_integration']
-            
-            # Add refinement metadata
-            if 'refinement' not in refined_state:
-                refined_state['refinement'] = {}
-            refined_state['refinement']['is_refined'] = True
-            refined_state['refinement']['original_generation_id'] = generation_id
-            refined_state['refinement']['refinement_type'] = refinement_type
-            
-            # Save refined generation as new entry
-            new_generation_id = db_manager.save_generation(
-                state=refined_state,
-                user_id=current_user['user_id'],
-                team_id=generation['team_id'],
-                excel_file_path=None
-            )
-            
-            # Get the new generation data
-            new_generation_data = db_manager.get_generation_by_id(new_generation_id)
-            
+
+            # Use async job for cancellable non-regenerate refinement
+            def run_refinement_job(job_id):
+                if is_refine_job_cancelled(job_id):
+                    raise RefineJobCancelledError("Refinement cancelled by user")
+
+                genai.configure(api_key=google_api_key)
+                rate_limiter = get_rate_limiter(max_requests=15, time_window=60)
+                api_cache = get_api_cache(ttl=3600)
+                refine_agent = RefineAgent(genai, rate_limiter, api_cache)
+
+                # Perform refinement
+                logger.info(f"Refining generation {generation_id} with type: {refinement_type}")
+                refined_state = refine_agent.refine(state, refinement_type, refinement_context)
+
+                # If user cancelled while LLM call was running, stop before persisting
+                if is_refine_job_cancelled(job_id):
+                    raise RefineJobCancelledError("Refinement cancelled by user")
+
+                # Preserve source integration from original generation
+                if state.get('source_integration'):
+                    refined_state['source_integration'] = state['source_integration']
+
+                # Add refinement metadata
+                if 'refinement' not in refined_state:
+                    refined_state['refinement'] = {}
+                refined_state['refinement']['is_refined'] = True
+                refined_state['refinement']['original_generation_id'] = generation_id
+                refined_state['refinement']['refinement_type'] = refinement_type
+
+                # Save refined generation as new entry
+                new_generation_id = db_manager.save_generation(
+                    state=refined_state,
+                    user_id=current_user['user_id'],
+                    team_id=generation['team_id'],
+                    excel_file_path=None
+                )
+
+                # Get the new generation data
+                new_generation_data = db_manager.get_generation_by_id(new_generation_id)
+
+                return {
+                    'message': f'Test cases refined successfully ({refinement_type})',
+                    'generation_id': new_generation_id,
+                    'original_generation_id': generation_id,
+                    'refinement_type': refinement_type,
+                    'total_test_cases': len(refined_state.get('test_cases', [])),
+                    'generation': new_generation_data
+                }
+
+            job_id = start_refine_job(current_user['user_id'], run_refinement_job)
             return jsonify({
-                'message': f'Test cases refined successfully ({refinement_type})',
-                'generation_id': new_generation_id,
-                'original_generation_id': generation_id,
-                'refinement_type': refinement_type,
-                'total_test_cases': len(refined_state.get('test_cases', [])),
-                'generation': new_generation_data
-            }), 200
+                'job_id': job_id,
+                'message': 'Refinement started'
+            }), 202
         
     except ValueError as ve:
         logger.error(f"Configuration error: {ve}")
@@ -1227,6 +1349,26 @@ def refine_tests(current_user):
         logger.error(f"Refinement error: {e}")
         logger.error(traceback.format_exc())
         return jsonify({'error': f'Refinement failed: {str(e)}'}), 500
+
+
+@app.route('/api/test-generation/refine/job-status/<job_id>', methods=['GET'])
+@token_required
+def refine_job_status(current_user, job_id):
+    payload, status_code = get_refine_job_status_payload(current_user['user_id'], job_id)
+    return jsonify(payload), status_code
+
+
+@app.route('/api/test-generation/refine/cancel/<job_id>', methods=['POST'])
+@token_required
+def cancel_refine_job_endpoint(current_user, job_id):
+    payload, status_code = get_refine_job_status_payload(current_user['user_id'], job_id)
+    if status_code != 200:
+        return jsonify(payload), status_code
+    if payload.get('status') in ('completed', 'error', 'cancelled'):
+        return jsonify({'error': 'Job already finished'}), 400
+    if cancel_refine_job(job_id):
+        return jsonify({'message': 'Refinement job cancelled'}), 200
+    return jsonify({'error': 'Job not found'}), 404
 
 
 # ============================================
@@ -1681,40 +1823,34 @@ def sync_add_comment(current_user):
         return jsonify({'error': f'Failed to add comment: {str(e)}'}), 500
 
 
+
+# New: Async job-based sync_full
 @app.route('/api/integrations/sync/full-sync', methods=['POST'])
 @token_required
-def sync_full(current_user):
-    """Full sync: attach Excel + add summary comment to ticket"""
-    try:
-        data = request.get_json()
+def sync_full_job(current_user):
+    """Start a full sync job and return job_id"""
+    data = request.get_json()
+    integration_type = data.get('integration_type')
+    ticket_id = data.get('ticket_id')
+    generation_id = data.get('generation_id')
+    if not all([integration_type, ticket_id, generation_id]):
+        return jsonify({'error': 'integration_type, ticket_id, and generation_id are required'}), 400
+    user_id = current_user['user_id']
+    team_id = workspace_service.get_active_workspace(user_id)
 
-        integration_type = data.get('integration_type')
-        ticket_id = data.get('ticket_id')
-        generation_id = data.get('generation_id')
-
-        if not all([integration_type, ticket_id, generation_id]):
-            return jsonify({'error': 'integration_type, ticket_id, and generation_id are required'}), 400
-
-        user_id = current_user['user_id']
-        team_id = workspace_service.get_active_workspace(user_id)
-
+    def sync_full_job_logic(job_id):
         results = {'attach_excel': False, 'add_comment': False, 'errors': []}
-
-        # Get generation data once
         generation_data = db_manager.get_generation_by_id(generation_id)
         if not generation_data:
-            return jsonify({'error': 'Generation not found'}), 404
-
+            raise Exception('Generation not found')
         generation = generation_data['generation']
-
         # Verify access
         if generation['user_id'] != user_id:
             if generation['team_id'] is not None:
                 if not team_service.is_team_member(user_id, generation['team_id']):
-                    return jsonify({'error': 'Access denied'}), 403
+                    raise Exception('Access denied')
             else:
-                return jsonify({'error': 'Access denied'}), 403
-
+                raise Exception('Access denied')
         # 1. Attach Excel
         meta = generation.get('generation_metadata', {})
         state = {
@@ -1738,10 +1874,11 @@ def sync_full(current_user):
             'dependencies': generation_data.get('dependencies', []),
             'processing_time': meta.get('processing_time', 0),
         }
-
+        # Check for cancellation
+        if is_sync_job_cancelled(job_id):
+            raise Exception('Sync cancelled by user')
         excel_buffer = export_to_excel_bytes(state)
         filename = get_excel_filename(state)
-
         success, error = integration_service.attach_excel_to_ticket(
             integration_type=integration_type,
             ticket_id=ticket_id,
@@ -1753,14 +1890,14 @@ def sync_full(current_user):
         results['attach_excel'] = success
         if error:
             results['errors'].append(f"Attach Excel: {error}")
-
-        # 2. Add comment (call ourselves internally)
-        # Build a minimal comment for the sync
+        # Check for cancellation
+        if is_sync_job_cancelled(job_id):
+            raise Exception('Sync cancelled by user')
+        # 2. Add comment
         test_cases = generation_data.get('test_cases', [])
         total = len(test_cases)
         gaps = len(generation_data.get('coverage_gaps', []))
         risks = len(generation_data.get('risk_areas', []))
-
         if integration_type == 'jira':
             comment = f"h3. \U0001f9ea TicketToTest AI - Test Generation Complete\n\n"
             comment += f"*{total}* test cases generated | *{gaps}* coverage gaps | *{risks}* risk areas\n\n"
@@ -1771,7 +1908,6 @@ def sync_full(current_user):
             comment += f"<p><strong>{total}</strong> test cases generated | <strong>{gaps}</strong> coverage gaps | <strong>{risks}</strong> risk areas</p>"
             comment += f"<p><em>Full test case Excel report has been attached to this ticket.</em></p>"
             comment += f"<hr><p><em>Generated on {generation.get('timestamp', 'N/A')}</em></p>"
-
         success2, error2 = integration_service.post_comment_to_ticket(
             integration_type=integration_type,
             ticket_id=ticket_id,
@@ -1782,17 +1918,10 @@ def sync_full(current_user):
         results['add_comment'] = success2
         if error2:
             results['errors'].append(f"Add comment: {error2}")
+        return results
 
-        if results['attach_excel'] and results['add_comment']:
-            return jsonify({'message': f'Successfully synced to {ticket_id}', 'results': results}), 200
-        elif results['attach_excel'] or results['add_comment']:
-            return jsonify({'message': 'Partial sync completed', 'results': results}), 207
-        else:
-            return jsonify({'error': 'Sync failed', 'results': results}), 400
-
-    except Exception as e:
-        logger.error(f"Full sync error: {e}")
-        return jsonify({'error': f'Failed to sync: {str(e)}'}), 500
+    job_id = start_sync_job(sync_full_job_logic)
+    return jsonify({'job_id': job_id}), 202
 
 
 # ============================================
@@ -1851,6 +1980,51 @@ def export_to_xray(current_user, active_team_id, is_personal_workspace):
         return jsonify({'error': 'Failed to export to Xray. Please try again.'}), 500
 
 
+@app.route('/api/test-management/export-xray-job', methods=['POST'])
+@token_required
+@workspace_aware
+def export_to_xray_job(current_user, active_team_id, is_personal_workspace):
+    """Start an async Xray export job and return job_id"""
+    data = request.get_json()
+    generation_id = data.get('generation_id')
+    suite_name = data.get('suite_name')
+    ticket_id = data.get('ticket_id')
+
+    if not generation_id:
+        return jsonify({'error': 'generation_id is required'}), 400
+
+    user_id = current_user['user_id']
+    team_id = active_team_id
+
+    def export_xray_job_logic(job_id):
+        if is_sync_job_cancelled(job_id):
+            raise SyncJobCancelledError('Export cancelled by user')
+
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        if not generation_data:
+            raise Exception('Generation not found')
+
+        test_cases = generation_data.get('test_cases', [])
+        test_mgmt_service = TestManagementService()
+        export_result = test_mgmt_service.export_to_xray(
+            test_cases=test_cases,
+            user_id=user_id,
+            team_id=team_id,
+            suite_name=suite_name,
+            ticket_id=ticket_id
+        )
+
+        if is_sync_job_cancelled(job_id):
+            raise SyncJobCancelledError('Export cancelled by user')
+
+        if not export_result.get('success'):
+            raise Exception(export_result.get('error', 'Export to Xray failed'))
+        return export_result
+
+    job_id = start_sync_job(export_xray_job_logic)
+    return jsonify({'job_id': job_id}), 202
+
+
 @app.route('/api/test-management/export-zephyr', methods=['POST'])
 @token_required
 @workspace_aware
@@ -1902,6 +2076,51 @@ def export_to_zephyr(current_user, active_team_id, is_personal_workspace):
         logger.error(f"Zephyr export error: {e}")
         logger.error(traceback.format_exc())
         return jsonify({'error': 'Failed to export to Zephyr Scale. Please try again.'}), 500
+
+
+@app.route('/api/test-management/export-zephyr-job', methods=['POST'])
+@token_required
+@workspace_aware
+def export_to_zephyr_job(current_user, active_team_id, is_personal_workspace):
+    """Start an async Zephyr export job and return job_id"""
+    data = request.get_json()
+    generation_id = data.get('generation_id')
+    cycle_name = data.get('cycle_name')
+    ticket_id = data.get('ticket_id')
+
+    if not generation_id:
+        return jsonify({'error': 'generation_id is required'}), 400
+
+    user_id = current_user['user_id']
+    team_id = active_team_id
+
+    def export_zephyr_job_logic(job_id):
+        if is_sync_job_cancelled(job_id):
+            raise SyncJobCancelledError('Export cancelled by user')
+
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        if not generation_data:
+            raise Exception('Generation not found')
+
+        test_cases = generation_data.get('test_cases', [])
+        test_mgmt_service = TestManagementService()
+        export_result = test_mgmt_service.export_to_zephyr(
+            test_cases=test_cases,
+            user_id=user_id,
+            team_id=team_id,
+            suite_name=cycle_name,
+            ticket_id=ticket_id
+        )
+
+        if is_sync_job_cancelled(job_id):
+            raise SyncJobCancelledError('Export cancelled by user')
+
+        if not export_result.get('success'):
+            raise Exception(export_result.get('error', 'Export to Zephyr Scale failed'))
+        return export_result
+
+    job_id = start_sync_job(export_zephyr_job_logic)
+    return jsonify({'job_id': job_id}), 202
 
 
 @app.route('/api/test-management/export-testrail', methods=['POST'])
@@ -1958,6 +2177,54 @@ def export_to_testrail(current_user, active_team_id, is_personal_workspace):
         logger.error(f"TestRail export error: {e}")
         logger.error(traceback.format_exc())
         return jsonify({'error': 'Failed to export to TestRail. Please try again.'}), 500
+
+
+@app.route('/api/test-management/export-testrail-job', methods=['POST'])
+@token_required
+@workspace_aware
+def export_to_testrail_job(current_user, active_team_id, is_personal_workspace):
+    """Start an async TestRail export job and return job_id"""
+    data = request.get_json()
+    generation_id = data.get('generation_id')
+    suite_name = data.get('suite_name')
+    ticket_id = data.get('ticket_id')
+
+    if not generation_id:
+        return jsonify({'error': 'generation_id is required'}), 400
+
+    if not suite_name:
+        return jsonify({'error': 'suite_name is required for TestRail'}), 400
+
+    user_id = current_user['user_id']
+    team_id = active_team_id
+
+    def export_testrail_job_logic(job_id):
+        if is_sync_job_cancelled(job_id):
+            raise SyncJobCancelledError('Export cancelled by user')
+
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        if not generation_data:
+            raise Exception('Generation not found')
+
+        test_cases = generation_data.get('test_cases', [])
+        test_mgmt_service = TestManagementService()
+        export_result = test_mgmt_service.export_to_testrail(
+            test_cases=test_cases,
+            user_id=user_id,
+            team_id=team_id,
+            suite_name=suite_name,
+            ticket_id=ticket_id
+        )
+
+        if is_sync_job_cancelled(job_id):
+            raise SyncJobCancelledError('Export cancelled by user')
+
+        if not export_result.get('success'):
+            raise Exception(export_result.get('error', 'Export to TestRail failed'))
+        return export_result
+
+    job_id = start_sync_job(export_testrail_job_logic)
+    return jsonify({'job_id': job_id}), 202
 
 
 # ============================================
@@ -2056,10 +2323,105 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 
+def _get_sync_job_status_payload(job_id):
+    with sync_job_lock:
+        job = sync_job_store.get(job_id)
+        if not job:
+            return {'error': 'Job not found'}, 404
+        return {
+            'status': job['status'],
+            'result': job.get('result'),
+            'error': job.get('error'),
+        }, 200
+
+# Endpoint to poll sync/export job status
+@app.route('/api/integrations/sync/job-status/<job_id>', methods=['GET'])
+@token_required
+def sync_job_status(current_user, job_id):
+    payload, status_code = _get_sync_job_status_payload(job_id)
+    return jsonify(payload), status_code
+
+@app.route('/api/test-management/export/job-status/<job_id>', methods=['GET'])
+@token_required
+def export_job_status(current_user, job_id):
+    """Alias endpoint for export job status polling"""
+    payload, status_code = _get_sync_job_status_payload(job_id)
+    return jsonify(payload), status_code
+
+# ========== SYNC/EXPORT JOB MANAGEMENT ===========
+sync_job_store = {}
+sync_job_lock = threading.Lock()
+
+import uuid as uuid_lib
+
+class SyncJobCancelledError(Exception):
+    """Raised when a sync/export job is cancelled by the user."""
+
+def start_sync_job(target, *args, **kwargs):
+    job_id = str(uuid_lib.uuid4())
+    with sync_job_lock:
+        sync_job_store[job_id] = {
+            'status': 'running',
+            'cancelled': False,
+            'result': None,
+            'error': None,
+        }
+    def job_wrapper():
+        try:
+            result = target(job_id, *args, **kwargs)
+            with sync_job_lock:
+                if sync_job_store.get(job_id, {}).get('cancelled'):
+                    return
+                sync_job_store[job_id]['result'] = result
+                sync_job_store[job_id]['status'] = 'completed'
+        except SyncJobCancelledError:
+            with sync_job_lock:
+                if job_id in sync_job_store:
+                    sync_job_store[job_id]['cancelled'] = True
+                    sync_job_store[job_id]['status'] = 'cancelled'
+        except Exception as e:
+            with sync_job_lock:
+                if sync_job_store.get(job_id, {}).get('cancelled'):
+                    sync_job_store[job_id]['status'] = 'cancelled'
+                    sync_job_store[job_id]['error'] = 'Cancelled by user'
+                    return
+                sync_job_store[job_id]['error'] = str(e)
+                sync_job_store[job_id]['status'] = 'error'
+    t = threading.Thread(target=job_wrapper)
+    t.start()
+    return job_id
+
+def cancel_sync_job(job_id):
+    with sync_job_lock:
+        if job_id in sync_job_store:
+            sync_job_store[job_id]['cancelled'] = True
+            sync_job_store[job_id]['status'] = 'cancelled'
+            return True
+    return False
+
+def is_sync_job_cancelled(job_id):
+    with sync_job_lock:
+        return sync_job_store.get(job_id, {}).get('cancelled', False)
+
+@app.route('/api/integrations/sync/cancel/<job_id>', methods=['POST'])
+@token_required
+def cancel_sync_job_endpoint(current_user, job_id):
+    if cancel_sync_job(job_id):
+        return jsonify({'message': 'Sync/export job cancelled'}), 200
+    return jsonify({'error': 'Job not found'}), 404
+
+@app.route('/api/test-management/export/cancel/<job_id>', methods=['POST'])
+@token_required
+def cancel_export_job_endpoint(current_user, job_id):
+    """Alias endpoint for cancelling export jobs"""
+    if cancel_sync_job(job_id):
+        return jsonify({'message': 'Sync/export job cancelled'}), 200
+    return jsonify({'error': 'Job not found'}), 404
+
+
 # ============================================
 # MAIN
 # ============================================
-
 if __name__ == '__main__':
     # Initialize database
     try:

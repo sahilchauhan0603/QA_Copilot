@@ -151,7 +151,8 @@ class DatabaseManager:
         self, 
         user_id: int, 
         team_id: Optional[int] = None, 
-        limit: int = 100
+        limit: int = 100,
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """
         Get all generations for a specific workspace ordered by timestamp (newest first)
@@ -176,7 +177,7 @@ class DatabaseManager:
                 else:
                     query = query.filter(Generation.team_id == team_id)
                 
-                generations = query.order_by(desc(Generation.timestamp)).limit(limit).all()
+                generations = query.order_by(desc(Generation.timestamp)).offset(offset).limit(limit).all()
                 
                 return [
                     {
@@ -280,7 +281,9 @@ class DatabaseManager:
         ticket_id: Optional[str] = None,
         ticket_type: Optional[str] = None,
         date_from: Optional[str] = None,
-        date_to: Optional[str] = None
+        date_to: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """
         Search generations with filters in a specific workspace
@@ -310,7 +313,12 @@ class DatabaseManager:
                 
                 # Additional filters
                 if ticket_id:
-                    query = query.filter(Generation.ticket_id.ilike(f"%{ticket_id}%"))
+                    query = query.filter(
+                        or_(
+                            Generation.ticket_id.ilike(f"%{ticket_id}%"),
+                            Generation.ticket_title.ilike(f"%{ticket_id}%")
+                        )
+                    )
                 
                 if ticket_type:
                     query = query.filter(Generation.ticket_type == ticket_type)
@@ -321,7 +329,7 @@ class DatabaseManager:
                 if date_to:
                     query = query.filter(Generation.timestamp <= datetime.fromisoformat(date_to))
                 
-                generations = query.order_by(desc(Generation.timestamp)).limit(100).all()
+                generations = query.order_by(desc(Generation.timestamp)).offset(offset).limit(limit).all()
                 
                 return [
                     {
@@ -341,6 +349,49 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to search generations: {e}")
             return []
+
+    def count_generations(
+        self,
+        user_id: int,
+        team_id: Optional[int] = None,
+        ticket_id: Optional[str] = None,
+        ticket_type: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None
+    ) -> int:
+        """Count generations for pagination with optional filters."""
+        try:
+            with self.db.get_session() as session:
+                query = session.query(Generation).filter(
+                    Generation.user_id == user_id
+                )
+
+                if team_id is None:
+                    query = query.filter(Generation.team_id.is_(None))
+                else:
+                    query = query.filter(Generation.team_id == team_id)
+
+                if ticket_id:
+                    query = query.filter(
+                        or_(
+                            Generation.ticket_id.ilike(f"%{ticket_id}%"),
+                            Generation.ticket_title.ilike(f"%{ticket_id}%")
+                        )
+                    )
+
+                if ticket_type:
+                    query = query.filter(Generation.ticket_type == ticket_type)
+
+                if date_from:
+                    query = query.filter(Generation.timestamp >= datetime.fromisoformat(date_from))
+
+                if date_to:
+                    query = query.filter(Generation.timestamp <= datetime.fromisoformat(date_to))
+
+                return query.count()
+        except Exception as e:
+            logger.error(f"Failed to count generations: {e}")
+            return 0
     
     def get_statistics(self, user_id: int, team_id: Optional[int] = None) -> Dict[str, Any]:
         """

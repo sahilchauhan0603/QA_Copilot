@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Paperclip,
   MessageSquare,
+  XCircle,
   Loader,
 } from 'lucide-react';
 
@@ -16,7 +17,10 @@ const SyncMenu = ({
   integrationLabel, 
   canSync, 
   syncing, 
-  onSync 
+  onSync,
+  onCancelSync,
+  canCancelSync = false,
+  cancelingSync = false,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -25,14 +29,33 @@ const SyncMenu = ({
   return (
     <div className="relative">
       <button
-        onClick={() => setShowMenu(!showMenu)}
-        disabled={!!syncing}
-        className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+        onClick={() => {
+          if (syncing) {
+            onCancelSync?.();
+          } else {
+            setShowMenu(!showMenu);
+          }
+        }}
+        disabled={(!!syncing && !canCancelSync) || cancelingSync}
+        className={`flex items-center gap-2 px-3 py-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm ${
+          syncing
+            ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-300'
+            : 'bg-blue-600 hover:bg-blue-700'
+        }`}
       >
-        {syncing ? <Loader size={16} className="animate-spin" /> : <Send size={16} />}
-        Sync to {integrationLabel}
+        {syncing ? (
+          <>
+            {cancelingSync ? <Loader size={16} className="animate-spin" /> : <XCircle size={16} />}
+            {cancelingSync ? 'Cancelling...' : canCancelSync ? 'Cancel Sync' : 'Syncing...'}
+          </>
+        ) : (
+          <>
+            <Send size={16} />
+            Sync to {integrationLabel}
+          </>
+        )}
       </button>
-      {showMenu && (
+      {showMenu && !syncing && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setShowMenu(false)} />
           <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-30">

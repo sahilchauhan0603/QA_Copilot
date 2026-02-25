@@ -3,16 +3,18 @@
  * Dropdown menu + dialog for exporting to Xray, Zephyr Scale, TestRail
  */
 import { useState } from 'react';
-import { UploadCloud, Loader, Settings } from 'lucide-react';
+import { UploadCloud, Settings, XCircle, Loader } from 'lucide-react';
 import { testManagementAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
-const ExportMenu = ({ generationId, ticketId, onClose }) => {
+const ExportMenu = ({ generationId, ticketId, onClose, onStatusChange }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [exporting, setExporting] = useState(null);
   const [exportSuiteName, setExportSuiteName] = useState('');
   const [showDialog, setShowDialog] = useState(false);
   const [selectedTool, setSelectedTool] = useState(null);
+  const [cancelExportFn, setCancelExportFn] = useState(null);
+  const [cancelingExport, setCancelingExport] = useState(false);
 
   const handleExport = (tool) => {
     if (tool === 'testrail' || !exportSuiteName) {
@@ -26,24 +28,33 @@ const ExportMenu = ({ generationId, ticketId, onClose }) => {
 
   const performExport = async (tool, suiteName) => {
     setExporting(tool);
+    setCancelingExport(false);
+    if (onStatusChange) onStatusChange({ active: true, text: 'Exporting to test tool...' });
     setShowMenu(false);
     setShowDialog(false);
     try {
-      let result;
-      if (tool === 'xray') {
-        result = await testManagementAPI.exportToXray(generationId, suiteName || null, ticketId || null);
-        toast.success(`Exported ${result.result.created} test cases to Xray`);
-      } else if (tool === 'zephyr') {
-        result = await testManagementAPI.exportToZephyr(generationId, suiteName || null, ticketId || null);
-        toast.success(`Exported ${result.result.created} test cases to Zephyr Scale`);
-      } else if (tool === 'testrail') {
-        if (!suiteName) {
-          toast.error('Suite name is required for TestRail');
-          return;
-        }
-        result = await testManagementAPI.exportToTestRail(generationId, suiteName, ticketId || null);
-        toast.success(`Exported ${result.result.created} test cases to TestRail`);
+      if (tool === 'testrail' && !suiteName) {
+        toast.error('Suite name is required for TestRail');
+        return;
       }
+
+      const { promise, cancel } = testManagementAPI.getCancelableExport(
+        tool,
+        generationId,
+        suiteName || null,
+        ticketId || null
+      );
+      setCancelExportFn(() => cancel);
+      const result = await promise;
+
+      if (tool === 'xray') {
+        toast.success(`Exported ${result.created} test cases to Xray`);
+      } else if (tool === 'zephyr') {
+        toast.success(`Exported ${result.created} test cases to Zephyr Scale`);
+      } else if (tool === 'testrail') {
+        toast.success(`Exported ${result.created} test cases to TestRail`);
+      }
+      if (onStatusChange) onStatusChange({ active: false, text: '' });
       
       // Close modal after successful export
       if (onClose) {
@@ -52,6 +63,11 @@ const ExportMenu = ({ generationId, ticketId, onClose }) => {
         }, 1500);
       }
     } catch (err) {
+      if (err.message === 'export_cancelled') {
+        toast.success('Export cancelled');
+        if (onStatusChange) onStatusChange({ active: false, text: '' });
+        return;
+      }
       // Check if it's a configuration error
       const errorMsg = err.response?.data?.error || '';
       if (errorMsg.includes('not configured')) {
@@ -79,21 +95,57 @@ const ExportMenu = ({ generationId, ticketId, onClose }) => {
       // Don't close modal on error - let user try again or cancel
     } finally {
       setExporting(null);
+      setCancelExportFn(null);
+      setCancelingExport(false);
+      if (onStatusChange) onStatusChange({ active: false, text: '' });
       setExportSuiteName('');
       setSelectedTool(null);
     }
   };
 
+  const handleCancelExport = async () => {
+    if (cancelExportFn && !cancelingExport) {
+      setCancelingExport(true);
+      if (onStatusChange) onStatusChange({ active: true, text: 'Cancelling export...' });
+      try {
+        await cancelExportFn();
+      } catch {
+        toast.error('Failed to cancel export');
+        if (onStatusChange) onStatusChange({ active: false, text: '' });
+        setCancelingExport(false);
+      }
+    }
+  };
+
   return (
     <>
-      <div className="relative">
+      <div className="relative inline-block">
         <button
-          onClick={() => setShowMenu(!showMenu)}
-          disabled={!!exporting}
-          className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+          onClick={() => {
+            if (exporting) {
+              handleCancelExport();
+            } else {
+              setShowMenu(!showMenu);
+            }
+          }}
+          disabled={(!!exporting && !cancelExportFn) || cancelingExport}
+          className={`flex items-center gap-2 px-3 py-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm ${
+            exporting
+              ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-300'
+              : 'bg-purple-600 hover:bg-purple-700'
+          }`}
         >
-          {exporting ? <Loader size={16} className="animate-spin" /> : <UploadCloud size={16} />}
-          Export to Test Tool
+          {exporting ? (
+            <>
+              {cancelingExport ? <Loader size={16} className="animate-spin" /> : <XCircle size={16} />}
+              {cancelingExport ? 'Cancelling...' : cancelExportFn ? 'Cancel Export' : 'Exporting...'}
+            </>
+          ) : (
+            <>
+              <UploadCloud size={16} />
+              Export to Test Tool
+            </>
+          )}
         </button>
         {showMenu && (
           <>

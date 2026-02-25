@@ -3,8 +3,8 @@
  * Full-screen modal showing generation details with test cases,
  * requirements, coverage gaps, sync, export, and refine capabilities
  */
-import { useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   FileText,
   FileSpreadsheet,
@@ -25,24 +25,31 @@ import {
   ShieldAlert,
   HelpCircle,
   Settings,
-} from 'lucide-react';
-import { integrationAPI } from '../../services/api';
-import toast from 'react-hot-toast';
-import { AccordionSection } from '../common';
-import SyncMenu from './SyncMenu';
-import ExportMenu from './ExportMenu';
-import RefineMenu from './RefineMenu';
-import TestCaseList from './TestCaseList';
+} from "lucide-react";
+import { integrationAPI } from "../../services/api";
+import toast from "react-hot-toast";
+import { AccordionSection } from "../common";
+import SyncMenu from "./SyncMenu";
+import ExportMenu from "./ExportMenu";
+import RefineMenu from "./RefineMenu";
+import TestCaseList from "./TestCaseList";
 
-const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integrationConfigs = [] }) => {
+const DetailViewModal = ({
+  selectedGeneration,
+  onClose,
+  onDownloadExcel,
+  integrationConfigs = [],
+}) => {
   const gen = selectedGeneration.generation;
   const testCases = selectedGeneration.test_cases || [];
   const coverageGaps = selectedGeneration.coverage_gaps || [];
   const qaRoadmap = selectedGeneration.qa_roadmap || {};
-  const clarificationQuestions = selectedGeneration.clarification_questions || [];
+  const clarificationQuestions =
+    selectedGeneration.clarification_questions || [];
   const riskAreas = selectedGeneration.risk_areas || [];
   const extractedRequirements = selectedGeneration.extracted_requirements || [];
-  const acceptanceCriteriaGaps = selectedGeneration.acceptance_criteria_gaps || [];
+  const acceptanceCriteriaGaps =
+    selectedGeneration.acceptance_criteria_gaps || [];
   const impactedModules = selectedGeneration.impacted_modules || [];
   const dependencies = selectedGeneration.dependencies || [];
 
@@ -56,42 +63,66 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
   const canSync = !!sourceIntegration;
 
   const integrationLabel =
-    sourceIntegration === 'jira'
-      ? 'Jira'
-      : sourceIntegration === 'azure_devops'
-        ? 'Azure DevOps'
+    sourceIntegration === "jira"
+      ? "Jira"
+      : sourceIntegration === "azure_devops"
+        ? "Azure DevOps"
         : sourceIntegration;
 
   // Sync state
   const [syncing, setSyncing] = useState(null);
+  const [syncCancelFn, setSyncCancelFn] = useState(null);
+  const [cancelingSync, setCancelingSync] = useState(false);
+  const queuedSyncCancelRef = useRef(false);
+
+  // Footer badges state for refinement/export
+  const [refineBadge, setRefineBadge] = useState({ active: false, text: "" });
+  const [exportBadge, setExportBadge] = useState({ active: false, text: "" });
 
   const handleSync = async (action) => {
     if (!sourceIntegration || !gen?.ticket_id || !gen?.id) return;
     setSyncing(action);
+    setCancelingSync(false);
+    queuedSyncCancelRef.current = false;
     try {
-      if (action === 'attach') {
-        await integrationAPI.attachExcel(sourceIntegration, gen.ticket_id, gen.id);
-        toast.success(`Excel attached to ${gen.ticket_id}`);
-      } else if (action === 'comment') {
-        await integrationAPI.addComment(sourceIntegration, gen.ticket_id, gen.id);
-        toast.success(`Comment added to ${gen.ticket_id}`);
-      } else if (action === 'full') {
-        const result = await integrationAPI.fullSync(sourceIntegration, gen.ticket_id, gen.id);
-        if (result.results?.errors?.length > 0) {
-          toast.success(result.message + ' (with warnings)', { duration: 5000 });
-        } else {
-          toast.success(`Synced to ${gen.ticket_id} successfully`);
+      if (action === "full") {
+        // Use new cancelable sync job for full sync
+        const { promise, cancel } = integrationAPI.getCancelableSync(
+          sourceIntegration,
+          gen.ticket_id,
+          gen.id,
+          action,
+        );
+        setSyncCancelFn(() => cancel);
+        if (queuedSyncCancelRef.current) {
+          await cancel();
         }
+        await promise;
+        setSyncCancelFn(null);
+        toast.success(`Synced to ${gen.ticket_id} successfully`);
+      } else if (action === "attach") {
+        await integrationAPI.attachExcel(
+          sourceIntegration,
+          gen.ticket_id,
+          gen.id,
+        );
+        toast.success(`Excel attached to ${gen.ticket_id}`);
+      } else if (action === "comment") {
+        await integrationAPI.addComment(
+          sourceIntegration,
+          gen.ticket_id,
+          gen.id,
+        );
+        toast.success(`Comment added to ${gen.ticket_id}`);
       }
-      
       // Close modal after successful sync
       setTimeout(() => {
         onClose();
       }, 1500);
     } catch (err) {
       // Check if it's a configuration error
-      const errorMsg = err.response?.data?.error || '';
-      if (errorMsg.includes('not configured')) {
+      const errorMsg = err.response?.data?.error || "";
+      if (errorMsg.includes("not configured")) {
         // Show custom toast with settings button
         toast.error(
           (t) => (
@@ -100,7 +131,7 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
               <button
                 onClick={() => {
                   toast.dismiss(t.id);
-                  window.location.href = '/settings';
+                  window.location.href = "/settings";
                 }}
                 className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors"
               >
@@ -109,13 +140,40 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
               </button>
             </div>
           ),
-          { duration: 6000, id: 'config-error' }
+          { duration: 6000, id: "config-error" },
         );
       }
-      console.error('Sync error:', err);
+      if (err.message === "sync_cancelled") {
+        toast.success("Sync cancelled");
+        setSyncCancelFn(null);
+      } else {
+        console.error("Sync error:", err);
+      }
       // Don't close modal on error
     } finally {
       setSyncing(null);
+      setSyncCancelFn(null);
+      setCancelingSync(false);
+      queuedSyncCancelRef.current = false;
+    }
+  };
+
+  const handleCancelSync = async () => {
+    if (!syncing || cancelingSync) return;
+    if (!syncCancelFn) {
+      // Cancel requested before cancel function is ready (early click right after start)
+      setCancelingSync(true);
+      queuedSyncCancelRef.current = true;
+      return;
+    }
+    if (syncCancelFn) {
+      setCancelingSync(true);
+      try {
+        await syncCancelFn();
+      } catch (err) {
+        toast.error("Failed to cancel sync");
+        setCancelingSync(false);
+      }
     }
   };
 
@@ -126,11 +184,11 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
   }, {});
 
   const priorityBarColors = {
-    P0: 'bg-red-500',
-    P1: 'bg-orange-500',
-    P2: 'bg-yellow-500',
-    P3: 'bg-green-500',
-    P4: 'bg-blue-400',
+    P0: "bg-red-500",
+    P1: "bg-orange-500",
+    P2: "bg-yellow-500",
+    P3: "bg-green-500",
+    P4: "bg-blue-400",
   };
 
   return createPortal(
@@ -145,7 +203,8 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">
-                <span className="font-mono">{gen.ticket_id}</span> — {gen.ticket_title || 'Test Generation Results'}
+                <span className="font-mono">{gen.ticket_id}</span> —{" "}
+                {gen.ticket_title || "Test Generation Results"}
               </h3>
               <div className="flex items-center flex-wrap gap-2 text-xs text-gray-500 mt-1.5">
                 <span className="flex items-center gap-1 whitespace-nowrap">
@@ -159,7 +218,8 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
                 )}
                 {gen.metadata?.refinement?.is_refined && (
                   <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium whitespace-nowrap">
-                    ✨ Refined Generation - {gen.metadata.refinement.refinement_type}
+                    ✨ Refined Generation -{" "}
+                    {gen.metadata.refinement.refinement_type}
                   </span>
                 )}
                 {sourceIntegration && (
@@ -189,15 +249,27 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
               <span className="hidden sm:inline">Export Excel</span>
               <span className="sm:hidden">Excel</span>
             </button>
-            <ExportMenu generationId={gen.id} ticketId={gen.ticket_id} onClose={onClose} />
+            <ExportMenu
+              generationId={gen.id}
+              ticketId={gen.ticket_id}
+              onClose={onClose}
+              onStatusChange={setExportBadge}
+            />
             <SyncMenu
               sourceIntegration={sourceIntegration}
               integrationLabel={integrationLabel}
               canSync={canSync}
               syncing={syncing}
               onSync={handleSync}
+              onCancelSync={handleCancelSync}
+              canCancelSync={syncing === "full"}
+              cancelingSync={cancelingSync}
             />
-            <RefineMenu generationId={gen.id} onClose={onClose} />
+            <RefineMenu
+              generationId={gen.id}
+              onClose={onClose}
+              onStatusChange={setRefineBadge}
+            />
           </div>
         </div>
 
@@ -206,24 +278,44 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
           {/* ─── Summary Stats Bar ─── */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 text-center">
-              <div className="text-2xl font-bold text-blue-600">{testCases.length}</div>
-              <div className="text-xs text-gray-500 font-medium mt-0.5">Test Cases</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {testCases.length}
+              </div>
+              <div className="text-xs text-gray-500 font-medium mt-0.5">
+                Test Cases
+              </div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 text-center">
-              <div className="text-2xl font-bold text-green-600">{extractedRequirements.length}</div>
-              <div className="text-xs text-gray-500 font-medium mt-0.5">Requirements</div>
+              <div className="text-2xl font-bold text-green-600">
+                {extractedRequirements.length}
+              </div>
+              <div className="text-xs text-gray-500 font-medium mt-0.5">
+                Requirements
+              </div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 text-center">
-              <div className="text-2xl font-bold text-yellow-600">{coverageGaps.length}</div>
-              <div className="text-xs text-gray-500 font-medium mt-0.5">Coverage Gaps</div>
+              <div className="text-2xl font-bold text-yellow-600">
+                {coverageGaps.length}
+              </div>
+              <div className="text-xs text-gray-500 font-medium mt-0.5">
+                Coverage Gaps
+              </div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 text-center">
-              <div className="text-2xl font-bold text-red-600">{riskAreas.length}</div>
-              <div className="text-xs text-gray-500 font-medium mt-0.5">Risk Areas</div>
+              <div className="text-2xl font-bold text-red-600">
+                {riskAreas.length}
+              </div>
+              <div className="text-xs text-gray-500 font-medium mt-0.5">
+                Risk Areas
+              </div>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 text-center">
-              <div className="text-2xl font-bold text-purple-600">{clarificationQuestions.length}</div>
-              <div className="text-xs text-gray-500 font-medium mt-0.5">Questions</div>
+              <div className="text-2xl font-bold text-purple-600">
+                {clarificationQuestions.length}
+              </div>
+              <div className="text-xs text-gray-500 font-medium mt-0.5">
+                Questions
+              </div>
             </div>
           </div>
 
@@ -240,7 +332,7 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
                     .map(([p, count]) => (
                       <span key={p} className="text-xs text-gray-500">
                         <span
-                          className={`inline-block w-2 h-2 rounded-full mr-1 ${priorityBarColors[p] || 'bg-gray-400'}`}
+                          className={`inline-block w-2 h-2 rounded-full mr-1 ${priorityBarColors[p] || "bg-gray-400"}`}
                         ></span>
                         {p}: {count}
                       </span>
@@ -253,7 +345,7 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
                   .map(([p, count]) => (
                     <div
                       key={p}
-                      className={`${priorityBarColors[p] || 'bg-gray-400'} transition-all`}
+                      className={`${priorityBarColors[p] || "bg-gray-400"} transition-all`}
                       style={{ width: `${(count / testCases.length) * 100}%` }}
                       title={`${p}: ${count} test cases`}
                     />
@@ -307,7 +399,10 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
               <div className="space-y-1.5">
                 {extractedRequirements.map((req, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">
-                    <CheckCircle size={14} className="text-green-500 mt-0.5 shrink-0" />
+                    <CheckCircle
+                      size={14}
+                      className="text-green-500 mt-0.5 shrink-0"
+                    />
                     <span className="text-gray-700">{req}</span>
                   </div>
                 ))}
@@ -327,7 +422,10 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
               <div className="space-y-1.5">
                 {acceptanceCriteriaGaps.map((gap, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">
-                    <AlertCircle size={14} className="text-orange-500 mt-0.5 shrink-0" />
+                    <AlertCircle
+                      size={14}
+                      className="text-orange-500 mt-0.5 shrink-0"
+                    />
                     <span className="text-gray-700">{gap}</span>
                   </div>
                 ))}
@@ -390,24 +488,33 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
             <AccordionSection
               icon={BookOpen}
               title="QA Roadmap / Test Strategy"
-              count={Object.keys(qaRoadmap).length + ' categories'}
+              count={Object.keys(qaRoadmap).length + " categories"}
               color="purple"
               defaultOpen={false}
             >
               <div className="space-y-3">
                 {Object.entries(qaRoadmap).map(([category, scenarios]) => (
                   <div key={category}>
-                    <div className="text-sm font-semibold text-purple-800 mb-1.5">{category}</div>
+                    <div className="text-sm font-semibold text-purple-800 mb-1.5">
+                      {category}
+                    </div>
                     <div className="space-y-1 pl-3 border-l-2 border-purple-200">
                       {Array.isArray(scenarios) ? (
                         scenarios.map((s, i) => (
-                          <div key={i} className="text-sm text-gray-700 flex items-start gap-2">
-                            <span className="text-purple-400 mt-0.5">&bull;</span>
+                          <div
+                            key={i}
+                            className="text-sm text-gray-700 flex items-start gap-2"
+                          >
+                            <span className="text-purple-400 mt-0.5">
+                              &bull;
+                            </span>
                             <span>{s}</span>
                           </div>
                         ))
                       ) : (
-                        <div className="text-sm text-gray-700">{String(scenarios)}</div>
+                        <div className="text-sm text-gray-700">
+                          {String(scenarios)}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -439,7 +546,10 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
               <div className="space-y-1.5">
                 {coverageGaps.map((gap, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">
-                    <AlertCircle size={14} className="text-yellow-600 mt-0.5 shrink-0" />
+                    <AlertCircle
+                      size={14}
+                      className="text-yellow-600 mt-0.5 shrink-0"
+                    />
                     <span className="text-gray-700">{gap}</span>
                   </div>
                 ))}
@@ -459,7 +569,10 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
               <div className="space-y-1.5">
                 {riskAreas.map((risk, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">
-                    <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
+                    <AlertCircle
+                      size={14}
+                      className="text-red-500 mt-0.5 shrink-0"
+                    />
                     <span className="text-gray-700">{risk}</span>
                   </div>
                 ))}
@@ -479,7 +592,10 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
               <div className="space-y-1.5">
                 {clarificationQuestions.map((q, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">
-                    <HelpCircle size={14} className="text-cyan-500 mt-0.5 shrink-0" />
+                    <HelpCircle
+                      size={14}
+                      className="text-cyan-500 mt-0.5 shrink-0"
+                    />
                     <span className="text-gray-700">{q}</span>
                   </div>
                 ))}
@@ -490,17 +606,32 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
 
         {/* ─── Sticky Footer ─── */}
         <div className="sticky bottom-0 bg-white border-t border-gray-200 rounded-b-xl px-6 py-3 flex items-center justify-between shrink-0">
-          <div className="text-xs text-gray-400">
-            {testCases.length} test cases &middot; {Object.keys(qaRoadmap).length} strategy
-            categories &middot; {coverageGaps.length} gaps identified
+          <div className="text-xs text-gray-400 flex items-center gap-2 flex-wrap">
+            {testCases.length} test cases &middot;{" "}
+            {Object.keys(qaRoadmap).length} strategy categories &middot;{" "}
+            {coverageGaps.length} gaps identified
             {syncing && (
-              <span className="ml-3 text-blue-600 font-medium inline-flex items-center gap-1">
+              <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-blue-200 bg-blue-50 text-blue-700 font-medium">
                 <Loader size={12} className="animate-spin" />
-                {syncing === 'full'
-                  ? 'Syncing to ticket...'
-                  : syncing === 'attach'
-                    ? 'Attaching Excel...'
-                    : 'Adding comment...'}
+                {cancelingSync
+                  ? "Cancelling sync..."
+                  : syncing === "full"
+                    ? "Syncing to ticket..."
+                    : syncing === "attach"
+                      ? "Attaching Excel..."
+                      : "Adding comment..."}
+              </span>
+            )}
+            {exportBadge.active && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-purple-200 bg-purple-50 text-purple-700 font-medium">
+                <Loader size={12} className="animate-spin" />
+                {exportBadge.text}
+              </span>
+            )}
+            {refineBadge.active && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 font-medium">
+                <Loader size={12} className="animate-spin" />
+                {refineBadge.text}
               </span>
             )}
           </div>
@@ -515,7 +646,7 @@ const DetailViewModal = ({ selectedGeneration, onClose, onDownloadExcel, integra
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 };
 

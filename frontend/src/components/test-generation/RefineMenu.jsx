@@ -11,20 +11,23 @@ import {
   ShieldAlert,
   ListChecks,
   FileText,
-  Loader,
   XCircle,
+  Loader,
   Settings,
 } from 'lucide-react';
 import { testGenAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
-const RefineMenu = ({ generationId, onClose }) => {
+const RefineMenu = ({ generationId, onClose, onStatusChange }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [refinementType, setRefinementType] = useState('');
   const [focusArea, setFocusArea] = useState('');
   const [refining, setRefining] = useState(false);
+  const [cancelingRefinement, setCancelingRefinement] = useState(false);
+  const [cancelRefineFn, setCancelRefineFn] = useState(null);
   const cancelFnRef = useRef(null);
+  const cancelRequestedRef = useRef(false);
 
   const handleRefineClick = (type) => {
     setRefinementType(type);
@@ -39,25 +42,36 @@ const RefineMenu = ({ generationId, onClose }) => {
 
   const performRefinement = async (type, options = {}) => {
     setRefining(true);
+    setCancelingRefinement(false);
+    cancelRequestedRef.current = false;
+    if (onStatusChange) onStatusChange({ active: true, text: 'Refining test cases...' });
     setShowDialog(false);
 
     try {
       let result;
-
-      if (type === 'regenerate') {
-        const { promise, cancel } = testGenAPI.refine(generationId, type, options, (progressData) => {
+      const { promise, cancel } = testGenAPI.refine(
+        generationId,
+        type,
+        options,
+        (progressData) => {
           if (progressData.type === 'step') {
             toast(`${progressData.label} - ${progressData.status}`, {
               icon: '\u2699\uFE0F',
               duration: 1500,
             });
           }
-        });
-        cancelFnRef.current = cancel;
+        }
+      );
+      cancelFnRef.current = cancel;
+      setCancelRefineFn(() => cancel);
+
+      if (type === 'regenerate') {
         result = await promise;
+        if (cancelRequestedRef.current) return;
         toast.success('Test cases regenerated successfully!');
       } else {
-        result = await testGenAPI.refine(generationId, type, options);
+        result = await promise;
+        if (cancelRequestedRef.current) return;
 
         const messages = {
           minimize: 'Test cases minimized successfully!',
@@ -71,6 +85,7 @@ const RefineMenu = ({ generationId, onClose }) => {
       }
 
       if (result.generation) {
+        if (cancelRequestedRef.current) return;
         toast.success(
           `Refinement complete! ${result.total_test_cases} test cases. Check history for refined version.`,
           { duration: 5000 }
@@ -86,7 +101,8 @@ const RefineMenu = ({ generationId, onClose }) => {
     } catch (err) {
       // Check if it's a configuration error
       const errorMsg = err.response?.data?.error || err.message || '';
-      if (!err.message?.includes('cancelled')) {
+      const cancelled = err.code === 'ERR_CANCELED' || err.message?.includes('cancelled');
+      if (!cancelled) {
         if (errorMsg.includes('not configured')) {
           // Show custom toast with settings button
           toast.error(
@@ -112,19 +128,27 @@ const RefineMenu = ({ generationId, onClose }) => {
       }
     } finally {
       setRefining(false);
+      setCancelingRefinement(false);
+      setCancelRefineFn(null);
       cancelFnRef.current = null;
+      if (onStatusChange) onStatusChange({ active: false, text: '' });
       setFocusArea('');
       setRefinementType('');
     }
   };
 
   const handleCancelRefinement = async () => {
-    if (cancelFnRef.current) {
+    if (cancelFnRef.current && !cancelingRefinement) {
+      cancelRequestedRef.current = true;
+      setCancelingRefinement(true);
+      if (onStatusChange) onStatusChange({ active: true, text: 'Cancelling refinement...' });
       try {
         await cancelFnRef.current();
         toast.success('Refinement cancelled');
       } catch (err) {
         toast.error('Failed to cancel');
+        if (onStatusChange) onStatusChange({ active: false, text: '' });
+        setCancelingRefinement(false);
       }
     }
   };
@@ -133,24 +157,33 @@ const RefineMenu = ({ generationId, onClose }) => {
     <>
       <div className="relative">
         <button
-          onClick={() => setShowMenu(!showMenu)}
-          disabled={refining}
-          className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+          onClick={() => {
+            if (refining) {
+              handleCancelRefinement();
+            } else {
+              setShowMenu(!showMenu);
+            }
+          }}
+          disabled={(refining && !cancelRefineFn) || cancelingRefinement}
+          className={`flex items-center gap-2 px-3 py-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm ${
+            refining
+              ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-300'
+              : 'bg-indigo-600 hover:bg-indigo-700'
+          }`}
         >
-          {refining ? <Loader size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          {refining ? 'Refining...' : 'Refine Results'}
+          {refining ? (
+            <>
+              {cancelingRefinement ? <Loader size={16} className="animate-spin" /> : <XCircle size={16} />}
+              {cancelingRefinement ? 'Cancelling...' : cancelRefineFn ? 'Cancel Refinement' : 'Refining...'}
+            </>
+          ) : (
+            <>
+              <Sparkles size={16} />
+              Refine Results
+            </>
+          )}
         </button>
-        {refining && refinementType === 'regenerate' && (
-          <button
-            onClick={handleCancelRefinement}
-            className="absolute -right-20 top-0 flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors text-sm font-medium whitespace-nowrap"
-            title="Cancel refinement"
-          >
-            <XCircle size={16} />
-            Cancel
-          </button>
-        )}
-        {showMenu && (
+        {showMenu && !refining && (
           <>
             <div className="fixed inset-0 z-20" onClick={() => setShowMenu(false)} />
             <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-30">

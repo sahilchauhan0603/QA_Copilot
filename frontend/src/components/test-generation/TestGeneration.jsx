@@ -18,9 +18,11 @@ import GenerationHistory from './GenerationHistory';
 import DetailViewModal from './DetailViewModal';
 
 const TestGeneration = () => {
+  const itemsPerPage = 6;
   // ──── Shared State ────
   const [generations, setGenerations] = useState([]);
-  const [filteredGenerations, setFilteredGenerations] = useState([]);
+  const [totalGenerations, setTotalGenerations] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [statistics, setStatistics] = useState({});
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -52,38 +54,28 @@ const TestGeneration = () => {
   // ──── Cancellation ────
   const [currentCancelFn, setCurrentCancelFn] = useState(null);
 
-  // ──── Filters ────
-  const applyFilters = useCallback(() => {
-    let filtered = [...generations];
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (g) =>
-          g.ticket_id?.toLowerCase().includes(q) ||
-          g.ticket_title?.toLowerCase().includes(q)
-      );
-    }
-    if (filterType !== 'all') {
-      filtered = filtered.filter((g) => g.ticket_type === filterType);
-    }
-    setFilteredGenerations(filtered);
-  }, [generations, searchQuery, filterType]);
-
-  useEffect(() => {
-    applyFilters();
-  }, [applyFilters]);
 
   // ──── Data Loaders ────
-  const loadGenerations = useCallback(async () => {
+  const loadGenerations = useCallback(async (page = 1) => {
+    setLoading(true);
     try {
-      const data = await testGenAPI.getGenerations();
+      const params = { page, limit: itemsPerPage };
+      if (searchQuery?.trim()) {
+        params.ticket_id = searchQuery.trim();
+      }
+      if (filterType !== 'all') {
+        params.ticket_type = filterType;
+      }
+
+      const data = await testGenAPI.getGenerations(params);
       setGenerations(data.generations || []);
+      setTotalGenerations(data.pagination?.total || 0);
     } catch {
       // toast handled by interceptor
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchQuery, filterType]);
 
   const loadStatistics = useCallback(async () => {
     try {
@@ -104,21 +96,28 @@ const TestGeneration = () => {
   }, []);
 
   useEffect(() => {
-    loadGenerations();
+    loadGenerations(currentPage);
+  }, [loadGenerations, currentPage]);
+
+  useEffect(() => {
     loadStatistics();
     loadIntegrationConfigs();
-  }, [loadGenerations, loadStatistics, loadIntegrationConfigs]);
+  }, [loadStatistics, loadIntegrationConfigs]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterType]);
 
   // Expose refresh function for refine agent
   useEffect(() => {
     window.refreshGenerations = () => {
-      loadGenerations();
+      loadGenerations(currentPage);
       loadStatistics();
     };
     return () => {
       delete window.refreshGenerations;
     };
-  }, [loadGenerations, loadStatistics]);
+  }, [loadGenerations, loadStatistics, currentPage]);
 
   // ──── Progress Handling ────
   const handleProgressUpdate = (data) => {
@@ -159,7 +158,8 @@ const TestGeneration = () => {
       await new Promise(resolve => setTimeout(resolve, 1500));
       setShowNewForm(false);
       
-      await loadGenerations();
+      setCurrentPage(1);
+      await loadGenerations(1);
       await loadStatistics();
     } catch (err) {
       if (!err.message?.includes('cancelled')) {
@@ -239,7 +239,9 @@ const TestGeneration = () => {
     try {
       await testGenAPI.deleteGeneration(generationToDelete.id);
       toast.success('Generation deleted');
-      await loadGenerations();
+      const nextPage = generations.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+      setCurrentPage(nextPage);
+      await loadGenerations(nextPage);
       await loadStatistics();
     } catch {
       toast.error('Delete failed');
@@ -248,6 +250,13 @@ const TestGeneration = () => {
       setShowDeleteConfirm(false);
       setGenerationToDelete(null);
     }
+  };
+
+  const handleCloseDetails = async () => {
+    setShowDetails(false);
+    setSelectedGeneration(null);
+    await loadGenerations(currentPage);
+    await loadStatistics();
   };
 
   return (
@@ -321,8 +330,11 @@ const TestGeneration = () => {
 
       {/* ─── Generation History ─── */}
       <GenerationHistory
-        generations={generations}
-        filteredGenerations={filteredGenerations}
+        filteredGenerations={generations}
+        totalGenerations={totalGenerations}
+        currentPage={currentPage}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
         loading={loading}
         showDetails={showDetails}
         searchQuery={searchQuery}
@@ -351,7 +363,7 @@ const TestGeneration = () => {
       {showDetails && selectedGeneration && (
         <DetailViewModal
           selectedGeneration={selectedGeneration}
-          onClose={() => setShowDetails(false)}
+          onClose={handleCloseDetails}
           onDownloadExcel={() => downloadExcel(selectedGeneration.generation.id)}
           integrationConfigs={integrationConfigs}
         />
@@ -419,3 +431,5 @@ const TestGeneration = () => {
 };
 
 export default TestGeneration;
+
+

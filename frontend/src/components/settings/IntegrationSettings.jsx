@@ -265,25 +265,11 @@ const IntegrationSettings = () => {
       toast.error('Jira must be configured first (Xray uses Jira credentials)');
       return;
     }
-    // If Jira token missing, fetch it via password modal
-    if (!jiraForm.api_token) {
-      setViewIntegrationType('jira');
-      setShowPasswordModal(true);
-      setVerifyPassword('');
-      setRevealedToken(null);
-      // After modal, user will retry save
-      toast('Please verify password to fetch Jira token.');
-      return;
-    }
     setXraySaving(true);
     try {
       await integrationAPI.saveConfig(
         'xray',
-        {
-          jira_url: jiraForm.url,
-          jira_email: jiraForm.email,
-          jira_api_token: jiraForm.api_token
-        },
+        { provider: 'xray' },
         { project_key: xrayForm.project_key }
       );
       toast.success('Xray configuration saved!');
@@ -317,12 +303,8 @@ const IntegrationSettings = () => {
       toast.error('Jira must be configured first (Zephyr uses Jira credentials)');
       return;
     }
-    if (!jiraForm.api_token) {
-      setViewIntegrationType('jira');
-      setShowPasswordModal(true);
-      setVerifyPassword('');
-      setRevealedToken(null);
-      toast('Please verify password to fetch Jira token.');
+    if (!zephyrForm.zephyr_token?.trim()) {
+      toast.error('Zephyr API token is required');
       return;
     }
     setZephyrSaving(true);
@@ -330,10 +312,7 @@ const IntegrationSettings = () => {
       await integrationAPI.saveConfig(
         'zephyr',
         {
-          jira_url: jiraForm.url,
-          jira_email: jiraForm.email,
-          jira_api_token: jiraForm.api_token,
-          ...(zephyrForm.zephyr_token ? { zephyr_token: zephyrForm.zephyr_token } : {})
+          zephyr_token: zephyrForm.zephyr_token.trim()
         },
         { project_key: zephyrForm.project_key }
       );
@@ -914,16 +893,19 @@ const IntegrationSettings = () => {
               </p>
             </div>
             <div>
-              <label className="input-label">Zephyr API Token (Optional - for Cloud)</label>
+              <label className="input-label">Zephyr API Token</label>
               <div className="relative">
                 <input
                   type="password"
                   value={zephyrForm.zephyr_token}
                   onChange={(e) => setZephyrForm((p) => ({ ...p, zephyr_token: e.target.value }))}
                   className="input"
-                  placeholder={isConfigured('zephyr') ? '••••••••••••••••' : 'Leave blank for Zephyr Server'}
+                  placeholder={isConfigured('zephyr') ? '••••••••••••••••' : 'Enter Zephyr Scale API token'}
                 />
               </div>
+              <p className="input-hint">
+                Required for Zephyr Scale cloud exports.
+              </p>
               <p className="input-hint">
                 <a
                   href="https://support.smartbear.com/zephyr-scale-cloud/docs/rest-api/generating-api-access-tokens.html"
