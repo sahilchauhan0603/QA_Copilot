@@ -13,7 +13,7 @@ Run database migrations to update the schema.
 python scripts/run_migration.py
 ```
 
-This script creates the password reset tokens table and any other required schema changes.
+This script applies all schema migrations (base schema, enum updates, auth-related tables/columns).
 
 #### `check_database.py`
 Check database connection and view current database state.
@@ -31,7 +31,7 @@ Reset the database to a clean state (⚠️ Destructive operation).
 .\scripts\reset_database.ps1
 ```
 
-**Warning:** This will delete all data and recreate the database schema.
+**Warning:** This will delete all application data in existing tables.
 
 ---
 

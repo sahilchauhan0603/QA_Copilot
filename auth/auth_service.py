@@ -6,6 +6,7 @@ import bcrypt
 import jwt
 import hashlib
 import secrets
+import string
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, Dict, Any
@@ -29,6 +30,19 @@ class AuthService:
         self.jwt_algorithm = 'HS256'
         self.jwt_expiration_hours = int(os.getenv('JWT_EXPIRATION_HOURS', '24'))
         self.email_pattern = re.compile(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+
+    def _generate_public_user_id(self, session) -> str:
+        """
+        Generate a unique public-safe user identifier.
+        Format: QC-XXXXXXXX (uppercase alphanumeric)
+        """
+        alphabet = string.ascii_uppercase + string.digits
+        for _ in range(10):
+            candidate = "QC-" + "".join(secrets.choice(alphabet) for _ in range(8))
+            exists = session.query(User).filter(User.public_user_id == candidate).first()
+            if not exists:
+                return candidate
+        raise RuntimeError("Failed to generate unique public user ID")
     
     def hash_password(self, password: str) -> str:
         """
@@ -179,6 +193,7 @@ class AuthService:
                 # Create new user
                 password_hash = self.hash_password(password)
                 new_user = User(
+                    public_user_id=self._generate_public_user_id(session),
                     email=email,
                     username=username,
                     password_hash=password_hash,
@@ -770,6 +785,7 @@ class AuthService:
 
                 return {
                     'id': user.id,
+                    'user_id': user.public_user_id,
                     'username': user.username,
                     'email': user.email,
                     'full_name': user.full_name

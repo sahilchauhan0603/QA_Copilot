@@ -17,9 +17,9 @@ export const teamAPI = {
     return response.data;
   },
 
-  addMember: async (teamId, userId, role = 'qa_member') => {
+  addMember: async (teamId, publicUserId, role = 'qa_member') => {
     const response = await apiClient.post(`/teams/${teamId}/members`, {
-      user_id: userId,
+      public_user_id: publicUserId,
       role,
     });
     return response.data;

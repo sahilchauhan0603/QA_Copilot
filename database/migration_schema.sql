@@ -19,7 +19,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'integration_type') THEN
-        CREATE TYPE integration_type AS ENUM ('jira', 'azure_devops');
+        CREATE TYPE integration_type AS ENUM ('jira', 'azure_devops', 'xray', 'zephyr', 'testrail');
     END IF;
 END $$;
 
@@ -28,6 +28,7 @@ END $$;
 -- ============================================
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
+    public_user_id VARCHAR(20) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     username VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -39,8 +40,11 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS public_user_id VARCHAR(20);
+
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_public_user_id ON users(public_user_id);
 
 -- ============================================
 -- TEAMS TABLE

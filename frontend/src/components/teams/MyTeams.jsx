@@ -65,7 +65,7 @@ const MyTeams = ({ onCreateTeam }) => {
           <p className="text-sm text-blue-900 font-medium mb-2">💡 How to create a team:</p>
           <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
             <li>Click "Create Your First Team" or the button above</li>
-            <li>Add team members by their User ID</li>
+            <li>Add team members by their QC User ID (e.g., QC-AB12CD34)</li>
             <li>Assign roles (Admin, QA Lead, or Member)</li>
             <li>Switch to team workspace to collaborate</li>
           </ol>

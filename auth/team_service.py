@@ -127,6 +127,21 @@ class TeamService:
         except Exception as e:
             logger.error(f"Error adding team member: {e}")
             return False, "Failed to add team member. Please try again."
+
+    def get_user_id_by_public_id(self, public_user_id: str) -> Optional[int]:
+        """
+        Resolve internal numeric user ID from public user ID.
+        """
+        try:
+            normalized = (public_user_id or "").strip().upper()
+            if not normalized:
+                return None
+            with self.db.get_session() as session:
+                user = session.query(User).filter(User.public_user_id == normalized).first()
+                return user.id if user else None
+        except Exception as e:
+            logger.error(f"Error resolving public user ID {public_user_id}: {e}")
+            return None
     
     def remove_team_member(
         self,
@@ -288,6 +303,7 @@ class TeamService:
                 for membership, user in members:
                     result.append({
                         'user_id': user.id,
+                        'public_user_id': user.public_user_id,
                         'username': user.username,
                         'email': user.email,
                         'full_name': user.full_name,

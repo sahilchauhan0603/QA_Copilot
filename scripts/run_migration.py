@@ -2,8 +2,10 @@
 Run database migrations using SQLAlchemy
 This script runs:
 1. Main schema migration (creates all base tables)
-2. Password reset token migration (adds password reset functionality)
-3. Email verification migration (adds signup verification functionality)
+2. Test management enum migration (ensures xray/zephyr/testrail enum values)
+3. Password reset token migration (adds password reset functionality)
+4. Email verification migration (adds signup verification functionality)
+5. Public user ID migration (adds QC-style user IDs for sharing)
 """
 import sys
 import os
@@ -87,6 +89,36 @@ COMMENT ON COLUMN email_verification_tokens.used IS 'Whether the token has been 
 COMMENT ON COLUMN email_verification_tokens.ip_address IS 'IP address where verification was initiated';
 """
 
+PUBLIC_USER_ID_SQL = """
+ALTER TABLE users ADD COLUMN IF NOT EXISTS public_user_id VARCHAR(20);
+
+UPDATE users
+SET public_user_id = 'QC-' || UPPER(SUBSTRING(MD5(id::text || ':' || email || ':' || NOW()::text) FROM 1 FOR 8))
+WHERE public_user_id IS NULL OR public_user_id = '';
+
+ALTER TABLE users ALTER COLUMN public_user_id SET NOT NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'uq_users_public_user_id'
+    ) THEN
+        ALTER TABLE users ADD CONSTRAINT uq_users_public_user_id UNIQUE (public_user_id);
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_users_public_user_id ON users(public_user_id);
+COMMENT ON COLUMN users.public_user_id IS 'Public-safe user identifier shared with other users (e.g., QC-AB12CD34)';
+"""
+
+TEST_MANAGEMENT_ENUM_SQL = """
+ALTER TYPE integration_type ADD VALUE IF NOT EXISTS 'xray';
+ALTER TYPE integration_type ADD VALUE IF NOT EXISTS 'zephyr';
+ALTER TYPE integration_type ADD VALUE IF NOT EXISTS 'testrail';
+"""
+
 
 def run_migration():
     """Run the database migrations"""
@@ -103,7 +135,7 @@ def run_migration():
         print()
 
         # Step 1: Run main schema migration
-        print("Step 1/3: Running main schema migration...")
+        print("Step 1/5: Running main schema migration...")
         print("  - Creating base tables (users, teams, workspaces, etc.)")
 
         main_schema_sql = read_sql_file('migration_schema.sql')
@@ -121,8 +153,20 @@ def run_migration():
         print("     - Workspace context table")
         print()
 
-        # Step 2: Run password reset migration
-        print("Step 2/3: Running password reset migration...")
+        # Step 2: Ensure all integration enum values exist
+        print("Step 2/5: Running test management enum migration...")
+        print("  - Ensuring integration_type supports xray/zephyr/testrail")
+
+        with engine.connect() as conn:
+            conn.execute(text(TEST_MANAGEMENT_ENUM_SQL))
+            conn.commit()
+
+        print("  [OK] Test management enum migration completed")
+        print("     - integration_type: xray, zephyr, testrail")
+        print()
+
+        # Step 3: Run password reset migration
+        print("Step 3/5: Running password reset migration...")
         print("  - Creating password_reset_tokens table")
 
         with engine.connect() as conn:
@@ -134,8 +178,8 @@ def run_migration():
         print("     - Indexes for performance")
         print()
 
-        # Step 3: Run email verification migration
-        print("Step 3/3: Running email verification migration...")
+        # Step 4: Run email verification migration
+        print("Step 4/5: Running email verification migration...")
         print("  - Adding user verification fields and tokens table")
 
         with engine.connect() as conn:
@@ -146,6 +190,19 @@ def run_migration():
         print("     - users.email_verified / users.email_verified_at")
         print("     - email_verification_tokens table")
         print("     - Indexes for performance")
+        print()
+
+        # Step 5: Run public user ID migration
+        print("Step 5/5: Running public user ID migration...")
+        print("  - Adding QC-style public user IDs")
+
+        with engine.connect() as conn:
+            conn.execute(text(PUBLIC_USER_ID_SQL))
+            conn.commit()
+
+        print("  [OK] Public user ID migration completed")
+        print("     - users.public_user_id")
+        print("     - Uniqueness constraint and index")
         print()
 
         print("=" * 60)

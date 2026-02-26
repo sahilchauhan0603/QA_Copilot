@@ -444,6 +444,7 @@ def login():
             'token': token,
             'user': {
                 'id': user.id,
+                'user_id': user.public_user_id,
                 'username': user.username,
                 'email': user.email,
                 'full_name': user.full_name
@@ -777,9 +778,22 @@ def add_team_member(current_user, team_id):
     """Add a member to team (admin only)"""
     try:
         data = request.get_json()
-        
-        if 'user_id' not in data:
-            return jsonify({'error': 'user_id is required'}), 400
+
+        public_user_id = data.get('public_user_id')
+        raw_user_id = data.get('user_id')
+        resolved_user_id = None
+
+        if public_user_id:
+            resolved_user_id = team_service.get_user_id_by_public_id(public_user_id)
+            if not resolved_user_id:
+                return jsonify({'error': 'User not found for the provided User ID'}), 404
+        elif raw_user_id is not None:
+            try:
+                resolved_user_id = int(raw_user_id)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'user_id must be a valid integer'}), 400
+        else:
+            return jsonify({'error': 'public_user_id is required'}), 400
         
         role_str = data.get('role', 'qa_member')
         try:
@@ -789,7 +803,7 @@ def add_team_member(current_user, team_id):
         
         success, error = team_service.add_team_member(
             team_id=team_id,
-            user_id=data['user_id'],
+            user_id=resolved_user_id,
             role=role,
             added_by_user_id=current_user['user_id']
         )
