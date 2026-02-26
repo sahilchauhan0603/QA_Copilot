@@ -1,24 +1,37 @@
 # Quick Start Script for Backend
 # Run this after setting up .env file
 
+$ErrorActionPreference = 'Stop'
+
+$projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+Set-Location $projectRoot
+
 Write-Host "==================================" -ForegroundColor Cyan
 Write-Host "QA Copilot - Backend Setup" -ForegroundColor Cyan
 Write-Host "==================================" -ForegroundColor Cyan
 Write-Host ""
 
+$venvDir = Join-Path $projectRoot "venv"
+$venvPython = Join-Path $venvDir "Scripts\python.exe"
+
 # Check if virtual environment exists
-if (-not (Test-Path "venv")) {
+if (-not (Test-Path $venvPython)) {
     Write-Host "Creating virtual environment..." -ForegroundColor Yellow
-    python -m venv venv
+    python -m venv $venvDir
 }
 
-# Activate virtual environment
-Write-Host "Activating virtual environment..." -ForegroundColor Yellow
-& .\venv\Scripts\Activate.ps1
+# Use venv python directly (robust after folder rename)
+if (-not (Test-Path $venvPython)) {
+    Write-Host "ERROR: venv python not found at $venvPython" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "Using virtual environment: $venvPython" -ForegroundColor Yellow
 
 # Install dependencies
 Write-Host "Installing dependencies..." -ForegroundColor Yellow
-pip install -r requirements.txt
+& $venvPython -m pip install --upgrade pip
+& $venvPython -m pip install -r requirements.txt
 
 # Check if .env exists
 if (-not (Test-Path ".env")) {
@@ -46,7 +59,7 @@ $envContent = Get-Content .env -Raw
 if ($envContent -notmatch "ENCRYPTION_KEY=(?!your-fernet)[\w\-_]+") {
     Write-Host ""
     Write-Host "WARNING: ENCRYPTION_KEY not properly configured!" -ForegroundColor Yellow
-    $key = python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    $key = & $venvPython -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     Write-Host "Generated encryption key. Add this to your .env file:" -ForegroundColor Green
     Write-Host ""
     Write-Host "ENCRYPTION_KEY=$key" -ForegroundColor Cyan
@@ -58,7 +71,7 @@ if ($envContent -notmatch "ENCRYPTION_KEY=(?!your-fernet)[\w\-_]+") {
 # Initialize database
 Write-Host ""
 Write-Host "Initializing database..." -ForegroundColor Yellow
-python -c "from database.connection import init_database; init_database()"
+& $venvPython -c "from database.connection import init_database; init_database()"
 
 Write-Host ""
 Write-Host "==================================" -ForegroundColor Green
@@ -70,4 +83,4 @@ Write-Host "Server will be available at: http://localhost:5000" -ForegroundColor
 Write-Host ""
 
 # Start server
-python -m api.server
+& $venvPython -m api.server

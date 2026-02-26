@@ -1526,6 +1526,19 @@ def save_integration_config(current_user):
         user_id = current_user['user_id']
         team_id = workspace_service.get_active_workspace(user_id)
 
+        if integration_type == 'zephyr':
+            if not config.get('project_key'):
+                return jsonify({'error': 'Zephyr project key is required'}), 400
+
+            stored_zephyr = integration_service.get_credentials(
+                integration_type='zephyr',
+                user_id=user_id if not team_id else None,
+                team_id=team_id
+            ) or {}
+            zephyr_token = (credentials.get('zephyr_token') or stored_zephyr.get('zephyr_token') or '').strip()
+            if not zephyr_token:
+                return jsonify({'error': 'Zephyr API token not configured. Please configure Zephyr settings.'}), 400
+
         success, error = integration_service.save_config(
             integration_type=integration_type,
             credentials=credentials,

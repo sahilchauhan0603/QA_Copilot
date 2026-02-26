@@ -67,7 +67,11 @@ export const testManagementAPI = {
         const res = await apiClient.get(`/test-management/export/job-status/${id}`);
         const status = res.data.status;
         if (status === 'completed') return res.data.result;
-        if (status === 'error') throw new Error(res.data.error || 'Export failed');
+        if (status === 'error') {
+          const err = new Error(res.data.error || 'Export failed');
+          err.serverError = res.data.error || 'Export failed';
+          throw err;
+        }
         if (status === 'cancelled') throw new Error('export_cancelled');
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
@@ -89,3 +93,4 @@ export const testManagementAPI = {
     return { promise, cancel };
   },
 };
+

@@ -54,7 +54,7 @@ const IntegrationSettings = () => {
   const [xrayTesting, setXrayTesting] = useState(false);
   const [xraySaving, setXraySaving] = useState(false);
 
-  // Zephyr form (uses Jira credentials + optional Zephyr token)
+  // Zephyr form (uses Jira credentials + required Zephyr token)
   const [zephyrForm, setZephyrForm] = useState({ zephyr_token: '', project_key: '' });
   const [initialZephyrForm, setInitialZephyrForm] = useState({ zephyr_token: '', project_key: '' });
   const [zephyrTesting, setZephyrTesting] = useState(false);
@@ -400,6 +400,10 @@ const IntegrationSettings = () => {
       toast.error('Please enter Zephyr project key');
       return;
     }
+    if (!zephyrForm.zephyr_token?.trim() && !isConfigured('zephyr')) {
+      toast.error('Please enter Zephyr API token');
+      return;
+    }
     if (!isConfigured('jira')) {
       toast.error('Jira must be configured first (Zephyr uses Jira credentials)');
       return;
@@ -592,7 +596,7 @@ const IntegrationSettings = () => {
         {expandedSection === 'jira' && (
           <div className="space-y-4 mt-5 pt-5 border-t border-gray-200">
             <div>
-              <label className="input-label">Jira URL</label>
+              <label className="input-label">Jira URL <span className="text-red-500">*</span></label>
               <input
                 type="url"
                 value={jiraForm.url}
@@ -602,7 +606,7 @@ const IntegrationSettings = () => {
               />
             </div>
             <div>
-              <label className="input-label">Email</label>
+              <label className="input-label">Email <span className="text-red-500">*</span></label>
               <input
                 type="email"
                 value={jiraForm.email}
@@ -724,7 +728,7 @@ const IntegrationSettings = () => {
           <div className="space-y-4 mt-5 pt-5 border-t border-gray-200">
             <div>
               <label className="input-label">
-                Organization URL
+                Organization URL <span className="text-red-500">*</span>
               </label>
               <input
                 type="url"
@@ -738,7 +742,7 @@ const IntegrationSettings = () => {
             </div>
             <div>
               <label className="input-label">
-                Project Name
+                Project Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -872,7 +876,7 @@ const IntegrationSettings = () => {
               </div>
             )}
             <div>
-              <label className="input-label">Jira Project Key</label>
+              <label className="input-label">Jira Project Key <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={xrayForm.project_key}
@@ -960,7 +964,7 @@ const IntegrationSettings = () => {
               </div>
             )}
             <div>
-              <label className="input-label">Jira Project Key</label>
+              <label className="input-label">Jira Project Key <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={zephyrForm.project_key}
@@ -973,18 +977,19 @@ const IntegrationSettings = () => {
               </p>
             </div>
             <div>
-              <label className="input-label">Zephyr API Token (Optional)</label>
+              <label className="input-label">Zephyr API Token <span className="text-red-500">*</span></label>
               <div className="relative">
                 <input
                   type="password"
                   value={zephyrForm.zephyr_token}
                   onChange={(e) => setZephyrForm((p) => ({ ...p, zephyr_token: e.target.value }))}
                   className="input"
+                  required
                   placeholder={isConfigured('zephyr') ? '****************' : 'Enter Zephyr Scale API token'}
                 />
               </div>
               <p className="input-hint">
-                Optional here. Leave blank to keep your existing saved token.
+                Required for first-time setup. Leave blank only if you already saved a token and are updating other fields.
               </p>
               <p className="input-hint">
                 <a
@@ -1065,7 +1070,7 @@ const IntegrationSettings = () => {
         {expandedSection === 'testrail' && (
           <div className="space-y-4 mt-5 pt-5 border-t border-gray-200">
             <div>
-              <label className="input-label">TestRail URL</label>
+              <label className="input-label">TestRail URL <span className="text-red-500">*</span></label>
               <input
                 type="url"
                 value={testrailForm.url}
@@ -1075,7 +1080,7 @@ const IntegrationSettings = () => {
               />
             </div>
             <div>
-              <label className="input-label">Email</label>
+              <label className="input-label">Email <span className="text-red-500">*</span></label>
               <input
                 type="email"
                 value={testrailForm.email}

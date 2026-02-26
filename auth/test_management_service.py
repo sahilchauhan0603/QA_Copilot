@@ -121,7 +121,7 @@ class TestManagementService:
             if not jira_creds:
                 return {'success': False, 'error': 'Jira integration not configured. Please configure Jira credentials first.'}
             
-            # Get Zephyr config for project key and optional Zephyr token
+            # Get Zephyr config for project key and token
             zephyr_config = self.integration_service.get_credentials('zephyr', user_id=user_id, team_id=team_id)
             if not project_key:
                 project_key = zephyr_config.get('project_key') if zephyr_config else None
@@ -130,6 +130,8 @@ class TestManagementService:
                 return {'success': False, 'error': 'Zephyr project key not configured. Please configure Zephyr settings.'}
             
             zephyr_token = zephyr_config.get('zephyr_token') if zephyr_config else None
+            if not zephyr_token:
+                return {'success': False, 'error': 'Zephyr API token not configured. Please configure Zephyr settings.'}
             
             zephyr = ZephyrIntegration(
                 jira_url=jira_creds.get('url'),

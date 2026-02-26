@@ -69,8 +69,12 @@ const ExportMenu = ({ generationId, ticketId, onClose, onStatusChange }) => {
         return;
       }
       // Check if it's a configuration error
-      const errorMsg = err.response?.data?.error || '';
-      if (errorMsg.includes('not configured')) {
+      const errorMsg = err.serverError || err.response?.data?.error || err.message || '';
+
+      if (errorMsg) {
+        console.error('Export error:', errorMsg);
+      }
+      if (errorMsg.includes('not configured') || errorMsg.includes('Failed to connect')) {
         // Show custom toast with settings button
         toast.error(
           (t) => (
@@ -91,7 +95,7 @@ const ExportMenu = ({ generationId, ticketId, onClose, onStatusChange }) => {
           { duration: 6000, id: 'config-error' }
         );
       }
-      console.error('Export error:', err);
+      console.error('Export error object:', err);
       // Don't close modal on error - let user try again or cancel
     } finally {
       setExporting(null);
@@ -131,7 +135,7 @@ const ExportMenu = ({ generationId, ticketId, onClose, onStatusChange }) => {
           disabled={(!!exporting && !cancelExportFn) || cancelingExport}
           className={`flex items-center gap-2 px-3 py-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm ${
             exporting
-              ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-300'
+              ? 'bg-red-600 hover:bg-red-800 disabled:bg-red-300'
               : 'bg-purple-600 hover:bg-purple-700'
           }`}
         >
@@ -209,7 +213,7 @@ const ExportMenu = ({ generationId, ticketId, onClose, onStatusChange }) => {
                 value={exportSuiteName}
                 onChange={(e) => setExportSuiteName(e.target.value)}
                 placeholder={`Enter ${selectedTool === 'zephyr' ? 'cycle' : 'suite'} name...`}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full px-3 py-2 text-black border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 autoFocus
               />
               <p className="mt-2 text-xs text-gray-500">
@@ -245,3 +249,6 @@ const ExportMenu = ({ generationId, ticketId, onClose, onStatusChange }) => {
 };
 
 export default ExportMenu;
+
+
+
