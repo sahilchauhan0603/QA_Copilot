@@ -20,7 +20,7 @@ psql --version      # Should be 14+
 
 ### 1. Clone & Navigate
 ```powershell
-cd c:\THIS_DEVICE\VSCode\PROJECTS\TicketToTest_AI_2
+cd c:\THIS_DEVICE\VSCode\PROJECTS\QA_Copilot
 ```
 
 ### 2. Setup Python Environment
@@ -45,7 +45,7 @@ pip install -r requirements.txt
 psql -U postgres
 
 # Create database
-CREATE DATABASE ticket_to_test;
+CREATE DATABASE qa_copilot;
 
 # Exit
 \q
@@ -53,7 +53,7 @@ CREATE DATABASE ticket_to_test;
 
 **Update connection string in `.env`:**
 ```env
-DATABASE_URL=postgresql://postgres:your_password@localhost:5432/ticket_to_test
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/qa_copilot
 ```
 
 **Run migration:**
@@ -76,7 +76,7 @@ LLM_MODEL=gemini-2.0-flash-exp
 LLM_TEMPERATURE=0.3
 
 # Database
-DATABASE_URL=postgresql://postgres:your_password@localhost:5432/ticket_to_test
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/qa_copilot
 
 # JWT Authentication
 JWT_SECRET_KEY=change-this-to-a-secure-random-string
@@ -89,16 +89,6 @@ SMTP_USER=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
 FROM_EMAIL=your-email@gmail.com
 APP_URL=http://localhost:3000
-
-# Jira Integration (Optional)
-JIRA_URL=https://your-domain.atlassian.net
-JIRA_EMAIL=your-email@example.com
-JIRA_API_TOKEN=your_jira_token
-
-# Azure DevOps Integration (Optional)
-AZURE_DEVOPS_ORG=https://dev.azure.com/your-org
-AZURE_DEVOPS_PAT=your_devops_token
-AZURE_DEVOPS_PROJECT=YourProject
 ```
 
 **Generate secure JWT secret:**
@@ -136,52 +126,37 @@ cd ..
 1. Navigate to http://localhost:3000
 2. Click **Sign Up**
 3. Enter username, email, password
-4. Create your first team
+4. Create your first team (optional)
 5. Start generating test cases!
 
 ### Configure Integrations (Optional)
 
 #### Jira Setup:
 1. Go to Settings → Integrations → Jira
-2. Enter Jira URL, Email, API Token
+2. Enter Jira URL, Email, API Token (all fields required)
 3. Click **Save & Test Connection**
 4. Use Integration tab to fetch tickets
 
 #### Azure DevOps Setup:
 1. Go to Settings → Integrations → Azure DevOps
-2. Enter Organization URL, PAT, Project Name
+2. Enter Organization URL, PAT, Project Name (all fields required)
 3. Click **Save & Test Connection**
 4. Use Integration tab to fetch work items
 
-#### Test Management Tools Setup (Optional):
+#### Xray Setup:
+1. Go to Settings → Integrations → Xray
+2. Enter Project Key (required)
+3. Click **Save**
 
-**Xray for Jira:**
-1. Uses your existing Jira credentials
-2. Add to `.env`:
-   ```
-   XRAY_PROJECT_KEY=PROJ
-   ```
-3. Export test cases directly to Xray Test Sets
+#### Zephyr Scale Setup:
+1. Go to Settings → Integrations → Zephyr
+2. Enter Zephyr Token and Project Key (both required)
+3. Click **Save**
 
-**Zephyr Scale:**
-1. Generate API token from Zephyr Scale settings
-2. Add to `.env`:
-   ```
-   ZEPHYR_API_TOKEN=your_zephyr_token
-   ZEPHYR_PROJECT_KEY=PROJ
-   ```
-3. Export test cases to Zephyr Test Cycles
-
-**TestRail:**
-1. Generate API key from TestRail account settings
-2. Add to `.env`:
-   ```
-   TESTRAIL_URL=https://yourcompany.testrail.io
-   TESTRAIL_EMAIL=your@email.com
-   TESTRAIL_API_KEY=your_api_key
-   TESTRAIL_PROJECT_ID=1
-   ```
-3. Export test cases to TestRail Test Suites
+#### TestRail Setup:
+1. Go to Settings → Integrations → TestRail
+2. Enter TestRail URL, Email, API Key, Project ID (all fields required)
+3. Click **Save & Test Connection**
 
 ---
 
@@ -220,7 +195,7 @@ cd ..
    - **Xray for Jira** - Creates Test Set and Test issues
    - **Zephyr Scale** - Creates Test Cycle and Test Cases
    - **TestRail** - Creates Test Suite and Cases
-4. (Optional) Enter suite/cycle name
+4. Enter suite/cycle name (required for TestRail, optional for others)
 5. Click **Export**
 6. Test cases are created in your test management tool with:
    - All test steps and expected results
@@ -252,67 +227,13 @@ cd ..
 
 ---
 
-## Troubleshooting
-
-### Database Connection Failed
-```powershell
-# Check PostgreSQL is running
-Get-Service postgresql*
-
-# Test connection
-psql -U postgres -d ticket_to_test
-```
-
-### Backend Won't Start
-```powershell
-# Kill existing Python processes
-Stop-Process -Name python -Force
-
-# Check port 5000 is free
-netstat -ano | findstr :5000
-
-# Restart backend
-.\scripts\start_backend.ps1
-```
-
-### Frontend Won't Start
-```powershell
-# Clear node_modules and reinstall
-cd frontend
-Remove-Item -Recurse -Force node_modules
-npm install
-npm run dev
-```
-
-### Module Not Found Error
-```powershell
-# Ensure venv is activated
-.\venv\Scripts\Activate.ps1
-
-# Reinstall dependencies
-pip install -r requirements.txt --force-reinstall
-```
-
-### Password Reset Emails Not Sending
-- Get Gmail App Password: https://myaccount.google.com/apppasswords
-- Update SMTP credentials in `.env`
-- Restart backend
-
-### Integration Connection Failed
-- **Jira:** Verify URL includes `https://`, check API token hasn't expired
-- **Azure DevOps:** Ensure PAT has Work Items Read/Write permissions
-- Test credentials in Settings → Integrations
-
----
-
 ## Scripts Reference
 
 All utility scripts are in the `/scripts` folder:
 
-- **`start_backend.ps1`** - Start Flask API server (port 5000)
-- **`start_frontend.ps1`** - Start React dev server (port 3000)
+- **`start_backend.ps1`** - Start backend API server (port 5000)
+- **`start_frontend.ps1`** - Start frontend React dev server (port 3000)
 - **`run_migration.py`** - Run database migrations
-- **`check_database.py`** - Check database connection and data
 - **`reset_database.ps1`** - Reset database (⚠️ destructive)
 
 **Usage:**
