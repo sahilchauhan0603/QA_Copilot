@@ -41,12 +41,15 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(255))
     is_active = Column(Boolean, default=True, nullable=False)
+    email_verified = Column(Boolean, default=False, nullable=False)
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships
     team_memberships = relationship("TeamMember", back_populates="user", cascade="all, delete-orphan")
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    email_verification_tokens = relationship("EmailVerificationToken", back_populates="user", cascade="all, delete-orphan")
     personal_integrations = relationship(
         "IntegrationCredential", 
         foreign_keys="IntegrationCredential.user_id",
@@ -213,3 +216,22 @@ class PasswordResetToken(Base):
     
     def __repr__(self):
         return f"<PasswordResetToken(id={self.id}, user_id={self.user_id}, used={self.used})>"
+
+
+class EmailVerificationToken(Base):
+    """Email verification tokens for new user onboarding"""
+    __tablename__ = 'email_verification_tokens'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    token = Column(String(255), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    ip_address = Column(String(45))
+
+    # Relationships
+    user = relationship("User", back_populates="email_verification_tokens")
+
+    def __repr__(self):
+        return f"<EmailVerificationToken(id={self.id}, user_id={self.user_id}, used={self.used})>"

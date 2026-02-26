@@ -55,22 +55,10 @@ const useAuthStore = create(
         set({ isLoading: true, error: null });
         try {
           const data = await authAPI.signup(email, username, password, fullName);
-          
-          // Save token to localStorage
-          localStorage.setItem('auth_token', data.token);
-          
-          set({
-            user: data.user,
-            token: data.token,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-          
-          // Fetch workspaces after signup
-          await get().fetchWorkspaces();
-          
-          toast.success(`Account created! Welcome, ${data.user.username}!`);
-          return { success: true };
+
+          set({ isLoading: false });
+          toast.success(data.message || 'Account created. Check your email to verify your account.');
+          return { success: true, emailSent: data.email_sent !== false };
         } catch (error) {
           // Error toast handled by axios interceptor
           const errorMessage = error.response?.data?.error || 'Signup failed';

@@ -13,7 +13,7 @@ import os
 from dotenv import load_dotenv
 import logging
 
-from database.auth_models import User, UserSession, PasswordResetToken
+from database.auth_models import User, UserSession, PasswordResetToken, EmailVerificationToken
 from database.connection import get_db_connection
 
 load_dotenv()
@@ -183,7 +183,8 @@ class AuthService:
                     username=username,
                     password_hash=password_hash,
                     full_name=full_name,
-                    is_active=True
+                    is_active=True,
+                    email_verified=False
                 )
                 
                 session.add(new_user)
@@ -238,6 +239,9 @@ class AuthService:
                 
                 if not user.is_active:
                     return None, "Account is disabled"
+
+                if not user.email_verified:
+                    return None, "Please verify your email before logging in"
                 
                 # Verify password
                 if not self.verify_password(password, user.password_hash):
@@ -445,6 +449,143 @@ class AuthService:
         except Exception as e:
             logger.error(f"Error creating password reset token: {e}")
             return None, "Failed to create password reset token"
+
+    def create_email_verification_token(self, user_id: int, ip_address: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Create a new email verification token for a user.
+
+        Args:
+            user_id: User ID
+            ip_address: Optional requester IP
+
+        Returns:
+            Tuple of (token, error_message)
+        """
+        try:
+            with self.db.get_session() as session:
+                user = session.query(User).filter(User.id == user_id, User.is_active == True).first()
+                if not user:
+                    return None, "User not found"
+
+                if user.email_verified:
+                    return None, "Email already verified"
+
+                verification_token = secrets.token_urlsafe(32)
+                expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+                # Keep only one active verification token per user
+                session.query(EmailVerificationToken).filter(
+                    EmailVerificationToken.user_id == user.id,
+                    EmailVerificationToken.used == False
+                ).delete()
+
+                token_record = EmailVerificationToken(
+                    user_id=user.id,
+                    token=verification_token,
+                    expires_at=expires_at,
+                    ip_address=ip_address
+                )
+                session.add(token_record)
+
+                logger.info(f"Email verification token created for user: {user.email}")
+                return verification_token, None
+        except Exception as e:
+            logger.error(f"Error creating email verification token: {e}")
+            return None, "Failed to create email verification token"
+
+    def verify_email_token(self, token: str) -> Tuple[bool, Optional[str]]:
+        """
+        Verify email token and mark user email as verified.
+
+        Args:
+            token: Verification token
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        try:
+            with self.db.get_session() as session:
+                token_record = session.query(EmailVerificationToken).filter(
+                    EmailVerificationToken.token == token
+                ).first()
+
+                if not token_record:
+                    return False, "Invalid verification token"
+
+                # Idempotency: if token already used and user is already verified,
+                # treat repeated clicks/calls as success.
+                user = session.query(User).filter(User.id == token_record.user_id).first()
+                if token_record.used:
+                    if user and user.email_verified:
+                        return True, None
+                    return False, "Invalid or already used verification token"
+
+                if token_record.expires_at < datetime.now(timezone.utc):
+                    return False, "Verification token has expired"
+
+                if not user:
+                    return False, "User not found"
+
+                user.email_verified = True
+                user.email_verified_at = datetime.now(timezone.utc)
+                token_record.used = True
+
+                # Invalidate any remaining active tokens for this user
+                session.query(EmailVerificationToken).filter(
+                    EmailVerificationToken.user_id == user.id,
+                    EmailVerificationToken.used == False
+                ).update({'used': True})
+
+                logger.info(f"Email verified successfully for user: {user.email}")
+                return True, None
+        except Exception as e:
+            logger.error(f"Error verifying email token: {e}")
+            return False, "Failed to verify email"
+
+    def request_email_verification(self, email: str, ip_address: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Create a verification token by email for unverified active users.
+
+        Returns:
+            Tuple of (token, error_message). Returns (None, None) for unknown emails
+            to avoid revealing account existence.
+        """
+        try:
+            normalized_email = email.strip().lower()
+            with self.db.get_session() as session:
+                user = session.query(User).filter(
+                    User.email == normalized_email,
+                    User.is_active == True
+                ).first()
+
+                if not user:
+                    logger.info(f"Email verification requested for non-existent email: {normalized_email}")
+                    return None, None
+
+                if user.email_verified:
+                    return None, "Email is already verified"
+
+                verification_token = secrets.token_urlsafe(32)
+                expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+                session.query(EmailVerificationToken).filter(
+                    EmailVerificationToken.user_id == user.id,
+                    EmailVerificationToken.used == False
+                ).delete()
+
+                token_record = EmailVerificationToken(
+                    user_id=user.id,
+                    token=verification_token,
+                    expires_at=expires_at,
+                    ip_address=ip_address
+                )
+                session.add(token_record)
+
+                logger.info(f"Email verification re-issued for user: {user.email}")
+                return verification_token, None
+        except Exception as e:
+            logger.error(f"Error requesting email verification: {e}")
+            return None, "Failed to create email verification token"
     
     def verify_reset_token(self, token: str) -> Tuple[Optional[int], Optional[str]]:
         """
@@ -563,6 +704,25 @@ class AuthService:
         except Exception as e:
             logger.error(f"Error cleaning up reset tokens: {e}")
             return 0
+
+    def cleanup_expired_email_verification_tokens(self) -> int:
+        """
+        Remove expired email verification tokens from database.
+
+        Returns:
+            Number of tokens removed
+        """
+        try:
+            with self.db.get_session() as session:
+                count = session.query(EmailVerificationToken).filter(
+                    EmailVerificationToken.expires_at < datetime.now(timezone.utc)
+                ).delete()
+
+            logger.info(f"Cleaned up {count} expired email verification tokens")
+            return count
+        except Exception as e:
+            logger.error(f"Error cleaning up email verification tokens: {e}")
+            return 0
     
     def get_username_by_email(self, email: str) -> Optional[str]:
         """
@@ -575,9 +735,10 @@ class AuthService:
             Username if found, None otherwise
         """
         try:
+            normalized_email = email.strip().lower()
             with self.db.get_session() as session:
                 user = session.query(User).filter(
-                    User.email == email,
+                    User.email == normalized_email,
                     User.is_active == True
                 ).first()
                 

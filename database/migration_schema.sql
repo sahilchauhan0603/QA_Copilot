@@ -9,8 +9,19 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================
 -- CUSTOM TYPES
 -- ============================================
-CREATE TYPE team_role AS ENUM ('admin', 'qa_lead', 'qa_member');
-CREATE TYPE integration_type AS ENUM ('jira', 'azure_devops');
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'team_role') THEN
+        CREATE TYPE team_role AS ENUM ('admin', 'qa_lead', 'qa_member');
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'integration_type') THEN
+        CREATE TYPE integration_type AS ENUM ('jira', 'azure_devops');
+    END IF;
+END $$;
 
 -- ============================================
 -- USERS TABLE
@@ -22,6 +33,8 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    email_verified BOOLEAN DEFAULT FALSE NOT NULL,
+    email_verified_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -73,6 +86,23 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token_hash);
+
+-- ============================================
+-- EMAIL VERIFICATION TOKENS
+-- ============================================
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(255) NOT NULL UNIQUE,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    ip_address VARCHAR(45)
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user_id ON email_verification_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_token ON email_verification_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expires_at ON email_verification_tokens(expires_at);
 
 -- ============================================
 -- INTEGRATION CREDENTIALS (User or Team-Specific)
@@ -174,15 +204,19 @@ END;
 $$ language 'plpgsql';
 
 -- Apply triggers to tables with updated_at
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_teams_updated_at ON teams;
 CREATE TRIGGER update_teams_updated_at BEFORE UPDATE ON teams
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_credentials_updated_at ON integration_credentials;
 CREATE TRIGGER update_credentials_updated_at BEFORE UPDATE ON integration_credentials
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_workspace_context_updated_at ON user_workspace_context;
 CREATE TRIGGER update_workspace_context_updated_at BEFORE UPDATE ON user_workspace_context
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

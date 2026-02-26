@@ -276,6 +276,130 @@ QA Copilot Team
         
         return self.send_email(to_email, subject, html_body, text_body)
 
+    def send_email_verification_email(self, to_email: str, username: str, verification_token: str) -> bool:
+        """
+        Send email verification message with verification link.
+
+        Args:
+            to_email: User's email address
+            username: User's username
+            verification_token: Email verification token
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        verify_link = f"{self.app_url}/verify-email?token={verification_token}"
+        subject = "Verify Your Email - QA Copilot"
+
+        text_body = f"""
+Hello {username},
+
+Thanks for signing up for QA Copilot.
+
+Please verify your email address by clicking this link:
+{verify_link}
+
+Security notice:
+- This verification link expires in 24 hours
+- If you did not create this account, you can ignore this email
+
+Best regards,
+QA Copilot Team
+"""
+
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            color: white;
+            padding: 36px 30px;
+            text-align: center;
+        }}
+        .header h1 {{
+            margin: 0;
+            font-size: 30px;
+            font-weight: 700;
+        }}
+        .content {{
+            padding: 36px;
+        }}
+        .button-container {{
+            text-align: center;
+            margin: 30px 0;
+        }}
+        .button {{
+            display: inline-block;
+            padding: 14px 36px;
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            color: white !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+        }}
+        .notice {{
+            background: #f0f9ff;
+            border-left: 4px solid #0284c7;
+            padding: 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #0f172a;
+        }}
+        .footer {{
+            padding: 24px 36px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            font-size: 13px;
+            color: #64748b;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Verify Your Email</h1>
+            <p>Complete your QA Copilot signup</p>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{username}</strong>,</p>
+            <p>Thanks for signing up for QA Copilot. Please verify your email to activate login access.</p>
+            <div class="button-container">
+                <a href="{verify_link}" class="button">Verify Email</a>
+            </div>
+            <div class="notice">
+                <strong>Security notice:</strong><br/>
+                This link expires in 24 hours. If you did not create this account, you can ignore this email.
+            </div>
+        </div>
+        <div class="footer">
+            QA Copilot Team<br/>
+            This is an automated message. Please do not reply.
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        return self.send_email(to_email, subject, html_body, text_body)
+
 
 # Singleton instance
 email_service = EmailService()

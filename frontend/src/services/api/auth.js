@@ -14,6 +14,16 @@ export const authAPI = {
     return response.data;
   },
 
+  verifyEmail: async (token) => {
+    const response = await apiClient.get(`/auth/verify-email?token=${encodeURIComponent(token)}`);
+    return response.data;
+  },
+
+  resendVerification: async (email) => {
+    const response = await apiClient.post('/auth/resend-verification', { email });
+    return response.data;
+  },
+
   login: async (username, password) => {
     const response = await apiClient.post('/auth/login', {
       username,

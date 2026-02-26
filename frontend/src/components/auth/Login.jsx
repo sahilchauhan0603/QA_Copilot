@@ -49,7 +49,7 @@ const Login = () => {
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-primary-100 to-blue-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         {/* Logo and Title */}
-        <div className="text-center mb-8 animate-fade-in">
+        {/* <div className="text-center mb-8 animate-fade-in">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4 shadow-lg">
             <LogIn size={32} className="text-white" />
           </div>
@@ -59,13 +59,24 @@ const Login = () => {
           <p className="text-gray-600">
             Automated test case generation from tickets
           </p>
-        </div>
+        </div> */}
 
         <div className="card bg-white shadow-2xl border border-gray-100">
-          <div className="mb-6">
+          {/* <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Welcome Back</h2>
             <p className="text-sm text-gray-500 mt-1">Enter your credentials to access your account</p>
+          </div> */}
+          <div className="text-center mb-8 animate-fade-in">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4 shadow-lg">
+            <LogIn size={32} className="text-white" />
           </div>
+          <h1 className="text-4xl font-bold text-primary-900 mb-2">
+            QA Copilot
+          </h1>
+          <p className="text-gray-600">
+            Enter your credentials to access your account
+          </p>
+        </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

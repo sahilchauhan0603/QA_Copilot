@@ -377,22 +377,32 @@ def signup():
         # Initialize workspace context
         workspace_service.ensure_workspace_context(user.id)
         
-        # Generate token
-        token = auth_service.generate_jwt_token(
-            user,
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+        # Create verification token and send confirmation email
+        verification_token, token_error = auth_service.create_email_verification_token(
+            user.id,
+            ip_address=request.remote_addr
         )
-        
+        if token_error:
+            logger.error(f"Email verification token creation failed for user {user.id}: {token_error}")
+            return jsonify({'error': 'Registration failed. Please try again.'}), 500
+
+        from utils.email_service import email_service
+        email_sent = email_service.send_email_verification_email(
+            to_email=user.email,
+            username=user.username,
+            verification_token=verification_token
+        )
+
+        if not email_sent:
+            logger.error(f"Failed to send verification email to {user.email}")
+            return jsonify({
+                'message': 'Account created, but verification email could not be sent. Please request a new verification email.',
+                'email_sent': False
+            }), 201
+
         return jsonify({
-            'message': 'User registered successfully',
-            'token': token,
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'full_name': user.full_name
-            }
+            'message': 'Signup successful. Please verify your email before logging in.',
+            'email_sent': True
         }), 201
         
     except Exception as e:
@@ -444,6 +454,59 @@ def login():
     except Exception as e:
         logger.error(f"Login error: {e}")
         return jsonify({'error': 'Login failed'}), 500
+
+
+@app.route('/api/auth/verify-email', methods=['GET'])
+def verify_email():
+    """Verify email using verification token."""
+    try:
+        token = request.args.get('token', '').strip()
+        if not token:
+            return jsonify({'error': 'Verification token is required'}), 400
+
+        success, error = auth_service.verify_email_token(token)
+        if not success:
+            return jsonify({'error': error}), 400
+
+        return jsonify({'message': 'Email verified successfully. You can now log in.'}), 200
+
+    except Exception as e:
+        logger.error(f"Verify email error: {e}")
+        return jsonify({'error': 'Failed to verify email'}), 500
+
+
+@app.route('/api/auth/resend-verification', methods=['POST'])
+def resend_verification():
+    """Resend email verification link for unverified accounts."""
+    try:
+        data = request.get_json() or {}
+        email = data.get('email', '').strip().lower()
+
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+
+        token, error = auth_service.request_email_verification(email, ip_address=request.remote_addr)
+
+        if error:
+            if error == "Email is already verified":
+                return jsonify({'message': 'Email is already verified. You can log in.'}), 200
+            return jsonify({'error': error}), 500
+
+        # Do not reveal whether account exists.
+        if token:
+            from utils.email_service import email_service
+            username = auth_service.get_username_by_email(email) or email.split('@')[0]
+            sent = email_service.send_email_verification_email(email, username, token)
+            if not sent:
+                logger.error(f"Failed to resend verification email to {email}")
+
+        return jsonify({
+            'message': 'If an account with that email exists and is not verified, a verification link has been sent.'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Resend verification error: {e}")
+        return jsonify({'error': 'Failed to resend verification email'}), 500
 
 
 @app.route('/api/auth/logout', methods=['POST'])

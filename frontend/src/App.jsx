@@ -9,6 +9,7 @@ import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
 import ResetPassword from './components/auth/ResetPassword';
+import VerifyEmail from './components/auth/VerifyEmail';
 import Layout from './components/layout/Layout';
 import HomePage from './pages/HomePage';
 import TestGenerationPage from './pages/TestGenerationPage';
@@ -89,6 +90,10 @@ function App() {
         <Route 
           path="/reset-password" 
           element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ResetPassword />} 
+        />
+        <Route 
+          path="/verify-email" 
+          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <VerifyEmail />} 
         />
         
         {/* Protected Routes with Layout */}
