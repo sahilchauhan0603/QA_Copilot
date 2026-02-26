@@ -9,6 +9,8 @@ import {
   XCircle,
   Loader2,
   MailCheck,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import useAuthStore from "../../store/authStore";
@@ -35,6 +37,8 @@ const Signup = () => {
   const [resendLoading, setResendLoading] = useState(false);
   const [signupComplete, setSignupComplete] = useState(false);
   const [signupEmail, setSignupEmail] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -409,16 +413,26 @@ const Signup = () => {
               <label htmlFor="password" className="input-label">
                 Password
               </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="input"
-                placeholder="Create a strong password"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="input pr-11"
+                  placeholder="Create a strong password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <p className="input-hint">
                 Min 8 chars with uppercase, lowercase, digit, and special
                 character
@@ -429,16 +443,26 @@ const Signup = () => {
               <label htmlFor="confirmPassword" className="input-label">
                 Confirm Password
               </label>
-              <input
-                type="password"
-                id="confirmPassword"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className="input"
-                placeholder="Re-enter your password"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className="input pr-11"
+                  placeholder="Re-enter your password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700"
+                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button
@@ -482,3 +506,11 @@ const Signup = () => {
 };
 
 export default Signup;
+
+
+
+
+
+
+
+

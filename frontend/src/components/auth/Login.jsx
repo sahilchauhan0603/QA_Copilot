@@ -3,26 +3,25 @@
  */
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { LogIn } from 'lucide-react';
+import { LogIn, Eye, EyeOff } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 
 const Login = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuthStore();
-  
+
   const [formData, setFormData] = useState({
     username: '',
     password: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Trim username/email before login
     const result = await login(formData.username.trim().toLowerCase(), formData.password);
     if (result.success) {
       navigate('/dashboard');
     } else {
-      // Clear password on failed login for security
       setFormData({
         ...formData,
         password: '',
@@ -32,13 +31,12 @@ const Login = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    // Auto-trim and lowercase username/email
+
     let processedValue = value;
     if (name === 'username') {
       processedValue = value.trim().toLowerCase();
     }
-    
+
     setFormData({
       ...formData,
       [name]: processedValue,
@@ -48,35 +46,18 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-primary-100 to-blue-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        {/* Logo and Title */}
-        {/* <div className="text-center mb-8 animate-fade-in">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4 shadow-lg">
-            <LogIn size={32} className="text-white" />
-          </div>
-          <h1 className="text-4xl font-bold text-primary-900 mb-2">
-            QA Copilot
-          </h1>
-          <p className="text-gray-600">
-            Automated test case generation from tickets
-          </p>
-        </div> */}
-
         <div className="card bg-white shadow-2xl border border-gray-100">
-          {/* <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Welcome Back</h2>
-            <p className="text-sm text-gray-500 mt-1">Enter your credentials to access your account</p>
-          </div> */}
           <div className="text-center mb-8 animate-fade-in">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4 shadow-lg">
-            <LogIn size={32} className="text-white" />
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4 shadow-lg">
+              <LogIn size={32} className="text-white" />
+            </div>
+            <h1 className="text-4xl font-bold text-primary-900 mb-2">
+              QA Copilot
+            </h1>
+            <p className="text-gray-600">
+              Enter your credentials to access your account
+            </p>
           </div>
-          <h1 className="text-4xl font-bold text-primary-900 mb-2">
-            QA Copilot
-          </h1>
-          <p className="text-gray-600">
-            Enter your credentials to access your account
-          </p>
-        </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -108,16 +89,26 @@ const Login = () => {
                   Forgot password?
                 </Link>
               </div>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="input"
-                placeholder="Enter your password"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="input pr-11"
+                  placeholder="Enter your password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button
