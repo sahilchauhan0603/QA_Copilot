@@ -121,55 +121,96 @@ Five specialized agents working autonomously in sequence:
 ## 📁 Project Structure
 
 ```
-TicketToTest_AI_2/
-├── frontend/                  # React UI (Vite)
-│   ├── src/
-│   │   ├── components/       # React components
-│   │   ├── services/         # API client
-│   │   └── store/            # Zustand state
-│   └── package.json
-├── api/                       # Flask REST API
-│   ├── server.py             # Main API routes
-│   └── decorators.py         # Auth decorators
-├── agents/                    # AI agent system
-│   ├── orchestrator.py       # LangGraph workflow
-│   ├── ticket_reader.py
+QA_Copilot/
+├── README.md
+├── requirements.txt
+├── agents/                  # AI agent system
+│   ├── __init__.py
 │   ├── context_builder.py
-│   ├── test_strategy.py
-│   ├── test_generator.py
 │   ├── coverage_auditor.py
-│   └── sync_agent.py
-├── auth/                      # Authentication & Services
-│   ├── auth_service.py       # JWT, password hashing
+│   ├── orchestrator.py
+│   ├── refine_agent.py
+│   ├── state.py
+│   ├── sync_agent.py
+│   ├── test_generator.py
+│   ├── test_strategy.py
+│   ├── ticket_reader.py
+│   └── __pycache__/
+├── api/                     # Flask REST API
+│   ├── __init__.py
+│   ├── decorators.py
+│   ├── server.py
+│   └── __pycache__/
+├── auth/                    # Authentication & Services
+│   ├── __init__.py
+│   ├── auth_service.py
+│   ├── encryption.py
+│   ├── integration_service.py
 │   ├── team_service.py
+│   ├── test_management_service.py
 │   ├── workspace_service.py
-│   └── test_management_service.py
-├── database/                  # PostgreSQL models
-│   ├── models.py             # Generation history
-│   ├── auth_models.py        # Users, teams, sessions
+│   └── __pycache__/
+├── database/                # PostgreSQL models
+│   ├── __init__.py
+│   ├── auth_models.py
+│   ├── clear_database.sql
 │   ├── connection.py
-│   └── db_manager.py
-├── integrations/              # Ticket & Test Management
-│   ├── jira_integration.py
+│   ├── db_manager.py
+│   ├── migration_schema.sql
+│   ├── models.py
+│   ├── README.md
+│   └── __pycache__/
+├── DOCUMENTATION/
+│   ├── DEPLOYMENT_GUIDE.md
+│   ├── INSTALLATION_GUIDE.md
+│   └── TEST_MANAGEMENT_INTEGRATION.md
+├── frontend/                # React UI (Vite)
+│   ├── index.html
+│   ├── package.json
+│   ├── postcss.config.js
+│   ├── tailwind.config.js
+│   ├── vite.config.js
+│   ├── public/
+│   └── src/
+│       ├── App.jsx
+│       ├── index.css
+│       ├── main.jsx
+│       ├── components/
+│       │   ├── auth/
+│       │   ├── common/
+│       │   ├── layout/
+│       │   ├── settings/
+│       │   ├── teams/
+│       │   └── test-generation/
+│       ├── pages/
+│       ├── services/
+│       └── store/
+├── integrations/            # Ticket & Test Management
+│   ├── __init__.py
 │   ├── azure_devops_integration.py
+│   ├── base.py
+│   ├── jira_integration.py
+│   ├── manager.py
+│   ├── test_management_base.py
+│   ├── testrail_integration.py
 │   ├── xray_integration.py
 │   ├── zephyr_integration.py
-│   ├── testrail_integration.py
-│   ├── test_management_base.py
-│   └── manager.py
-├── utils/
-│   ├── excel_exporter.py     # 4-sheet Excel generation
-│   ├── email_service.py      # SMTP for password reset
-│   └── rate_limiter.py       # 15 RPM rate limiting
-├── scripts/                   # Utility scripts
+│   └── __pycache__/
+├── scripts/                 # Utility scripts
+│   ├── README.md
+│   ├── reset_database.ps1
+│   ├── run_migration.py
 │   ├── start_backend.ps1
 │   ├── start_frontend.ps1
-│   ├── run_migration.py
-│   └── check_database.py
-├── DOCUMENTATION/
-│   └── INSTALLATION_GUIDE.md
-├── requirements.txt
-└── README.md
+│   └── __pycache__/
+├── utils/
+│   ├── __init__.py
+│   ├── api_cache.py
+│   ├── api_helper.py
+│   ├── email_service.py
+│   ├── excel_exporter.py
+│   ├── rate_limiter.py
+│   └── __pycache__/
 ```
 
 ---
@@ -188,8 +229,6 @@ TicketToTest_AI_2/
 ## 🗺️ Roadmap
 
 - [ ] Webhook monitoring for auto-regeneration on ticket updates
-- [ ] Custom test templates per team/workspace
-- [ ] AI-powered test maintenance & flaky test detection
 
 ---
 
