@@ -179,8 +179,26 @@ const IntegrationSettings = () => {
     }
   };
 
-  const isConfigured = (type) =>
-    integrationConfigs.some((c) => c.integration_type === type && c.configured);
+  // Checks if all required fields are filled for each integration
+  const isConfigured = (type) => {
+    const config = integrationConfigs.find((c) => c.integration_type === type);
+    if (!config || !config.configured) return false;
+    // Check required fields for each integration
+    switch (type) {
+      case 'jira':
+        return !!config.url && !!config.email && !!config.api_token;
+      case 'azure_devops':
+        return !!config.organization_url && !!config.project && !!config.personal_access_token;
+      case 'xray':
+        return !!config.project_key;
+      case 'zephyr':
+        return !!config.zephyr_token && !!config.project_key;
+      case 'testrail':
+        return !!config.url && !!config.email && !!config.api_key && !!config.project_id;
+      default:
+        return false;
+    }
+  };
 
   const getLastUpdated = (type) => {
     const config = integrationConfigs.find((c) => c.integration_type === type);

@@ -62,15 +62,15 @@ const Layout = ({ children }) => {
                   );
                 })}
               </div>
-
-              {/* Desktop Workspace Selector */}
-              <div className="hidden lg:block ml-4">
-                <WorkspaceSelector />
-              </div>
+            </div>
+            
+            {/* Desktop Workspace Selector */}
+            <div className="hidden lg:block mr-4">
+              <WorkspaceSelector />
             </div>
             
             {/* Desktop User Menu */}
-            <div className="hidden md:block relative group">
+            <div className="hidden md:block relative group">    
               <button
                 className="w-8 h-8 rounded-full bg-white text-gray-600 hover:bg-blue-50 transition-colors flex items-center justify-center"
                 aria-label="Open profile menu"
