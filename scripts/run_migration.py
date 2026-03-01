@@ -193,7 +193,7 @@ def run_migration():
         print()
 
         # Step 5: Run public user ID migration
-        print("Step 5/5: Running public user ID migration...")
+        print("Step 5/6: Running public user ID migration...")
         print("  - Adding QC-style public user IDs")
 
         with engine.connect() as conn:
@@ -203,6 +203,21 @@ def run_migration():
         print("  [OK] Public user ID migration completed")
         print("     - users.public_user_id")
         print("     - Uniqueness constraint and index")
+        print()
+
+        # Step 6: Run Google OAuth migration
+        print("Step 6/6: Running Google OAuth migration...")
+        print("  - Making password_hash nullable for OAuth-only accounts")
+        print("  - Adding oauth_provider and oauth_sub columns")
+
+        oauth_sql = read_sql_file('oauth_migration.sql')
+        with engine.connect() as conn:
+            conn.execute(text(oauth_sql))
+            conn.commit()
+
+        print("  [OK] Google OAuth migration completed")
+        print("     - users.password_hash: now nullable")
+        print("     - users.oauth_provider / users.oauth_sub added")
         print()
 
         print("=" * 60)

@@ -37,6 +37,14 @@ export const authAPI = {
     return response.data;
   },
 
+  googleAuth: async (accessToken, username = null) => {
+    const response = await apiClient.post('/auth/google', {
+      access_token: accessToken,
+      ...(username ? { username } : {}),
+    });
+    return response.data;
+  },
+
   getCurrentUser: async () => {
     const response = await apiClient.get('/auth/me');
     return response.data;

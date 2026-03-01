@@ -237,6 +237,37 @@ const IntegrationSettings = () => {
     !!testrailForm.api_key?.trim()
   );
 
+  // Readiness: all required fields filled (token required on first save only)
+  const jiraReady = (
+    !!jiraForm.url?.trim() &&
+    !!jiraForm.email?.trim() &&
+    (!!jiraForm.api_token?.trim() || isConfigured('jira'))
+  );
+
+  const adoReady = (
+    !!adoForm.organization_url?.trim() &&
+    !!adoForm.project?.trim() &&
+    (!!adoForm.personal_access_token?.trim() || isConfigured('azure_devops'))
+  );
+
+  const xrayReady = (
+    !!xrayForm.project_key?.trim() &&
+    isConfigured('jira')
+  );
+
+  const zephyrReady = (
+    !!zephyrForm.project_key?.trim() &&
+    (!!zephyrForm.zephyr_token?.trim() || isConfigured('zephyr')) &&
+    isConfigured('jira')
+  );
+
+  const testrailReady = (
+    !!testrailForm.url?.trim() &&
+    !!testrailForm.email?.trim() &&
+    !!testrailForm.project_id?.toString().trim() &&
+    (!!testrailForm.api_key?.trim() || isConfigured('testrail'))
+  );
+
   const integrationLabels = {
     jira: 'Jira',
     azure_devops: 'Azure DevOps',
@@ -695,7 +726,7 @@ const IntegrationSettings = () => {
               </button>
               <button
                 onClick={handleJiraSave}
-                disabled={jiraSaving || !jiraHasChanges}
+                disabled={jiraSaving || !jiraReady || !jiraHasChanges}
                 className="btn-primary flex items-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {jiraSaving ? (
@@ -836,7 +867,7 @@ const IntegrationSettings = () => {
               </button>
               <button
                 onClick={handleAdoSave}
-                disabled={adoSaving || !adoHasChanges}
+                disabled={adoSaving || !adoReady || !adoHasChanges}
                 className="btn-primary flex items-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {adoSaving ? (
@@ -924,7 +955,7 @@ const IntegrationSettings = () => {
             <div className="flex gap-2 pt-2">
               <button
                 onClick={handleXraySave}
-                disabled={xraySaving || !isConfigured('jira') || !xrayHasChanges}
+                disabled={xraySaving || !xrayReady || !xrayHasChanges}
                 className="btn-primary flex items-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {xraySaving ? (
@@ -1038,7 +1069,7 @@ const IntegrationSettings = () => {
             <div className="flex gap-2 pt-2">
               <button
                 onClick={handleZephyrSave}
-                disabled={zephyrSaving || !isConfigured('jira') || !zephyrHasChanges}
+                disabled={zephyrSaving || !zephyrReady || !zephyrHasChanges}
                 className="btn-primary flex items-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {zephyrSaving ? (
@@ -1185,7 +1216,7 @@ const IntegrationSettings = () => {
               </button>
               <button
                 onClick={handleTestrailSave}
-                disabled={testrailSaving || !testrailHasChanges}
+                disabled={testrailSaving || !testrailReady || !testrailHasChanges}
                 className="btn-primary flex items-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {testrailSaving ? (

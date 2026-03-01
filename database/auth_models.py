@@ -39,11 +39,13 @@ class User(Base):
     public_user_id = Column(String(20), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     username = Column(String(100), unique=True, nullable=False, index=True)
-    password_hash = Column(String(255), nullable=False)
+    password_hash = Column(String(255), nullable=True)   # nullable for OAuth-only accounts
     full_name = Column(String(255))
     is_active = Column(Boolean, default=True, nullable=False)
     email_verified = Column(Boolean, default=False, nullable=False)
     email_verified_at = Column(DateTime(timezone=True), nullable=True)
+    oauth_provider = Column(String(50), nullable=True)   # 'google', etc.
+    oauth_sub = Column(String(255), nullable=True, unique=True, index=True)  # Supabase user UUID
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     

@@ -518,6 +518,57 @@ def login():
         return jsonify({'error': 'Login failed'}), 500
 
 
+@app.route('/api/auth/google', methods=['POST'])
+def google_auth():
+    """Authenticate or register a user via Google / Supabase OAuth."""
+    try:
+        data = request.get_json() or {}
+        access_token = (data.get('access_token') or '').strip()
+        username = (data.get('username') or '').strip() or None
+
+        if not access_token:
+            return jsonify({'error': 'access_token is required'}), 400
+
+        result = auth_service.google_authenticate(access_token, username=username)
+
+        if 'error' in result:
+            return jsonify({'error': result['error']}), 400
+
+        # New user still needs to pick a username
+        if result.get('needs_username'):
+            return jsonify({
+                'needs_username': True,
+                'email': result['email'],
+                'full_name': result.get('full_name', ''),
+                'oauth_sub': result['oauth_sub'],
+            }), 200
+
+        user = result['user']
+        token = auth_service.generate_jwt_token(
+            user,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        workspaces = workspace_service.get_user_workspaces(user.id)
+
+        return jsonify({
+            'message': 'Login successful',
+            'token': token,
+            'user': {
+                'id': user.id,
+                'user_id': user.public_user_id,
+                'username': user.username,
+                'email': user.email,
+                'full_name': user.full_name,
+            },
+            'workspaces': workspaces
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Google auth error: {e}")
+        return jsonify({'error': 'Google sign-in failed'}), 500
+
+
 @app.route('/api/auth/verify-email', methods=['GET'])
 def verify_email():
     """Verify email using verification token."""

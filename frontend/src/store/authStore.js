@@ -67,6 +67,46 @@ const useAuthStore = create(
         }
       },
 
+      /**
+       * Complete sign-in after Google OAuth.
+       * Pass the Supabase access_token. If the backend returns needs_username=true,
+       * this returns { needsUsername: true, email, fullName, oauthSub } so the
+       * caller can prompt for a username, then call googleLogin again with it.
+       */
+      googleLogin: async (accessToken, username = null) => {
+        set({ isLoading: true, error: null });
+        try {
+          const data = await authAPI.googleAuth(accessToken, username);
+
+          if (data.needs_username) {
+            set({ isLoading: false });
+            return {
+              success: false,
+              needsUsername: true,
+              email: data.email,
+              fullName: data.full_name,
+              oauthSub: data.oauth_sub,
+            };
+          }
+
+          localStorage.setItem('auth_token', data.token);
+          set({
+            user: data.user,
+            token: data.token,
+            workspaces: data.workspaces?.workspaces || [],
+            activeWorkspace: data.workspaces?.active_workspace,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+          toast.success(`Welcome, ${data.user.username}!`);
+          return { success: true };
+        } catch (error) {
+          const errorMessage = error.response?.data?.error || 'Google sign-in failed';
+          set({ error: errorMessage, isLoading: false });
+          return { success: false, error: errorMessage };
+        }
+      },
+
       logout: async () => {
         try {
           await authAPI.logout();

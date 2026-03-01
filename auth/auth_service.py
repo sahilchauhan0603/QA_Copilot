@@ -277,6 +277,121 @@ class AuthService:
             logger.error(f"Error authenticating user: {e}")
             return None, "Authentication failed"
     
+    def google_authenticate(
+        self,
+        access_token: str,
+        username: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Authenticate (or create) a user via Google / Supabase OAuth.
+
+        Flow:
+          1. Verify the Supabase access_token with Supabase REST API.
+          2. Look up user by oauth_sub (Supabase UUID) or email.
+          3. If found  → return {'user': user_obj}.
+          4. If new user and username is None → return {'needs_username': True, ...profile}.
+          5. If new user and username is given → create user, return {'user': user_obj}.
+
+        Returns a dict with either 'user' or 'needs_username' + profile keys,
+        or 'error' on failure.
+        """
+        import requests as http_requests
+
+        supabase_url = os.getenv('SUPABASE_URL', '').rstrip('/')
+        if not supabase_url:
+            return {'error': 'Supabase URL not configured on the server'}
+
+        # 1. Verify token and fetch profile from Supabase
+        supabase_anon_key = os.getenv('SUPABASE_ANON_KEY', '')
+        try:
+            resp = http_requests.get(
+                f"{supabase_url}/auth/v1/user",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "apikey": supabase_anon_key,
+                },
+                timeout=10
+            )
+            resp.raise_for_status()
+            supabase_user = resp.json()
+        except Exception as e:
+            logger.error(f"Supabase token verification failed: {e}")
+            return {'error': 'Invalid or expired Google session. Please try again.'}
+
+        oauth_sub = supabase_user.get('id')          # Supabase UUID
+        email = (supabase_user.get('email') or '').strip().lower()
+        user_metadata = supabase_user.get('user_metadata') or {}
+        full_name = (
+            user_metadata.get('full_name')
+            or user_metadata.get('name')
+            or user_metadata.get('display_name')
+            or ''
+        ).strip()
+
+        if not email or not oauth_sub:
+            return {'error': 'Could not retrieve email from Google account'}
+
+        # 2. Look up user
+        try:
+            with self.db.get_session() as session:
+                user = session.query(User).filter(
+                    (User.oauth_sub == oauth_sub) | (User.email == email)
+                ).first()
+
+                if user:
+                    # Update oauth_sub if linked via email for the first time
+                    if not user.oauth_sub:
+                        user.oauth_sub = oauth_sub
+                        user.oauth_provider = 'google'
+                    if not user.email_verified:
+                        user.email_verified = True
+                    session.expunge(user)
+                    return {'user': user}
+
+            # 3. New user — need a username before creating
+            if not username:
+                return {
+                    'needs_username': True,
+                    'email': email,
+                    'full_name': full_name,
+                    'oauth_sub': oauth_sub,
+                }
+
+            # 4. Create the user
+            username = username.strip()
+            if not username:
+                return {'error': 'Username is required'}
+
+            with self.db.get_session() as session:
+                existing = session.query(User).filter(
+                    (User.email == email) | (User.username == username)
+                ).first()
+                if existing:
+                    if existing.email == email:
+                        return {'error': 'An account with this email already exists. Try logging in.'}
+                    return {'error': 'Username already taken. Please choose another.'}
+
+                new_user = User(
+                    public_user_id=self._generate_public_user_id(session),
+                    email=email,
+                    username=username,
+                    password_hash=None,
+                    full_name=full_name or username,
+                    is_active=True,
+                    email_verified=True,
+                    oauth_provider='google',
+                    oauth_sub=oauth_sub,
+                )
+                session.add(new_user)
+                session.flush()
+                session.expunge(new_user)
+                logger.info(f"Google OAuth user created: {username} ({email})")
+                return {'user': new_user}
+
+        except Exception as e:
+            logger.error(f"google_authenticate DB error: {e}")
+            return {'error': 'Authentication failed. Please try again.'}
+
     def generate_jwt_token(
         self,
         user: User,
