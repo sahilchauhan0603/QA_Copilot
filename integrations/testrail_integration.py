@@ -130,31 +130,39 @@ class TestRailIntegration(TestManagementIntegration):
                 logger.error("Suite ID is required for TestRail")
                 return None
             
-            # Get or create section (folder) in suite
-            section_id = self._get_or_create_section(
-                suite_id,
-                test_case.get('test_type', 'Functional')
-            )
-            
-            # Format test steps
+            # Read from the actual test case model field names
+            test_steps = test_case.get('test_steps', [])
+            expected_result = test_case.get('expected_result', '')
+            category = test_case.get('category', 'Functional')
+            preconditions = test_case.get('preconditions', '')
+            test_data = test_case.get('test_data', '')
+
+            # Get or create section (folder) in suite, grouped by category
+            section_id = self._get_or_create_section(suite_id, category or 'Functional')
+
+            # Format test steps — expected_result is a single overall value,
+            # so show it after the last step.
             steps_text = ""
-            test_steps = test_case.get('steps', [])
-            expected_results = test_case.get('expected_results', [])
-            
             for i, step in enumerate(test_steps):
                 steps_text += f"{i + 1}. {step}\n"
-                if i < len(expected_results):
-                    steps_text += f"   Expected: {expected_results[i]}\n"
-                steps_text += "\n"
-            
+            if expected_result:
+                steps_text += f"\nExpected Result:\n{expected_result}\n"
+
+            # Build preconditions block
+            preconds_parts = []
+            if preconditions:
+                preconds_parts.append(preconditions)
+            if test_data:
+                preconds_parts.append(f"Test Data: {test_data}")
+            preconds_text = "\n".join(preconds_parts)
+
             # Create test case
             payload = {
                 "title": test_case.get('title', 'Untitled Test'),
-                "type_id": self._get_type_id(test_case.get('test_type', 'Functional')),
+                "type_id": self._get_type_id(category or 'Functional'),
                 "priority_id": self._map_priority(test_case.get('priority', 'P2')),
                 "custom_steps": steps_text,
-                "custom_preconds": test_case.get('test_data', ''),
-                "refs": test_case.get('ticket_id', '')  # Link to external ticket
+                "custom_preconds": preconds_text,
             }
             
             if section_id:

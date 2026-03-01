@@ -97,38 +97,60 @@ export const integrationAPI = {
       throw new Error('Only full sync supports cancellation in this implementation');
     }
     let jobId = null;
-    let cancelRequested = false;
-    const startJob = async () => {
-      const response = await apiClient.post('/integrations/sync/full-sync', {
-        integration_type: integrationType,
-        ticket_id: ticketId,
-        generation_id: generationId,
-      });
-      jobId = response.data.job_id;
-      return jobId;
-    };
-    const pollJob = async (jobId) => {
-      // Poll for job completion/cancellation (simple polling, can be improved)
-      while (!cancelRequested) {
-        const res = await apiClient.get(`/integrations/sync/job-status/${jobId}`);
-        const status = res.data.status;
-        if (status === 'completed') return res.data.result;
-        if (status === 'error') throw new Error(res.data.error || 'Sync failed');
-        if (status === 'cancelled') throw new Error('sync_cancelled');
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+    let _resolve = null;
+    let _reject = null;
+    let _cancelled = false;
+    let _pollController = null;
+
+    const promise = new Promise((res, rej) => { _resolve = res; _reject = rej; });
+
+    (async () => {
+      try {
+        const response = await apiClient.post('/integrations/sync/full-sync', {
+          integration_type: integrationType,
+          ticket_id: ticketId,
+          generation_id: generationId,
+        });
+        jobId = response.data.job_id;
+
+        if (_cancelled) {
+          apiClient.post(`/integrations/sync/cancel/${jobId}`).catch(() => {});
+          if (_reject) { _reject(new Error('sync_cancelled')); _reject = null; }
+          return;
+        }
+
+        // Poll loop
+        while (!_cancelled) {
+          _pollController = new AbortController();
+          let res;
+          try {
+            res = await apiClient.get(`/integrations/sync/job-status/${jobId}`, {
+              signal: _pollController.signal,
+            });
+          } catch (e) {
+            if (_cancelled || e.code === 'ERR_CANCELED') return; // _reject already called
+            if (_reject) { _reject(e); _reject = null; }
+            return;
+          }
+          const status = res.data.status;
+          if (status === 'completed') { if (_resolve) _resolve(res.data.result); return; }
+          if (status === 'error') { if (_reject) { _reject(new Error(res.data.error || 'Sync failed')); _reject = null; } return; }
+          if (status === 'cancelled') { if (_reject) { _reject(new Error('sync_cancelled')); _reject = null; } return; }
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      } catch (e) {
+        if (_reject) { _reject(e); _reject = null; }
       }
-      throw new Error('sync_cancelled');
-    };
-    const promise = (async () => {
-      const jobId = await startJob();
-      return pollJob(jobId);
     })();
+
     const cancel = async () => {
-      cancelRequested = true;
-      if (jobId) {
-        await apiClient.post(`/integrations/sync/cancel/${jobId}`);
-      }
+      _cancelled = true;
+      if (_pollController) _pollController.abort();
+      // Immediately unblock the awaiting caller
+      if (_reject) { _reject(new Error('sync_cancelled')); _reject = null; }
+      if (jobId) apiClient.post(`/integrations/sync/cancel/${jobId}`).catch(() => {});
     };
+
     return { promise, cancel };
   },
 };

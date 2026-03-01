@@ -181,20 +181,22 @@ const IntegrationSettings = () => {
 
   // Checks if all required fields are filled for each integration
   const isConfigured = (type) => {
-    const config = integrationConfigs.find((c) => c.integration_type === type);
-    if (!config || !config.configured) return false;
-    // Check required fields for each integration
+    const entry = integrationConfigs.find((c) => c.integration_type === type);
+    if (!entry || !entry.configured) return false;
+    // Sensitive fields (tokens/keys) are NEVER returned by the API — only non-sensitive
+    // config fields are available. Access them via the nested `entry.config` object.
+    const cfg = entry.config || {};
     switch (type) {
       case 'jira':
-        return !!config.url && !!config.email && !!config.api_token;
+        return !!cfg.url && !!cfg.email;
       case 'azure_devops':
-        return !!config.organization_url && !!config.project && !!config.personal_access_token;
+        return !!cfg.organization_url && !!cfg.project;
       case 'xray':
-        return !!config.project_key;
+        return !!cfg.project_key;
       case 'zephyr':
-        return !!config.zephyr_token && !!config.project_key;
+        return !!cfg.project_key;
       case 'testrail':
-        return !!config.url && !!config.email && !!config.api_key && !!config.project_id;
+        return !!cfg.url && !!cfg.email && !!cfg.project_id;
       default:
         return false;
     }
@@ -310,6 +312,10 @@ const IntegrationSettings = () => {
       toast.error('Please fill in Jira URL and Email');
       return;
     }
+    if (!jiraForm.api_token?.trim() && !isConfigured('jira')) {
+      toast.error('Please enter your Jira API token');
+      return;
+    }
     setJiraSaving(true);
     try {
       await integrationAPI.saveConfig(
@@ -358,6 +364,10 @@ const IntegrationSettings = () => {
   const handleAdoSave = async () => {
     if (!adoForm.organization_url || !adoForm.project) {
       toast.error('Please fill in Azure DevOps Organization URL and Project');
+      return;
+    }
+    if (!adoForm.personal_access_token?.trim() && !isConfigured('azure_devops')) {
+      toast.error('Please enter your Azure DevOps Personal Access Token');
       return;
     }
     setAdoSaving(true);
@@ -470,8 +480,12 @@ const IntegrationSettings = () => {
   };
 
   const handleTestrailSave = async () => {
-    if (!testrailForm.url || !testrailForm.email) {
-      toast.error('Please fill in TestRail URL and Email');
+    if (!testrailForm.url || !testrailForm.email || !testrailForm.project_id) {
+      toast.error('Please fill in TestRail URL, Email, and Project ID');
+      return;
+    }
+    if (!testrailForm.api_key?.trim() && !isConfigured('testrail')) {
+      toast.error('Please enter your TestRail API key');
       return;
     }
     setTestrailSaving(true);

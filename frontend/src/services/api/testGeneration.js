@@ -16,76 +16,83 @@ export const testGenAPI = {
     let eventSource = null;
     let timeoutId = null;
     let jobId = null;
-    
-    const promise = (async () => {
-      const response = await apiClient.post('/test-generation/generate', ticketData);
-      jobId = response.data.job_id;
+    let _reject = null;    // shared reference so cancel() can immediately reject
+    let _cancelled = false;
 
-      if (!jobId) {
-        return response.data;
-      }
+    // Wrap in an outer Promise so we can expose _reject to cancel()
+    let _resolve;
+    const promise = new Promise((res, rej) => { _resolve = res; _reject = rej; });
 
-      return new Promise((resolve, reject) => {
+    (async () => {
+      try {
+        const response = await apiClient.post('/test-generation/generate', ticketData);
+        jobId = response.data.job_id;
+
+        if (!jobId) { _resolve(response.data); return; }
+
+        // Already cancelled during the initial POST
+        if (_cancelled) {
+          apiClient.post(`/test-generation/cancel/${jobId}`).catch(() => {});
+          _reject(new Error('Generation cancelled'));
+          return;
+        }
+
         const baseUrl = API_BASE_URL.replace(/\/api$/, '');
         eventSource = new EventSource(`${baseUrl}/api/test-generation/progress/${jobId}`);
         timeoutId = setTimeout(() => {
           eventSource.close();
-          reject(new Error('Generation timed out after 5 minutes'));
+          if (_reject) { _reject(new Error('Generation timed out after 5 minutes')); _reject = null; }
         }, 300000);
 
         eventSource.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-
             if (data.type === 'step' && onProgress) {
               onProgress(data);
             } else if (data.type === 'complete') {
               clearTimeout(timeoutId);
               eventSource.close();
-              if (onProgress) {
-                onProgress({ type: 'complete', progress: 100, label: 'Complete!' });
-              }
-              resolve(data.result);
+              if (onProgress) onProgress({ type: 'complete', progress: 100, label: 'Complete!' });
+              if (_resolve) { _resolve(data.result); _resolve = null; }
             } else if (data.type === 'cancelled') {
               clearTimeout(timeoutId);
               eventSource.close();
-              reject(new Error(data.message || 'Generation cancelled'));
+              if (_reject) { _reject(new Error(data.message || 'Generation cancelled')); _reject = null; }
             } else if (data.type === 'error') {
               clearTimeout(timeoutId);
               eventSource.close();
-              reject(new Error(data.message || 'Generation failed'));
+              if (_reject) { _reject(new Error(data.message || 'Generation failed')); _reject = null; }
             } else if (data.type === 'done') {
               clearTimeout(timeoutId);
               eventSource.close();
             }
-          } catch (e) {
-            // Ignore parse errors for SSE heartbeats
-          }
+          } catch (e) { /* ignore SSE parse errors */ }
         };
 
         eventSource.onerror = () => {
           clearTimeout(timeoutId);
           eventSource.close();
+          // Only surface as error if it wasn't a deliberate cancel
+          if (!_cancelled && _reject) {
+            _reject(new Error('Connection lost during generation'));
+            _reject = null;
+          }
         };
-      });
+      } catch (e) {
+        if (_reject) { _reject(e); _reject = null; }
+      }
     })();
-    
+
     const cancel = async () => {
-      if (eventSource) {
-        eventSource.close();
-      }
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      if (jobId) {
-        try {
-          await apiClient.post(`/test-generation/cancel/${jobId}`);
-        } catch (e) {
-          // Ignore cancel errors
-        }
-      }
+      _cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (eventSource) { eventSource.close(); eventSource = null; }
+      // Immediately unblock await promise — don't wait for a backend roundtrip
+      if (_reject) { _reject(new Error('Generation cancelled')); _reject = null; }
+      // Notify backend in background (fire-and-forget)
+      if (jobId) apiClient.post(`/test-generation/cancel/${jobId}`).catch(() => {});
     };
-    
+
     return { promise, cancel, get jobId() { return jobId; } };
   },
 
@@ -115,129 +122,135 @@ export const testGenAPI = {
     };
 
     if (refinementType !== 'regenerate') {
-      // Non-regenerate refinement runs as async job with polling + server-side cancel
+      // Non-regenerate refinement: async job with polling + server-side cancel
       let jobId = null;
-      let cancelRequested = false;
+      let _resolve = null;
+      let _reject = null;
+      let _cancelled = false;
+      let _pollController = null; // AbortController for in-flight poll requests
 
-      const pollJob = async (id) => {
-        while (!cancelRequested) {
-          const res = await apiClient.get(`/test-generation/refine/job-status/${id}`);
-          const status = res.data.status;
-          if (status === 'completed') return res.data.result;
-          if (status === 'error') throw new Error(res.data.error || 'Refinement failed');
-          if (status === 'cancelled') throw new Error('refine_cancelled');
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-        throw new Error('refine_cancelled');
-      };
+      const promise = new Promise((res, rej) => { _resolve = res; _reject = rej; });
 
-      const promise = (async () => {
-        const response = await apiClient.post('/test-generation/refine', requestBody);
-        if (!response.data.job_id) {
-          return response.data;
-        }
-        jobId = response.data.job_id;
+      (async () => {
+        try {
+          const response = await apiClient.post('/test-generation/refine', requestBody);
+          if (!response.data.job_id) { if (_resolve) _resolve(response.data); return; }
+          jobId = response.data.job_id;
 
-        if (cancelRequested) {
-          try {
-            await apiClient.post(`/test-generation/refine/cancel/${jobId}`);
-          } catch (e) {
-            // Ignore cancel errors
+          if (_cancelled) {
+            apiClient.post(`/test-generation/refine/cancel/${jobId}`).catch(() => {});
+            if (_reject) { _reject(new Error('refine_cancelled')); _reject = null; }
+            return;
           }
-          throw new Error('refine_cancelled');
-        }
 
-        return pollJob(jobId);
+          // Poll loop
+          while (!_cancelled) {
+            _pollController = new AbortController();
+            let res;
+            try {
+              res = await apiClient.get(`/test-generation/refine/job-status/${jobId}`, {
+                signal: _pollController.signal,
+              });
+            } catch (e) {
+              // Aborted by cancel() or network error
+              if (_cancelled || e.code === 'ERR_CANCELED') return; // _reject already called
+              if (_reject) { _reject(e); _reject = null; }
+              return;
+            }
+            const status = res.data.status;
+            if (status === 'completed') { if (_resolve) _resolve(res.data.result); return; }
+            if (status === 'error') { if (_reject) { _reject(new Error(res.data.error || 'Refinement failed')); _reject = null; } return; }
+            if (status === 'cancelled') { if (_reject) { _reject(new Error('refine_cancelled')); _reject = null; } return; }
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+        } catch (e) {
+          if (_reject) { _reject(e); _reject = null; }
+        }
       })();
 
       const cancel = async () => {
-        cancelRequested = true;
-        if (jobId) {
-          try {
-            await apiClient.post(`/test-generation/refine/cancel/${jobId}`);
-          } catch (e) {
-            // Ignore cancel errors
-          }
-        }
+        _cancelled = true;
+        if (_pollController) _pollController.abort();
+        // Immediately unblock the awaiting caller
+        if (_reject) { _reject(new Error('refine_cancelled')); _reject = null; }
+        if (jobId) apiClient.post(`/test-generation/refine/cancel/${jobId}`).catch(() => {});
       };
 
       return { promise, cancel, get jobId() { return jobId; } };
     }
 
-    // Regenerate uses SSE, so return { promise, cancel, jobId }
+    // Regenerate uses SSE — same pattern as generate()
     let eventSource = null;
     let timeoutId = null;
     let jobId = null;
-    
-    const promise = (async () => {
-      const response = await apiClient.post('/test-generation/refine', requestBody);
-      jobId = response.data.job_id;
+    let _resolve = null;
+    let _reject = null;
+    let _cancelled = false;
 
-      if (!jobId) {
-        return response.data;
-      }
+    const promise = new Promise((res, rej) => { _resolve = res; _reject = rej; });
 
-      return new Promise((resolve, reject) => {
+    (async () => {
+      try {
+        const response = await apiClient.post('/test-generation/refine', requestBody);
+        jobId = response.data.job_id;
+        if (!jobId) { if (_resolve) _resolve(response.data); return; }
+
+        if (_cancelled) {
+          apiClient.post(`/test-generation/cancel/${jobId}`).catch(() => {});
+          if (_reject) { _reject(new Error('Regeneration cancelled')); _reject = null; }
+          return;
+        }
+
         const baseUrl = API_BASE_URL.replace(/\/api$/, '');
         eventSource = new EventSource(`${baseUrl}/api/test-generation/progress/${jobId}`);
         timeoutId = setTimeout(() => {
           eventSource.close();
-          reject(new Error('Regeneration timed out after 5 minutes'));
+          if (_reject) { _reject(new Error('Regeneration timed out after 5 minutes')); _reject = null; }
         }, 300000);
 
         eventSource.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-
             if (data.type === 'step' && onProgress) {
               onProgress(data);
             } else if (data.type === 'complete') {
               clearTimeout(timeoutId);
               eventSource.close();
-              if (onProgress) {
-                onProgress({ type: 'complete', progress: 100, label: 'Complete!' });
-              }
-              resolve(data.result);
+              if (onProgress) onProgress({ type: 'complete', progress: 100, label: 'Complete!' });
+              if (_resolve) { _resolve(data.result); _resolve = null; }
             } else if (data.type === 'cancelled') {
               clearTimeout(timeoutId);
               eventSource.close();
-              reject(new Error(data.message || 'Regeneration cancelled'));
+              if (_reject) { _reject(new Error(data.message || 'Regeneration cancelled')); _reject = null; }
             } else if (data.type === 'error') {
               clearTimeout(timeoutId);
               eventSource.close();
-              reject(new Error(data.message || 'Regeneration failed'));
+              if (_reject) { _reject(new Error(data.message || 'Regeneration failed')); _reject = null; }
             } else if (data.type === 'done') {
               clearTimeout(timeoutId);
               eventSource.close();
             }
-          } catch (e) {
-            // Ignore parse errors
-          }
+          } catch (e) { /* ignore SSE parse errors */ }
         };
 
         eventSource.onerror = () => {
           clearTimeout(timeoutId);
           eventSource.close();
+          if (!_cancelled && _reject) { _reject(new Error('Connection lost during regeneration')); _reject = null; }
         };
-      });
+      } catch (e) {
+        if (_reject) { _reject(e); _reject = null; }
+      }
     })();
-    
+
     const cancel = async () => {
-      if (eventSource) {
-        eventSource.close();
-      }
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      if (jobId) {
-        try {
-          await apiClient.post(`/test-generation/cancel/${jobId}`);
-        } catch (e) {
-          // Ignore cancel errors
-        }
-      }
+      _cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (eventSource) { eventSource.close(); eventSource = null; }
+      if (_reject) { _reject(new Error('Regeneration cancelled')); _reject = null; }
+      if (jobId) apiClient.post(`/test-generation/cancel/${jobId}`).catch(() => {});
     };
-    
+
     return { promise, cancel, get jobId() { return jobId; } };
   },
 

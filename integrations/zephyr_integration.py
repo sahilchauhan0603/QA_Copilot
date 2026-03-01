@@ -134,35 +134,50 @@ class ZephyrIntegration(TestManagementIntegration):
                 logger.error("No project key configured")
                 return None
             
-            # Format test steps for Zephyr
+            # Read from the actual test case model field names
+            test_steps = test_case.get('test_steps', [])
+            expected_result = test_case.get('expected_result', '')
+            category = test_case.get('category', 'Functional')
+            preconditions = test_case.get('preconditions', '')
+            test_data = test_case.get('test_data', '')
+
+            # Build step-by-step test script.
+            # expected_result is a single overall string, so attach it to the last step.
+            n = len(test_steps)
             test_script = {
                 "type": "STEP_BY_STEP",
-                "steps": []
+                "steps": [
+                    {
+                        "index": i,
+                        "description": step,
+                        "expectedResult": expected_result if (i == n - 1 and expected_result) else ""
+                    }
+                    for i, step in enumerate(test_steps)
+                ]
             }
-            
-            test_steps = test_case.get('steps', [])
-            expected_results = test_case.get('expected_results', [])
-            
-            for i, step in enumerate(test_steps):
-                test_script["steps"].append({
-                    "index": i,
-                    "description": step,
-                    "expectedResult": expected_results[i] if i < len(expected_results) else ""
-                })
-            
+
+            # Build objective / precondition fields
+            objective_parts = []
+            if preconditions:
+                objective_parts.append(f"Preconditions: {preconditions}")
+            if test_data:
+                objective_parts.append(f"Test Data: {test_data}")
+            objective = "\n".join(objective_parts)
+
+            label = (category or 'Functional').replace(' ', '_')
+
             # Create Test Case
             payload = {
                 "projectKey": self.project_key,
                 "name": test_case.get('title', 'Untitled Test'),
-                "objective": test_case.get('description', ''),
+                "objective": objective,
                 "priority": self._map_priority(test_case.get('priority', 'P2')),
-                "labels": [test_case.get('test_type', 'Functional').replace(' ', '_')],
+                "labels": [label],
                 "testScript": test_script
             }
-            
-            # Add custom fields if available
-            if test_case.get('test_data'):
-                payload['precondition'] = f"Test Data: {test_case['test_data']}"
+
+            if preconditions:
+                payload['precondition'] = preconditions
             
             response = requests.post(
                 f"{self.zephyr_base_url}/testcases",
