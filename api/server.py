@@ -319,6 +319,67 @@ def health_check():
 
 
 # ============================================
+# PUBLIC STATS (no auth required)
+# ============================================
+
+@app.route('/api/public/stats', methods=['GET'])
+def public_stats():
+    """
+    Public platform statistics — shown on the login page.
+    No authentication required.
+    """
+    try:
+        from database.connection import get_db_connection
+        from database.auth_models import User, UserSession, Team
+        from database.models import Generation
+        from sqlalchemy import func, distinct
+        from datetime import timedelta, timezone
+
+        db = get_db_connection()
+        now_utc = datetime.now(timezone.utc)
+        thirty_days_ago = now_utc - timedelta(days=30)
+
+        with db.get_session() as session:
+            total_users = session.query(func.count(User.id)).scalar() or 0
+
+            active_users_30d = session.query(
+                func.count(distinct(UserSession.user_id))
+            ).filter(
+                UserSession.created_at >= thirty_days_ago
+            ).scalar() or 0
+
+            total_teams = session.query(func.count(Team.id)).scalar() or 0
+
+            # Total test generation runs ever
+            total_generations = session.query(func.count(Generation.id)).scalar() or 0
+
+            # Users with a session that hasn't expired yet (currently active)
+            active_users_today = session.query(
+                func.count(distinct(UserSession.user_id))
+            ).filter(
+                UserSession.expires_at > now_utc
+            ).scalar() or 0
+
+        return jsonify({
+            'total_users': total_users,
+            'active_users_30d': active_users_30d,
+            'total_teams': total_teams,
+            'total_generations': total_generations,
+            'active_users_today': active_users_today,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching public stats: {e}")
+        return jsonify({
+            'total_users': 0,
+            'active_users_30d': 0,
+            'total_teams': 0,
+            'total_generations': 0,
+            'active_users_today': 0,
+        }), 200
+
+
+# ============================================
 # AUTHENTICATION ENDPOINTS
 # ============================================
 
