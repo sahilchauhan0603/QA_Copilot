@@ -24,7 +24,7 @@ python scripts/check_database.py
 
 Useful for debugging database issues and verifying data.
 
-#### `reset_database.ps1`
+#### `clear_database.ps1`
 Reset the database to a clean state (⚠️ Destructive operation).
 
 ```powershell

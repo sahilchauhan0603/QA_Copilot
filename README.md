@@ -198,7 +198,7 @@ QA_Copilot/
 │   └── __pycache__/
 ├── scripts/                 # Utility scripts
 │   ├── README.md
-│   ├── reset_database.ps1
+│   ├── clear_database.ps1
 │   ├── run_migration.py
 │   ├── start_backend.ps1
 │   ├── start_frontend.ps1

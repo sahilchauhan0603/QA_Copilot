@@ -234,7 +234,7 @@ All utility scripts are in the `/scripts` folder:
 - **`start_backend.ps1`** - Start backend API server (port 5000)
 - **`start_frontend.ps1`** - Start frontend React dev server (port 3000)
 - **`run_migration.py`** - Run database migrations
-- **`reset_database.ps1`** - Reset database (⚠️ destructive)
+- **`clear_database.ps1`** - Reset database (⚠️ destructive)
 
 **Usage:**
 ```powershell
