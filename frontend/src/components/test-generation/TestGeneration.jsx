@@ -265,29 +265,36 @@ const TestGeneration = () => {
       <StatisticsCards statistics={statistics} />
 
 
+      {/* ─── Generation Progress (always visible when generating) ─── */}
+      {generating && (
+        <GenerationProgress
+          generationProgress={generationProgress}
+          onCancel={handleCancelGeneration}
+        />
+      )}
+
       {/* ─── New Generation Form ─── */}
       {!showNewForm ? (
-        <>
-          <button
-            onClick={() => setShowNewForm(true)}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus size={18} />
-            New Generation
-          </button>
-          {/* ─── Generation Progress (moved below button) ─── */}
-          {generating && <GenerationProgress generationProgress={generationProgress} onCancel={handleCancelGeneration} />}
-        </>
+        <button
+          onClick={() => setShowNewForm(true)}
+          disabled={generating}
+          className="btn-primary flex items-center gap-2"
+        >
+          <Plus size={18} />
+          New Generation
+        </button>
       ) : (
         <div className="card">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-lg font-semibold">New Test Generation</h3>
-            <button
-              onClick={() => setShowNewForm(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <X size={20} />
-            </button>
+            {!generating && (
+              <button
+                onClick={() => setShowNewForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            )}
           </div>
 
           {/* Tab Switcher */}
