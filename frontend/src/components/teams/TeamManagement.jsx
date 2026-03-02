@@ -241,7 +241,7 @@ const TeamManagement = ({ onCancel }) => {
 
   // Show create form if in personal workspace
   const isPersonalWorkspace = activeWorkspace?.type === "personal";
-  const showingCreateForm = isPersonalWorkspace && onCancel;
+  const showingCreateForm = !!onCancel;
   const shouldRenderPortals = typeof document !== "undefined";
 
   return (

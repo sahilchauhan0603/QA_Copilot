@@ -32,8 +32,8 @@ const TeamsPage = () => {
           </p>
         </div>
         
-        {/* Show Create Team button only in personal workspace if not showing form */}
-        {isPersonalWorkspace && !showCreateForm && (
+        {/* Show Create Team button always when not showing form */}
+        {!showCreateForm && (
           <button
             onClick={() => setShowCreateForm(true)}
             className="btn-primary flex items-center gap-2"
