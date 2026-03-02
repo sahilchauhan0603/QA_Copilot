@@ -400,6 +400,168 @@ QA Copilot Team
 
         return self.send_email(to_email, subject, html_body, text_body)
 
+    def send_team_invitation_email(
+        self, to_email: str, to_username: str, team_name: str, invited_by: str, role: str
+    ) -> bool:
+        """
+        Send a team invitation notification email.
+
+        Args:
+            to_email: Invitee's email
+            to_username: Invitee's username
+            team_name: Name of the team
+            invited_by: Username of the person who sent the invite
+            role: Role being offered (e.g. qa_member)
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        inbox_link = f"{self.app_url}/dashboard"
+        role_display = role.replace('_', ' ').title()
+
+        subject = f"You're invited to join {team_name} — QA Copilot"
+
+        text_body = f"""
+Hello {to_username},
+
+{invited_by} has invited you to join the team "{team_name}" as a {role_display} on QA Copilot.
+
+Log in to your account and check your Inbox to accept or decline this invitation:
+{inbox_link}
+
+If you did not expect this invitation, you can safely ignore it.
+
+Best regards,
+QA Copilot Team
+"""
+
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            padding: 36px 30px;
+            text-align: center;
+        }}
+        .header h1 {{
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+        }}
+        .header p {{
+            margin: 8px 0 0;
+            font-size: 15px;
+            opacity: 0.9;
+        }}
+        .content {{
+            padding: 36px;
+        }}
+        .invite-card {{
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 24px 0;
+        }}
+        .invite-card .team-name {{
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }}
+        .invite-card .detail {{
+            font-size: 14px;
+            color: #64748b;
+            margin: 4px 0;
+        }}
+        .invite-card .role-badge {{
+            display: inline-block;
+            padding: 4px 12px;
+            background: #ede9fe;
+            color: #6d28d9;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 8px;
+        }}
+        .button-container {{
+            text-align: center;
+            margin: 30px 0;
+        }}
+        .button {{
+            display: inline-block;
+            padding: 14px 40px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+        }}
+        .footer {{
+            padding: 24px 36px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            font-size: 13px;
+            color: #64748b;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Team Invitation</h1>
+            <p>You've been invited to collaborate</p>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{to_username}</strong>,</p>
+            <p><strong>{invited_by}</strong> has invited you to join a team on QA Copilot.</p>
+
+            <div class="invite-card">
+                <div class="team-name">{team_name}</div>
+                <div class="detail">Invited by: {invited_by}</div>
+                <span class="role-badge">{role_display}</span>
+            </div>
+
+            <p>Log in and open your <strong>Inbox</strong> (profile icon) to accept or decline.</p>
+
+            <div class="button-container">
+                <a href="{inbox_link}" class="button">Open QA Copilot</a>
+            </div>
+
+            <p style="font-size: 13px; color: #94a3b8;">
+                If you did not expect this invitation, you can safely ignore this email.
+            </p>
+        </div>
+        <div class="footer">
+            QA Copilot Team<br/>
+            This is an automated message. Please do not reply.
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        return self.send_email(to_email, subject, html_body, text_body)
+
 
 # Singleton instance
 email_service = EmailService()

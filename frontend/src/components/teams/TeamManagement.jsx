@@ -39,7 +39,7 @@ const TeamManagement = ({ onCancel }) => {
   const [teamToDelete, setTeamToDelete] = useState("");
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamDesc, setNewTeamDesc] = useState("");
-  const [newMemberPublicUserId, setNewMemberPublicUserId] = useState("");
+  const [newMemberIdentifier, setNewMemberIdentifier] = useState("");
   const [newMemberRole, setNewMemberRole] = useState("qa_member");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -107,36 +107,23 @@ const TeamManagement = ({ onCancel }) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Validation
-    const publicUserId = newMemberPublicUserId.trim().toUpperCase();
-    if (!/^QC-[A-Z0-9]{8}$/.test(publicUserId)) {
-      toast.error("Please enter a valid User ID (example: QC-AB12CD34)");
-      setIsLoading(false);
-      return;
-    }
-
-    // Check if user is already a member
-    if (
-      teamMembers.some(
-        (m) => (m.public_user_id || "").toUpperCase() === publicUserId,
-      )
-    ) {
-      toast.error("This user is already a member of the team");
+    const identifier = newMemberIdentifier.trim();
+    if (!identifier || identifier.length < 3) {
+      toast.error("Please enter a valid email, username, or User ID");
       setIsLoading(false);
       return;
     }
 
     try {
-      await teamAPI.addMember(selectedTeam, publicUserId, newMemberRole);
+      await teamAPI.sendInvitation(selectedTeam, identifier, newMemberRole);
       setShowAddMemberModal(false);
-      setNewMemberPublicUserId("");
+      setNewMemberIdentifier("");
       setNewMemberRole("qa_member");
       toast.success(
-        `User added as ${newMemberRole.replace("_", " ")} successfully!`,
+        "Invitation sent! The user will see it in their inbox.",
       );
-      await loadTeamMembers(selectedTeam);
     } catch (err) {
-      toast.error("Failed to add member. Please try again.");
+      // error toast already handled by axios interceptor
     } finally {
       setIsLoading(false);
     }
@@ -394,7 +381,7 @@ const TeamManagement = ({ onCancel }) => {
                   className="btn-primary text-sm flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
                   <UserPlus size={16} />
-                  <span>Add Member</span>
+                  <span>Invite Member</span>
                 </button>
               )}
               <button
@@ -555,13 +542,13 @@ const TeamManagement = ({ onCancel }) => {
               </div>
             )}
 
-            {/* Add Member Modal */}
+            {/* Invite Member Modal */}
             {showAddMemberModal && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-bold text-gray-900">
-                      Add Team Member
+                      Invite Team Member
                     </h3>
                     <button
                       onClick={() => setShowAddMemberModal(false)}
@@ -570,31 +557,33 @@ const TeamManagement = ({ onCancel }) => {
                       <X size={24} />
                     </button>
                   </div>
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                    <p className="text-xs text-blue-700">
+                      An invitation will be sent to the user. They can accept or decline it from their <strong>Inbox</strong> (profile icon). A notification email will also be sent.
+                    </p>
+                  </div>
                   <form onSubmit={handleAddMember} className="space-y-4">
                     <div>
                       <label
-                        htmlFor="publicUserId"
+                        htmlFor="memberIdentifier"
                         className="block text-sm font-medium text-gray-700 mb-1"
                       >
-                        User ID (QC-...) *
+                        Email, Username, or User ID *
                       </label>
                       <input
                         type="text"
-                        id="publicUserId"
-                        value={newMemberPublicUserId}
+                        id="memberIdentifier"
+                        value={newMemberIdentifier}
                         onChange={(e) =>
-                          setNewMemberPublicUserId(
-                            e.target.value.toUpperCase().replace(/\s/g, ""),
-                          )
+                          setNewMemberIdentifier(e.target.value.replace(/\s/g, ""))
                         }
                         className="input-field bg-white text-black"
-                        placeholder="Enter user ID (e.g., QC-AB12CD34)"
+                        placeholder="e.g., john@example.com or QC-AB12CD34"
                         required
                         autoFocus
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Ask the user for their public User ID shown in profile
-                        (format: QC-XXXXXXXX).
+                        Enter the member's email address, username, or User ID (QC-XXXXXXXX).
                       </p>
                     </div>
                     <div>
@@ -632,7 +621,7 @@ const TeamManagement = ({ onCancel }) => {
                         type="button"
                         onClick={() => {
                           setShowAddMemberModal(false);
-                          setNewMemberPublicUserId("");
+                          setNewMemberIdentifier("");
                           setNewMemberRole("qa_member");
                         }}
                         className="btn-secondary w-full sm:w-auto"
@@ -645,11 +634,11 @@ const TeamManagement = ({ onCancel }) => {
                         className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
                       >
                         {isLoading ? (
-                          "Adding..."
+                          "Sending..."
                         ) : (
                           <>
                             <UserPlus size={16} />
-                            Add Member
+                            Send Invitation
                           </>
                         )}
                       </button>

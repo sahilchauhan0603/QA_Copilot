@@ -238,3 +238,38 @@ class EmailVerificationToken(Base):
 
     def __repr__(self):
         return f"<EmailVerificationToken(id={self.id}, user_id={self.user_id}, used={self.used})>"
+
+
+class InvitationStatus(str, enum.Enum):
+    """Team invitation statuses"""
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+
+
+class TeamInvitation(Base):
+    """Team invitation model — tracks pending join requests"""
+    __tablename__ = 'team_invitations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    team_id = Column(Integer, ForeignKey('teams.id', ondelete='CASCADE'), nullable=False, index=True)
+    invited_user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    invited_by_user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    role = Column(Enum(TeamRole, name='team_role', native_enum=True, values_callable=lambda x: [e.value for e in x]), nullable=False, default=TeamRole.QA_MEMBER)
+    status = Column(Enum(InvitationStatus, name='invitation_status', native_enum=True, values_callable=lambda x: [e.value for e in x]), nullable=False, default=InvitationStatus.PENDING)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    responded_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Unique: only one pending invitation per user+team
+    __table_args__ = (
+        UniqueConstraint('team_id', 'invited_user_id', name='uq_team_invitation_user'),
+    )
+
+    # Relationships
+    team = relationship("Team")
+    invited_user = relationship("User", foreign_keys=[invited_user_id], backref="received_invitations")
+    invited_by = relationship("User", foreign_keys=[invited_by_user_id])
+
+    def __repr__(self):
+        return f"<TeamInvitation(id={self.id}, team_id={self.team_id}, user={self.invited_user_id}, status={self.status.value})>"

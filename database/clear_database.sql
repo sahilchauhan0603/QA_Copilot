@@ -14,6 +14,7 @@ DECLARE
         'email_verification_tokens',
         'user_workspace_context',
         'integration_credentials',
+        'team_invitations',
         'user_sessions',
         'team_members',
         'teams',

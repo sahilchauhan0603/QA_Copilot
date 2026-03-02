@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy import or_
 import logging
 
-from database.auth_models import User, Team, TeamMember, TeamRole, UserWorkspaceContext
+from database.auth_models import User, Team, TeamMember, TeamRole, UserWorkspaceContext, TeamInvitation, InvitationStatus
 from database.connection import get_db_connection
 
 logger = logging.getLogger(__name__)
@@ -399,3 +399,203 @@ class TeamService:
         except Exception as e:
             logger.error(f"Error deleting team: {e}")
             return False, "Failed to delete team. Please try again."
+
+    # ============================================
+    # TEAM INVITATIONS
+    # ============================================
+
+    def create_invitation(
+        self,
+        team_id: int,
+        invited_user_id: int,
+        invited_by_user_id: int,
+        role: TeamRole = TeamRole.QA_MEMBER,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        """
+        Create a team invitation (pending). Does NOT add the user to the team.
+
+        Returns (invitation_dict, error_string).
+        """
+        try:
+            with self.db.get_session() as session:
+                # Requester must be team admin
+                if not self.is_team_admin(invited_by_user_id, team_id):
+                    return None, "Only team admins can invite members"
+
+                # Target user must exist
+                user = session.query(User).filter(User.id == invited_user_id).first()
+                if not user:
+                    return None, "User not found"
+
+                # Already a team member?
+                existing_member = session.query(TeamMember).filter(
+                    TeamMember.team_id == team_id,
+                    TeamMember.user_id == invited_user_id,
+                ).first()
+                if existing_member:
+                    return None, "User is already a team member"
+
+                # Check for existing pending invitation
+                existing_inv = session.query(TeamInvitation).filter(
+                    TeamInvitation.team_id == team_id,
+                    TeamInvitation.invited_user_id == invited_user_id,
+                    TeamInvitation.status == InvitationStatus.PENDING,
+                ).first()
+                if existing_inv:
+                    return None, "An invitation is already pending for this user"
+
+                # Remove old rejected/expired row so the unique constraint allows re-invite
+                session.query(TeamInvitation).filter(
+                    TeamInvitation.team_id == team_id,
+                    TeamInvitation.invited_user_id == invited_user_id,
+                    TeamInvitation.status.in_([InvitationStatus.REJECTED, InvitationStatus.EXPIRED]),
+                ).delete()
+
+                invitation = TeamInvitation(
+                    team_id=team_id,
+                    invited_user_id=invited_user_id,
+                    invited_by_user_id=invited_by_user_id,
+                    role=role,
+                    status=InvitationStatus.PENDING,
+                )
+                session.add(invitation)
+                session.flush()
+
+                team = session.query(Team).filter(Team.id == team_id).first()
+                inviter = session.query(User).filter(User.id == invited_by_user_id).first()
+
+                result = {
+                    'id': invitation.id,
+                    'team_id': team_id,
+                    'team_name': team.name if team else '',
+                    'invited_user_id': invited_user_id,
+                    'invited_user_email': user.email,
+                    'invited_user_username': user.username,
+                    'invited_by_username': inviter.username if inviter else '',
+                    'role': role.value,
+                    'status': 'pending',
+                }
+                logger.info(f"Invitation created: user {invited_user_id} → team {team_id} by user {invited_by_user_id}")
+                return result, None
+
+        except Exception as e:
+            logger.error(f"Error creating invitation: {e}")
+            return None, "Failed to create invitation. Please try again."
+
+    def get_pending_invitations(self, user_id: int) -> List[Dict[str, Any]]:
+        """Get all pending invitations for a user (their inbox)."""
+        try:
+            with self.db.get_session() as session:
+                invitations = (
+                    session.query(TeamInvitation, Team, User)
+                    .join(Team, TeamInvitation.team_id == Team.id)
+                    .join(User, TeamInvitation.invited_by_user_id == User.id)
+                    .filter(
+                        TeamInvitation.invited_user_id == user_id,
+                        TeamInvitation.status == InvitationStatus.PENDING,
+                    )
+                    .order_by(TeamInvitation.created_at.desc())
+                    .all()
+                )
+
+                result = []
+                for inv, team, inviter in invitations:
+                    result.append({
+                        'id': inv.id,
+                        'team_id': team.id,
+                        'team_name': team.name,
+                        'team_description': team.description,
+                        'invited_by_username': inviter.username,
+                        'invited_by_full_name': inviter.full_name,
+                        'role': inv.role.value,
+                        'created_at': inv.created_at.isoformat(),
+                    })
+                return result
+
+        except Exception as e:
+            logger.error(f"Error fetching invitations for user {user_id}: {e}")
+            return []
+
+    def respond_to_invitation(
+        self,
+        invitation_id: int,
+        user_id: int,
+        accept: bool,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Accept or reject a team invitation.
+
+        If accepted, the user is added to the team with the assigned role.
+        """
+        from datetime import datetime
+        try:
+            with self.db.get_session() as session:
+                invitation = session.query(TeamInvitation).filter(
+                    TeamInvitation.id == invitation_id,
+                    TeamInvitation.invited_user_id == user_id,
+                    TeamInvitation.status == InvitationStatus.PENDING,
+                ).first()
+
+                if not invitation:
+                    return False, "Invitation not found or already responded"
+
+                if accept:
+                    # Check not already a member (edge case)
+                    existing = session.query(TeamMember).filter(
+                        TeamMember.team_id == invitation.team_id,
+                        TeamMember.user_id == user_id,
+                    ).first()
+                    if existing:
+                        invitation.status = InvitationStatus.ACCEPTED
+                        invitation.responded_at = datetime.utcnow()
+                        return False, "You are already a member of this team"
+
+                    # Add to team
+                    member = TeamMember(
+                        team_id=invitation.team_id,
+                        user_id=user_id,
+                        role=invitation.role,
+                    )
+                    session.add(member)
+                    invitation.status = InvitationStatus.ACCEPTED
+                    invitation.responded_at = datetime.utcnow()
+                    logger.info(f"Invitation {invitation_id} accepted — user {user_id} joined team {invitation.team_id}")
+                else:
+                    invitation.status = InvitationStatus.REJECTED
+                    invitation.responded_at = datetime.utcnow()
+                    logger.info(f"Invitation {invitation_id} rejected by user {user_id}")
+
+                return True, None
+
+        except Exception as e:
+            logger.error(f"Error responding to invitation {invitation_id}: {e}")
+            return False, "Failed to process invitation. Please try again."
+
+    def resolve_user_by_identifier(self, identifier: str) -> Optional[Dict[str, Any]]:
+        """
+        Look up a user by email, username, or public_user_id.
+
+        Returns a dict with id, email, username, public_user_id, full_name or None.
+        """
+        try:
+            identifier = (identifier or '').strip()
+            if not identifier:
+                return None
+            with self.db.get_session() as session:
+                user = session.query(User).filter(
+                    (User.email == identifier.lower()) |
+                    (User.username == identifier.lower()) |
+                    (User.public_user_id == identifier.upper())
+                ).first()
+                if not user:
+                    return None
+                return {
+                    'id': user.id,
+                    'email': user.email,
+                    'username': user.username,
+                    'public_user_id': user.public_user_id,
+                    'full_name': user.full_name,
+                }
+        except Exception as e:
+            logger.error(f"Error resolving user identifier '{identifier}': {e}")
+            return None

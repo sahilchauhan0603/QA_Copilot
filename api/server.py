@@ -986,6 +986,111 @@ def update_member_role(current_user, team_id, user_id):
 
 
 # ============================================
+# TEAM INVITATION ENDPOINTS
+# ============================================
+
+@app.route('/api/invitations/send', methods=['POST'])
+@token_required
+def send_team_invitation(current_user):
+    """Send a team invitation to a user (by email, username, or user ID)"""
+    try:
+        data = request.get_json() or {}
+        team_id = data.get('team_id')
+        identifier = (data.get('identifier') or '').strip()  # email, username, or public_user_id
+        role_str = data.get('role', 'qa_member')
+
+        if not team_id or not identifier:
+            return jsonify({'error': 'team_id and identifier (email / username / user ID) are required'}), 400
+
+        try:
+            role = TeamRole[role_str.upper()]
+        except KeyError:
+            return jsonify({'error': f'Invalid role: {role_str}'}), 400
+
+        # Resolve target user
+        target = team_service.resolve_user_by_identifier(identifier)
+        if not target:
+            return jsonify({'error': 'User not found. Please check the email, username, or user ID.'}), 404
+
+        # Cannot invite yourself
+        if target['id'] == current_user['user_id']:
+            return jsonify({'error': 'You cannot invite yourself'}), 400
+
+        invitation, error = team_service.create_invitation(
+            team_id=team_id,
+            invited_user_id=target['id'],
+            invited_by_user_id=current_user['user_id'],
+            role=role,
+        )
+
+        if error:
+            return jsonify({'error': error}), 400
+
+        # Send notification email (best-effort, don't fail if email fails)
+        try:
+            from utils.email_service import email_service
+            email_service.send_team_invitation_email(
+                to_email=target['email'],
+                to_username=target['username'],
+                team_name=invitation['team_name'],
+                invited_by=invitation['invited_by_username'],
+                role=role_str,
+            )
+        except Exception as email_err:
+            logger.warning(f"Invitation email failed (non-blocking): {email_err}")
+
+        return jsonify({
+            'message': f'Invitation sent to {target["username"]}',
+            'invitation': invitation,
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Send invitation error: {e}")
+        return jsonify({'error': 'Failed to send invitation'}), 500
+
+
+@app.route('/api/invitations', methods=['GET'])
+@token_required
+def get_my_invitations(current_user):
+    """Get all pending invitations for the current user (inbox)"""
+    try:
+        invitations = team_service.get_pending_invitations(current_user['user_id'])
+        return jsonify({'invitations': invitations, 'count': len(invitations)}), 200
+    except Exception as e:
+        logger.error(f"Get invitations error: {e}")
+        return jsonify({'error': 'Failed to fetch invitations'}), 500
+
+
+@app.route('/api/invitations/<int:invitation_id>/respond', methods=['POST'])
+@token_required
+def respond_to_invitation(current_user, invitation_id):
+    """Accept or reject a team invitation"""
+    try:
+        data = request.get_json() or {}
+        action = (data.get('action') or '').lower()
+
+        if action not in ('accept', 'reject'):
+            return jsonify({'error': "action must be 'accept' or 'reject'"}), 400
+
+        accept = action == 'accept'
+        success, error = team_service.respond_to_invitation(
+            invitation_id=invitation_id,
+            user_id=current_user['user_id'],
+            accept=accept,
+        )
+
+        if error:
+            return jsonify({'error': error}), 400
+
+        verb = 'accepted' if accept else 'rejected'
+        return jsonify({'message': f'Invitation {verb} successfully'}), 200
+
+    except Exception as e:
+        logger.error(f"Respond to invitation error: {e}")
+        return jsonify({'error': 'Failed to process invitation'}), 500
+
+
+# ============================================
 # TEST GENERATION ENDPOINTS
 # ============================================
 

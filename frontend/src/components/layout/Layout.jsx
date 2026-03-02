@@ -2,17 +2,58 @@
  * Layout Component
  * Shared layout with navigation for authenticated pages
  */
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogOut, Menu, X, Home, TestTube, Users, Settings, UserCircle2, Mail } from 'lucide-react';
+import { LogOut, Menu, X, Home, TestTube, Users, Settings, UserCircle2, Mail, Inbox, Check, XCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
+import { teamAPI } from '../../services/api';
 import WorkspaceSelector from './WorkspaceSelector';
 
 const Layout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, logout, fetchWorkspaces } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // ── Inbox state ──
+  const [invitations, setInvitations] = useState([]);
+  const [invitationCount, setInvitationCount] = useState(0);
+  const [showInbox, setShowInbox] = useState(false);
+  const [respondingId, setRespondingId] = useState(null);
+
+  const fetchInvitations = useCallback(async () => {
+    try {
+      const data = await teamAPI.getMyInvitations();
+      setInvitations(data.invitations || []);
+      setInvitationCount(data.count || 0);
+    } catch {
+      // silent — non-critical
+    }
+  }, []);
+
+  // Poll invitations on mount and every 30 seconds
+  useEffect(() => {
+    fetchInvitations();
+    const interval = setInterval(fetchInvitations, 30000);
+    return () => clearInterval(interval);
+  }, [fetchInvitations]);
+
+  const handleRespondInvitation = async (invitationId, action) => {
+    setRespondingId(invitationId);
+    try {
+      await teamAPI.respondToInvitation(invitationId, action);
+      toast.success(`Invitation ${action}ed!`);
+      await fetchInvitations();
+      if (action === 'accept') {
+        await fetchWorkspaces();
+      }
+    } catch {
+      toast.error(`Failed to ${action} invitation`);
+    } finally {
+      setRespondingId(null);
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -72,14 +113,20 @@ const Layout = ({ children }) => {
             {/* Desktop User Menu */}
             <div className="hidden md:block relative group">    
               <button
-                className="w-8 h-8 rounded-full bg-white text-gray-600 hover:bg-blue-50 transition-colors flex items-center justify-center"
+                className="relative w-8 h-8 rounded-full bg-white text-gray-600 hover:bg-blue-50 transition-colors flex items-center justify-center"
                 aria-label="Open profile menu"
                 aria-haspopup="menu"
               >
                 <UserCircle2 size={30} />
+                {invitationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+                    {invitationCount > 9 ? '9+' : invitationCount}
+                  </span>
+                )}
               </button>
 
-              <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg p-3 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 transition-all duration-150 z-50">
+              <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-lg p-3 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 transition-all duration-150 z-50">
+                {/* User info */}
                 <div className="flex items-start gap-3 pb-3 border-b border-gray-100">
                   <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-semibold">
                     {(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}
@@ -101,9 +148,61 @@ const Layout = ({ children }) => {
                   </div>
                 </div>
 
+                {/* Inbox section */}
+                <div className="py-2 border-b border-gray-100">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowInbox(!showInbox); }}
+                    className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <Inbox size={16} />
+                      Inbox
+                    </span>
+                    {invitationCount > 0 && (
+                      <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded-full">
+                        {invitationCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {showInbox && (
+                    <div className="mt-1 max-h-60 overflow-y-auto space-y-2">
+                      {invitations.length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-3">No pending invitations</p>
+                      ) : (
+                        invitations.map((inv) => (
+                          <div key={inv.id} className="p-2.5 bg-purple-50 border border-purple-100 rounded-lg">
+                            <div className="text-sm font-medium text-gray-900">{inv.team_name}</div>
+                            <div className="text-[11px] text-gray-500 mt-0.5">
+                              Invited by <span className="font-medium text-gray-700">{inv.invited_by_full_name || inv.invited_by_username}</span> as{' '}
+                              <span className="font-medium capitalize">{inv.role.replace('_', ' ')}</span>
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRespondInvitation(inv.id, 'accept'); }}
+                                disabled={respondingId === inv.id}
+                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50"
+                              >
+                                <Check size={12} /> Accept
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRespondInvitation(inv.id, 'reject'); }}
+                                disabled={respondingId === inv.id}
+                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-medium rounded-md transition-colors disabled:opacity-50"
+                              >
+                                <XCircle size={12} /> Decline
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={handleLogout}
-                  className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                  className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                 >
                   <LogOut size={16} />
                   Logout
@@ -114,9 +213,14 @@ const Layout = ({ children }) => {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="md:hidden relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              {invitationCount > 0 && !mobileMenuOpen && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {invitationCount > 9 ? '9+' : invitationCount}
+                </span>
+              )}
             </button>
           </div>
 
@@ -147,6 +251,42 @@ const Layout = ({ children }) => {
               <div className="px-2 pt-2 border-t border-gray-200 mt-2">
                 <WorkspaceSelector />
               </div>
+
+              {/* Mobile Inbox */}
+              {invitations.length > 0 && (
+                <div className="px-2 pt-2 border-t border-gray-200 mt-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2 mb-2 flex items-center gap-2">
+                    <Inbox size={14} /> Inbox
+                    <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded-full">{invitationCount}</span>
+                  </p>
+                  <div className="space-y-2">
+                    {invitations.map((inv) => (
+                      <div key={inv.id} className="p-3 bg-purple-50 border border-purple-100 rounded-lg mx-2">
+                        <div className="text-sm font-medium text-gray-900">{inv.team_name}</div>
+                        <div className="text-[11px] text-gray-500 mt-0.5">
+                          From {inv.invited_by_full_name || inv.invited_by_username} &middot; {inv.role.replace('_', ' ')}
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => handleRespondInvitation(inv.id, 'accept')}
+                            disabled={respondingId === inv.id}
+                            className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md disabled:opacity-50"
+                          >
+                            <Check size={12} /> Accept
+                          </button>
+                          <button
+                            onClick={() => handleRespondInvitation(inv.id, 'reject')}
+                            disabled={respondingId === inv.id}
+                            className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-medium rounded-md disabled:opacity-50"
+                          >
+                            <XCircle size={12} /> Decline
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               
               {/* Mobile User Info */}
               <div className="px-4 py-3 bg-gray-50 rounded-lg mx-2">
@@ -161,7 +301,7 @@ const Layout = ({ children }) => {
                   handleLogout();
                   setMobileMenuOpen(false);
                 }}
-                className="mx-2 w-[calc(100%-1rem)] flex items-center gap-2 px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                className="mx-2 w-[calc(100%-1rem)] flex items-center gap-2 px-4 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100  rounded-lg transition-colors"
               >
                 <LogOut size={16} />
                 Logout

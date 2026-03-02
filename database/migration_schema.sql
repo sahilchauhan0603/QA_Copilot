@@ -197,6 +197,32 @@ CREATE TABLE IF NOT EXISTS user_workspace_context (
 CREATE INDEX IF NOT EXISTS idx_workspace_user ON user_workspace_context(user_id);
 
 -- ============================================
+-- TEAM INVITATIONS
+-- ============================================
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'invitation_status') THEN
+        CREATE TYPE invitation_status AS ENUM ('pending', 'accepted', 'rejected', 'expired');
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS team_invitations (
+    id SERIAL PRIMARY KEY,
+    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    invited_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    invited_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role team_role NOT NULL DEFAULT 'qa_member',
+    status invitation_status NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    responded_at TIMESTAMP WITH TIME ZONE,
+    UNIQUE(team_id, invited_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_invitations_invited_user ON team_invitations(invited_user_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_team ON team_invitations(team_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_status ON team_invitations(status);
+
+-- ============================================
 -- UPDATED_AT TRIGGER FUNCTION
 -- ============================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
