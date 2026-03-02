@@ -97,12 +97,12 @@ export const testGenAPI = {
   },
 
   /** AI-generate description and acceptance criteria from title */
-  aiDescribe: async (title, ticketType, priority) => {
+  aiDescribe: async (title, ticketType, priority, signal = null) => {
     const response = await apiClient.post('/test-generation/ai-describe', {
       title,
       ticket_type: ticketType,
       priority,
-    });
+    }, signal ? { signal } : undefined);
     return response.data;
   },
 

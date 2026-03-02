@@ -24,6 +24,7 @@ const CustomInputTab = ({ onGenerate, generating }) => {
   });
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiGenerated, setAiGenerated] = useState(false);
+  const [abortController, setAbortController] = useState(null);
 
   const handleCustomChange = (field, value) => {
     setCustomForm((prev) => ({ ...prev, [field]: value }));
@@ -54,12 +55,17 @@ const CustomInputTab = ({ onGenerate, generating }) => {
       toast.error('Enter a title first');
       return;
     }
+    
+    const controller = new AbortController();
+    setAbortController(controller);
     setAiGenerating(true);
+    
     try {
       const result = await testGenAPI.aiDescribe(
         customForm.title,
         customForm.ticket_type,
-        customForm.priority
+        customForm.priority,
+        controller.signal
       );
       setCustomForm((prev) => ({
         ...prev,
@@ -71,9 +77,22 @@ const CustomInputTab = ({ onGenerate, generating }) => {
       }));
       setAiGenerated(true);
       toast.success('AI generated description & acceptance criteria');
-    } catch {
-      toast.error('AI generation failed');
+    } catch (error) {
+      if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+        toast.error('AI generation cancelled');
+      } else {
+        toast.error('AI generation failed');
+      }
     } finally {
+      setAiGenerating(false);
+      setAbortController(null);
+    }
+  };
+
+  const handleCancelAI = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
       setAiGenerating(false);
     }
   };
@@ -141,33 +160,45 @@ const CustomInputTab = ({ onGenerate, generating }) => {
       <div>
         <div className="flex items-center justify-between mb-1">
           <label className="input-label mb-0">Title *</label>
-          <button
-            type="button"
-            onClick={handleAIGenerate}
-            disabled={aiGenerating || !customForm.title.trim()}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              aiGenerated
-                ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50'
-            }`}
-          >
-            {aiGenerating ? (
-              <>
-                <Loader size={12} className="animate-spin" />
-                Generating...
-              </>
-            ) : aiGenerated ? (
-              <>
-                <CheckCircle size={12} />
-                AI Applied
-              </>
-            ) : (
-              <>
-                <Sparkles size={12} />
-                AI Generate Details
-              </>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAIGenerate}
+              disabled={aiGenerating || !customForm.title.trim()}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                aiGenerated
+                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                  : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50'
+              }`}
+            >
+              {aiGenerating ? (
+                <>
+                  <Loader size={12} className="animate-spin" />
+                  Generating...
+                </>
+              ) : aiGenerated ? (
+                <>
+                  <CheckCircle size={12} />
+                  AI Applied
+                </>
+              ) : (
+                <>
+                  <Sparkles size={12} />
+                  AI Generate Details
+                </>
+              )}
+            </button>
+            {aiGenerating && (
+              <button
+                type="button"
+                onClick={handleCancelAI}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-all"
+              >
+                <X size={12} />
+                Cancel
+              </button>
             )}
-          </button>
+          </div>
         </div>
         <input
           type="text"
