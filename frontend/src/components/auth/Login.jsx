@@ -27,15 +27,17 @@ function useCountUp(target, duration = 1500, start = false) {
   return count;
 }
 
-function StatCard({ icon: Icon, label, value, color, animateStart }) {
+function StatCard({ icon: Icon, label, value, color, animateStart, compact = false }) {
   const count = useCountUp(value, 1400, animateStart);
   return (
-    <div className="flex flex-col items-center gap-1.5 w-full px-3 py-3.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20">
-      <Icon size={18} className={color} />
-      <span className="text-xl font-bold text-white tabular-nums leading-none">
+    <div className={`flex flex-col items-center w-full rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 ${
+      compact ? 'gap-0.5 px-2 py-1.5' : 'gap-1.5 px-3 py-3.5'
+    }`}>
+      <Icon size={compact ? 13 : 18} className={color} />
+      <span className={`font-bold text-white tabular-nums leading-none ${compact ? 'text-sm' : 'text-xl'}`}>
         {value > 0 ? count.toLocaleString() : '—'}
       </span>
-      <span className="text-[10px] text-blue-100 text-center leading-tight">{label}</span>
+      <span className={`text-blue-100 text-center leading-tight ${compact ? 'text-[8px]' : 'text-[10px]'}`}>{label}</span>
     </div>
   );
 }
@@ -207,52 +209,40 @@ const Login = () => {
     }
   };
 
+  const statItems = [
+    { icon: Users,      label: 'Total Users',     value: stats.total_users,         color: 'text-blue-300'   },
+    { icon: Zap,        label: 'Online Today',     value: stats.active_users_today,  color: 'text-pink-300'   },
+    { icon: Activity,   label: 'Active (30d)',     value: stats.active_users_30d,    color: 'text-green-300'  },
+    { icon: UsersRound, label: 'Teams',            value: stats.total_teams,         color: 'text-purple-300' },
+    { icon: ListChecks, label: 'Test Runs',        value: stats.total_generations,   color: 'text-yellow-300' },
+  ];
+
   return (
     <>
-      {/* ── Fixed right-side stats panel ── */}
-      <div className="fixed right-0 top-0 h-screen w-30 flex flex-col items-center justify-center gap-3 px-3 py-8 bg-gradient-to-b from-primary-700 via-primary-800 to-blue-900 border-l border-white/10 shadow-2xl z-20 animate-fade-in">
+      {/* ── Mobile: horizontal stats bar at top (hidden on lg+) ── */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-20 bg-gradient-to-r from-primary-700 via-primary-800 to-blue-900 border-b border-white/10 shadow-lg px-2 py-1.5 animate-fade-in">
         <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-blue-300 text-center mb-1">
           Live Stats
         </p>
-        <StatCard
-          icon={Users}
-          label="Total Users"
-          value={stats.total_users}
-          color="text-blue-300"
-          animateStart={statsLoaded}
-        />
-        <StatCard
-          icon={Zap}
-          label="Online Today"
-          value={stats.active_users_today}
-          color="text-pink-300"
-          animateStart={statsLoaded}
-        />
-        <StatCard
-          icon={Activity}
-          label="Active (30 days)"
-          value={stats.active_users_30d}
-          color="text-green-300"
-          animateStart={statsLoaded}
-        />
-        <StatCard
-          icon={UsersRound}
-          label="Teams"
-          value={stats.total_teams}
-          color="text-purple-300"
-          animateStart={statsLoaded}
-        />
-        <StatCard
-          icon={ListChecks}
-          label="Test Runs"
-          value={stats.total_generations}
-          color="text-yellow-300"
-          animateStart={statsLoaded}
-        />
+        <div className="flex gap-1.5">
+          {statItems.map(({ icon, label, value, color }) => (
+            <StatCard key={label} icon={icon} label={label} value={value} color={color} animateStart={statsLoaded} compact />
+          ))}
+        </div>
+      </div>
+
+      {/* ── Desktop: fixed right-side vertical stats panel (hidden below lg) ── */}
+      <div className="hidden lg:flex fixed right-0 top-0 h-screen w-30 flex-col items-center justify-center gap-3 px-3 py-8 bg-gradient-to-b from-primary-700 via-primary-800 to-blue-900 border-l border-white/10 shadow-2xl z-20 animate-fade-in">
+        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-blue-300 text-center mb-1">
+          Live Stats
+        </p>
+        {statItems.map(({ icon, label, value, color }) => (
+          <StatCard key={label} icon={icon} label={label} value={value} color={color} animateStart={statsLoaded} />
+        ))}
       </div>
 
       {/* ── Login page ── */}
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-primary-100 to-blue-50 flex items-center justify-center p-4 pr-40">
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-primary-100 to-blue-50 flex items-center justify-center p-4 pt-20 lg:pt-4 lg:pr-40 mt-4">
         <div className="max-w-md w-full">
         <div className="card bg-white shadow-2xl border border-gray-100">
           <div className="text-center mb-8 animate-fade-in">
