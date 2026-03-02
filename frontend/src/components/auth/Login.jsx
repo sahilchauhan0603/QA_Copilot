@@ -242,7 +242,7 @@ const Login = () => {
       </div>
 
       {/* ── Login page ── */}
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-primary-100 to-blue-50 flex items-center justify-center p-4 pt-20 lg:pt-4 lg:pr-40 mt-4">
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-primary-100 to-blue-50 flex items-center justify-center p-4 pt-20 lg:pt-4 lg:pr-40">
         <div className="max-w-md w-full">
         <div className="card bg-white shadow-2xl border border-gray-100">
           <div className="text-center mb-8 animate-fade-in">
