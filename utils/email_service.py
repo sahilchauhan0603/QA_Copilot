@@ -230,6 +230,7 @@ QA Copilot Team
 <body>
     <div class="container">
         <div class="header">
+            <img src="{self.app_url}/logo.png" alt="QA Copilot" width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />
             <h1>🔐 Password Reset Request</h1>
             <p>Secure your account with a new password</p>
         </div>
@@ -375,6 +376,7 @@ QA Copilot Team
 <body>
     <div class="container">
         <div class="header">
+            <img src="{self.app_url}/logo.png" alt="QA Copilot" width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />
             <h1>Verify Your Email</h1>
             <p>Complete your QA Copilot signup</p>
         </div>
@@ -528,6 +530,7 @@ QA Copilot Team
 <body>
     <div class="container">
         <div class="header">
+            <img src="{self.app_url}/logo.png" alt="QA Copilot" width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />
             <h1>Team Invitation</h1>
             <p>You've been invited to collaborate</p>
         </div>
@@ -560,6 +563,103 @@ QA Copilot Team
 </html>
 """
 
+        return self.send_email(to_email, subject, html_body, text_body)
+
+    def send_invitation_response_email(
+        self, to_email: str, to_username: str, invitee_username: str,
+        invitee_email: str, team_name: str, accepted: bool
+    ) -> bool:
+        """
+        Notify the team admin (inviter) that their invitation was accepted or rejected.
+        """
+        action = "accepted" if accepted else "declined"
+        action_past = "accepted" if accepted else "declined"
+        emoji = "🎉" if accepted else "❌"
+        header_color = "linear-gradient(135deg, #10b981 0%, #059669 100%)" if accepted else "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
+        badge_bg = "#d1fae5" if accepted else "#fee2e2"
+        badge_color = "#065f46" if accepted else "#991b1b"
+
+        subject = f"{emoji} {invitee_username} {action_past} your invitation to {team_name} — QA Copilot"
+
+        text_body = f"""
+Hello {to_username},
+
+{invitee_username} ({invitee_email}) has {action_past} your invitation to join "{team_name}".
+
+{"They are now a member of your team. You can manage members in Team Management." if accepted else "No further action is needed. You can invite someone else anytime."}
+
+Best regards,
+QA Copilot Team
+"""
+
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6; color: #333; max-width: 600px;
+            margin: 0 auto; padding: 20px; background-color: #f5f5f5;
+        }}
+        .container {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }}
+        .header {{
+            background: {header_color};
+            color: white; padding: 36px 30px; text-align: center;
+        }}
+        .header h1 {{ margin: 0; font-size: 28px; font-weight: 700; }}
+        .header p {{ margin: 8px 0 0; font-size: 15px; opacity: 0.9; }}
+        .content {{ padding: 36px; }}
+        .invitee-card {{
+            background: #f8fafc; border: 1px solid #e2e8f0;
+            border-radius: 10px; padding: 20px; margin: 24px 0;
+        }}
+        .invitee-card .name {{ font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }}
+        .invitee-card .email {{ font-size: 14px; color: #64748b; }}
+        .status-badge {{
+            display: inline-block; padding: 6px 16px;
+            background: {badge_bg}; color: {badge_color};
+            border-radius: 20px; font-size: 14px; font-weight: 700;
+            margin-top: 12px;
+        }}
+        .info-box {{
+            background: #f0f9ff; border-left: 4px solid #0284c7;
+            padding: 16px; border-radius: 6px; font-size: 14px; color: #0f172a;
+            margin-top: 20px;
+        }}
+        .footer {{
+            padding: 24px 36px; background: #f8fafc;
+            border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{self.app_url}/logo.png" alt="QA Copilot" width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />
+            <h1>{emoji} Invitation {action_past.title()}</h1>
+            <p>Team: {team_name}</p>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{to_username}</strong>,</p>
+            <p>Your team invitation has received a response:</p>
+            <div class="invitee-card">
+                <div class="name">{invitee_username}</div>
+                <div class="email">{invitee_email}</div>
+                <span class="status-badge">{emoji} {action_past.title()}</span>
+            </div>
+            <div class="info-box">
+                {"🎉 <strong>" + invitee_username + "</strong> is now a member of <strong>" + team_name + "</strong>. You can manage roles and members in Team Management." if accepted else "No further action needed. You can invite someone else to join <strong>" + team_name + "</strong> at any time."}
+            </div>
+        </div>
+        <div class="footer">
+            QA Copilot Team<br/>
+            This is an automated message. Please do not reply.
+        </div>
+    </div>
+</body>
+</html>
+"""
         return self.send_email(to_email, subject, html_body, text_body)
 
 

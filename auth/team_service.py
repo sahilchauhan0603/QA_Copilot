@@ -529,6 +529,13 @@ class TeamService:
         """
         from datetime import datetime
         try:
+            # Data needed for notification email (collected inside session)
+            inviter_email = None
+            inviter_username = None
+            invitee_username = None
+            invitee_email = None
+            team_name = None
+
             with self.db.get_session() as session:
                 invitation = session.query(TeamInvitation).filter(
                     TeamInvitation.id == invitation_id,
@@ -538,6 +545,19 @@ class TeamService:
 
                 if not invitation:
                     return False, "Invitation not found or already responded"
+
+                # Collect notification data
+                inviter = session.query(User).filter(User.id == invitation.invited_by_user_id).first()
+                invitee = session.query(User).filter(User.id == user_id).first()
+                team = session.query(Team).filter(Team.id == invitation.team_id).first()
+                if inviter:
+                    inviter_email = inviter.email
+                    inviter_username = inviter.username
+                if invitee:
+                    invitee_username = invitee.username
+                    invitee_email = invitee.email
+                if team:
+                    team_name = team.name
 
                 if accept:
                     # Check not already a member (edge case)
@@ -565,7 +585,22 @@ class TeamService:
                     invitation.responded_at = datetime.utcnow()
                     logger.info(f"Invitation {invitation_id} rejected by user {user_id}")
 
-                return True, None
+            # Send notification email to inviter (fire-and-forget)
+            if inviter_email and invitee_username and team_name:
+                try:
+                    from utils.email_service import email_service
+                    email_service.send_invitation_response_email(
+                        to_email=inviter_email,
+                        to_username=inviter_username or inviter_email,
+                        invitee_username=invitee_username,
+                        invitee_email=invitee_email or '',
+                        team_name=team_name,
+                        accepted=accept,
+                    )
+                except Exception as email_err:
+                    logger.warning(f"Failed to send invitation response email: {email_err}")
+
+            return True, None
 
         except Exception as e:
             logger.error(f"Error responding to invitation {invitation_id}: {e}")

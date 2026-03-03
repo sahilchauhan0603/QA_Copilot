@@ -91,19 +91,19 @@ const ForgotPassword = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-primary-100 to-blue-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="text-center mb-8 animate-fade-in">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4 shadow-lg">
-            <Mail size={32} className="text-white" />
-          </div>
-          <h1 className="text-4xl font-bold text-primary-900 mb-2">
-            Forgot Password?
-          </h1>
-          <p className="text-gray-600">
-            No worries, we'll send you reset instructions
-          </p>
-        </div>
-
         <div className="card bg-white shadow-2xl border border-gray-100">
+          <div className="text-center mb-8 animate-fade-in">
+            <div className="inline-flex items-center justify-center w-20 h-20 mb-4">
+              <img src="/logo.png" alt="QA Copilot" className="w-full h-full object-contain drop-shadow-lg" />
+            </div>
+            <h1 className="text-4xl font-bold text-primary-900 mb-2">
+              Forgot Password?
+            </h1>
+            <p className="text-gray-600">
+              No worries, we'll send you reset instructions
+            </p>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="email" className="input-label">

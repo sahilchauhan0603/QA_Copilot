@@ -77,8 +77,9 @@ const Layout = ({ children }) => {
           <div className="flex items-center justify-between h-16">
             {/* Logo and Desktop Navigation */}
             <div className="flex items-center gap-6 flex-1">
-              <Link to="/dashboard">
-                <h1 className="text-xl font-bold text-primary-900 cursor-pointer hover:text-primary-700 transition-colors whitespace-nowrap">
+              <Link to="/dashboard" className="flex items-center gap-2 group">
+                <img src="/logo.png" alt="QA Copilot" className="h-8 w-8 object-contain" />
+                <h1 className="text-xl font-bold text-primary-900 cursor-pointer group-hover:text-primary-700 transition-colors whitespace-nowrap">
                   QA Copilot
                 </h1>
               </Link>

@@ -382,8 +382,8 @@ const Signup = () => {
             <p className="text-sm text-gray-500 mt-1">Fill in your details to get started</p>
           </div> */}
           <div className="text-center mb-8 animate-fade-in">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4 shadow-lg">
-              <UserPlus size={32} className="text-white" />
+            <div className="inline-flex items-center justify-center w-20 h-20 mb-4">
+              <img src="/logo.png" alt="QA Copilot" className="w-full h-full object-contain drop-shadow-lg" />
             </div>
             <h1 className="text-4xl font-bold text-primary-900 mb-2">
               QA Copilot
