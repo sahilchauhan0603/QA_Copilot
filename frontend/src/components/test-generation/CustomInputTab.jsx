@@ -159,7 +159,7 @@ const CustomInputTab = ({ onGenerate, generating }) => {
       {/* Title with AI Button */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="input-label mb-0">Title *</label>
+          <label className="input-label mb-0">Title<span className="text-red-500">*</span></label>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -168,7 +168,7 @@ const CustomInputTab = ({ onGenerate, generating }) => {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 aiGenerated
                   ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                  : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50'
+                  : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               {aiGenerating ? (
