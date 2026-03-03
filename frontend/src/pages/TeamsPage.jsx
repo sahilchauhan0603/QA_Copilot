@@ -32,8 +32,8 @@ const TeamsPage = () => {
           </p>
         </div>
         
-        {/* Show Create Team button always when not showing form */}
-        {!showCreateForm && (
+        {/* Show Create Team button only in personal workspace */}
+        {isPersonalWorkspace && !showCreateForm && (
           <button
             onClick={() => setShowCreateForm(true)}
             className="btn-primary flex items-center gap-2"
@@ -42,13 +42,18 @@ const TeamsPage = () => {
             Create New Team
           </button>
         )}
+        {!isPersonalWorkspace && (
+          <p className="text-sm text-gray-500 italic text-right max-w-xs">
+            To create a new team, switch to your personal workspace first.
+          </p>
+        )}
       </div>
       
       {/* Conditional rendering based on workspace type and state */}
       {isPersonalWorkspace && !showCreateForm ? (
         <MyTeams onCreateTeam={() => setShowCreateForm(true)} />
       ) : (
-        <TeamManagement onCancel={() => setShowCreateForm(false)} />
+        <TeamManagement onCancel={showCreateForm ? () => setShowCreateForm(false) : null} />
       )}
     </div>
   );

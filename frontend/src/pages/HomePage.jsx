@@ -255,6 +255,11 @@ const HomePage = () => {
           </div>
         </div>
       )}
+
+      {/* Footer */}
+      <footer className="text-center text-xs text-primary-400 py-4 border-t border-primary-100">
+        © 2026 QA Copilot. All rights reserved.
+      </footer>
     </div>
   );
 };
