@@ -174,8 +174,9 @@ def stream_progress(job_id):
             # Check if generation is cancelled
             if store.get("cancelled"):
                 yield f"data: {json.dumps({'type': 'cancelled', 'message': 'Generation cancelled by user'})}\n\n"
-                with _progress_lock:
-                    _progress_store.pop(job_id, None)
+                # Do NOT pop here — the background thread may still be running
+                # and needs to see cancelled=True in progress_callback.
+                # The background thread's except block will clean up the store.
                 break
             
             # Check if generation is complete
@@ -1164,7 +1165,13 @@ def generate_tests(current_user):
                 _update_progress(job_id, "ticket_reader", "started", detail="Starting pipeline...")
                 
                 final_state = orch.process_ticket(ticket_info, progress_callback=progress_callback)
-                
+
+                # Final cancel check before persisting — covers the window where cancel
+                # arrives after the last agent finishes but before the DB write.
+                with _progress_lock:
+                    if _progress_store.get(job_id, {}).get("cancelled"):
+                        raise Exception("Generation cancelled by user")
+
                 # Inject source integration info into state for DB storage
                 if source_integration:
                     final_state['source_integration'] = source_integration
@@ -1198,8 +1205,13 @@ def generate_tests(current_user):
                 with _progress_lock:
                     store = _progress_store.get(job_id)
                     if store:
-                        store["status"] = "error"
-                        store["error"] = str(e)
+                        if store.get("cancelled") or "cancelled" in str(e).lower():
+                            store["status"] = "cancelled"
+                        else:
+                            store["status"] = "error"
+                            store["error"] = str(e)
+                    # Clean up — SSE has already delivered the cancelled/error event
+                    _progress_store.pop(job_id, None)
         
         # Start generation in background thread
         thread = threading.Thread(target=run_generation, daemon=True)
