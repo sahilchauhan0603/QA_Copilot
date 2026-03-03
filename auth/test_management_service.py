@@ -26,7 +26,8 @@ class TestManagementService:
         team_id: Optional[int] = None,
         suite_name: str = None,
         ticket_id: str = None,
-        project_key: str = None
+        project_key: str = None,
+        cancel_check=None
     ) -> Dict[str, Any]:
         """
         Export test cases to Xray
@@ -65,7 +66,11 @@ class TestManagementService:
             
             if not xray.connect():
                 return {'success': False, 'error': 'Failed to connect to Xray'}
-            
+
+            # Cancel check right after the blocking connect() call
+            if cancel_check and cancel_check():
+                return {'success': False, 'error': 'cancelled', 'cancelled': True}
+
             # Create test set if suite name provided
             suite_id = None
             if suite_name:
@@ -99,7 +104,8 @@ class TestManagementService:
         team_id: Optional[int] = None,
         suite_name: str = None,
         ticket_id: str = None,
-        project_key: str = None
+        project_key: str = None,
+        cancel_check=None
     ) -> Dict[str, Any]:
         """
         Export test cases to Zephyr Scale
@@ -143,7 +149,11 @@ class TestManagementService:
             
             if not zephyr.connect():
                 return {'success': False, 'error': 'Failed to connect to Zephyr'}
-            
+
+            # Cancel check right after the blocking connect() call
+            if cancel_check and cancel_check():
+                return {'success': False, 'error': 'cancelled', 'cancelled': True}
+
             # Create test cycle if suite name provided
             suite_id = None
             if suite_name:
@@ -177,7 +187,8 @@ class TestManagementService:
         team_id: Optional[int] = None,
         suite_name: str = None,
         ticket_id: str = None,
-        project_id: int = None
+        project_id: int = None,
+        cancel_check=None
     ) -> Dict[str, Any]:
         """
         Export test cases to TestRail
@@ -211,7 +222,11 @@ class TestManagementService:
             
             if not testrail.connect():
                 return {'success': False, 'error': 'Failed to connect to TestRail'}
-            
+
+            # Cancel check right after the blocking connect() call
+            if cancel_check and cancel_check():
+                return {'success': False, 'error': 'cancelled', 'cancelled': True}
+
             # Create test suite (required for TestRail)
             suite_id = testrail.create_test_suite(
                 suite_name or "AI Generated Tests",

@@ -2394,8 +2394,12 @@ def export_to_xray_job(current_user, active_team_id, is_personal_workspace):
             user_id=user_id,
             team_id=team_id,
             suite_name=suite_name,
-            ticket_id=ticket_id
+            ticket_id=ticket_id,
+            cancel_check=lambda: is_sync_job_cancelled(job_id)
         )
+
+        if export_result.get('cancelled'):
+            raise SyncJobCancelledError('Export cancelled by user')
 
         if is_sync_job_cancelled(job_id):
             raise SyncJobCancelledError('Export cancelled by user')
@@ -2492,8 +2496,12 @@ def export_to_zephyr_job(current_user, active_team_id, is_personal_workspace):
             user_id=user_id,
             team_id=team_id,
             suite_name=cycle_name,
-            ticket_id=ticket_id
+            ticket_id=ticket_id,
+            cancel_check=lambda: is_sync_job_cancelled(job_id)
         )
+
+        if export_result.get('cancelled'):
+            raise SyncJobCancelledError('Export cancelled by user')
 
         if is_sync_job_cancelled(job_id):
             raise SyncJobCancelledError('Export cancelled by user')
@@ -2596,8 +2604,12 @@ def export_to_testrail_job(current_user, active_team_id, is_personal_workspace):
             user_id=user_id,
             team_id=team_id,
             suite_name=suite_name,
-            ticket_id=ticket_id
+            ticket_id=ticket_id,
+            cancel_check=lambda: is_sync_job_cancelled(job_id)
         )
+
+        if export_result.get('cancelled'):
+            raise SyncJobCancelledError('Export cancelled by user')
 
         if is_sync_job_cancelled(job_id):
             raise SyncJobCancelledError('Export cancelled by user')
