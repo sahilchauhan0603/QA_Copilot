@@ -210,7 +210,7 @@ const Login = () => {
   };
 
   const statItems = [
-    { icon: Users,      label: 'Total Users',     value: stats.total_users,         color: 'text-blue-300'   },
+    { icon: Users,      label: 'Total Users',      value: stats.total_users,         color: 'text-blue-300'   },
     { icon: Zap,        label: 'Online Today',     value: stats.active_users_today,  color: 'text-pink-300'   },
     { icon: Activity,   label: 'Active (30d)',     value: stats.active_users_30d,    color: 'text-green-300'  },
     { icon: UsersRound, label: 'Teams',            value: stats.total_teams,         color: 'text-purple-300' },

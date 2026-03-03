@@ -1957,7 +1957,7 @@ def fetch_integration_ticket(current_user):
 @app.route('/api/integrations/sync/attach-excel', methods=['POST'])
 @token_required
 def sync_attach_excel(current_user):
-    """Attach the generated Excel file to a Jira/Azure DevOps ticket"""
+    """Start an async job to attach the generated Excel file to a ticket"""
     try:
         data = request.get_json()
 
@@ -1971,61 +1971,74 @@ def sync_attach_excel(current_user):
         user_id = current_user['user_id']
         team_id = workspace_service.get_active_workspace(user_id)
 
-        # Get generation data
-        generation_data = db_manager.get_generation_by_id(generation_id)
-        if not generation_data:
-            return jsonify({'error': 'Generation not found'}), 404
+        def attach_excel_job_logic(job_id):
+            # Get generation data
+            generation_data = db_manager.get_generation_by_id(generation_id)
+            if not generation_data:
+                raise Exception('Generation not found')
 
-        generation = generation_data['generation']
+            generation = generation_data['generation']
 
-        # Verify access
-        if generation['user_id'] != user_id:
-            if generation['team_id'] is not None:
-                if not team_service.is_team_member(user_id, generation['team_id']):
-                    return jsonify({'error': 'Access denied'}), 403
-            else:
-                return jsonify({'error': 'Access denied'}), 403
+            # Verify access
+            if generation['user_id'] != user_id:
+                if generation['team_id'] is not None:
+                    if not team_service.is_team_member(user_id, generation['team_id']):
+                        raise Exception('Access denied')
+                else:
+                    raise Exception('Access denied')
 
-        # Generate Excel in-memory
-        meta = generation.get('metadata', {}) or {}
-        state = {
-            'ticket_info': {
-                'ticket_id': generation['ticket_id'],
-                'title': generation['ticket_title'],
-                'ticket_type': generation['ticket_type'],
-                'description': generation.get('ticket_description', ''),
-                'acceptance_criteria': generation.get('ticket_acceptance_criteria', ''),
-                'priority': meta.get('priority', 'N/A'),
-                'status': meta.get('status', 'N/A'),
-            },
-            'test_cases': generation_data.get('test_cases', []),
-            'coverage_gaps': generation_data.get('coverage_gaps', []),
-            'qa_roadmap': generation_data.get('qa_roadmap', {}),
-            'extracted_requirements': generation_data.get('extracted_requirements', []),
-            'acceptance_criteria_gaps': generation_data.get('acceptance_criteria_gaps', []),
-            'risk_areas': generation_data.get('risk_areas', []),
-            'clarification_questions': generation_data.get('clarification_questions', []),
-            'impacted_modules': generation_data.get('impacted_modules', []),
-            'dependencies': generation_data.get('dependencies', []),
-            'processing_time': meta.get('processing_time', 0),
-        }
+            if is_sync_job_cancelled(job_id):
+                raise SyncJobCancelledError('Cancelled by user')
 
-        excel_buffer = export_to_excel_bytes(state)
-        filename = get_excel_filename(state)
+            meta = generation.get('metadata', {}) or {}
+            state = {
+                'ticket_info': {
+                    'ticket_id': generation['ticket_id'],
+                    'title': generation['ticket_title'],
+                    'ticket_type': generation['ticket_type'],
+                    'description': generation.get('ticket_description', ''),
+                    'acceptance_criteria': generation.get('ticket_acceptance_criteria', ''),
+                    'priority': meta.get('priority', 'N/A'),
+                    'status': meta.get('status', 'N/A'),
+                },
+                'test_cases': generation_data.get('test_cases', []),
+                'coverage_gaps': generation_data.get('coverage_gaps', []),
+                'qa_roadmap': generation_data.get('qa_roadmap', {}),
+                'extracted_requirements': generation_data.get('extracted_requirements', []),
+                'acceptance_criteria_gaps': generation_data.get('acceptance_criteria_gaps', []),
+                'risk_areas': generation_data.get('risk_areas', []),
+                'clarification_questions': generation_data.get('clarification_questions', []),
+                'impacted_modules': generation_data.get('impacted_modules', []),
+                'dependencies': generation_data.get('dependencies', []),
+                'processing_time': meta.get('processing_time', 0),
+            }
 
-        success, error = integration_service.attach_excel_to_ticket(
-            integration_type=integration_type,
-            ticket_id=ticket_id,
-            excel_buffer=excel_buffer,
-            filename=filename,
-            user_id=user_id if not team_id else None,
-            team_id=team_id
-        )
+            excel_buffer = export_to_excel_bytes(state)
+            filename = get_excel_filename(state)
 
-        if error:
-            return jsonify({'error': error}), 400
+            if is_sync_job_cancelled(job_id):
+                raise SyncJobCancelledError('Cancelled by user')
 
-        return jsonify({'message': f'Excel file attached to {ticket_id} successfully'}), 200
+            success, error = integration_service.attach_excel_to_ticket(
+                integration_type=integration_type,
+                ticket_id=ticket_id,
+                excel_buffer=excel_buffer,
+                filename=filename,
+                user_id=user_id if not team_id else None,
+                team_id=team_id,
+                cancel_check=lambda: is_sync_job_cancelled(job_id)
+            )
+
+            if error == 'cancelled':
+                raise SyncJobCancelledError('Cancelled by user')
+
+            if error:
+                raise Exception(error)
+
+            return {'message': f'Excel file attached to {ticket_id} successfully'}
+
+        job_id = start_sync_job(attach_excel_job_logic)
+        return jsonify({'job_id': job_id}), 202
 
     except Exception as e:
         logger.error(f"Sync attach Excel error: {e}")
@@ -2035,14 +2048,14 @@ def sync_attach_excel(current_user):
 @app.route('/api/integrations/sync/add-comment', methods=['POST'])
 @token_required
 def sync_add_comment(current_user):
-    """Add a test summary comment to a Jira/Azure DevOps ticket"""
+    """Start an async job to add a test summary comment to a ticket"""
     try:
         data = request.get_json()
 
         integration_type = data.get('integration_type')
         ticket_id = data.get('ticket_id')
         generation_id = data.get('generation_id')
-        comment_text = data.get('comment')  # Optional custom comment
+        comment_text_override = data.get('comment')  # Optional custom comment
 
         if not all([integration_type, ticket_id, generation_id]):
             return jsonify({'error': 'integration_type, ticket_id, and generation_id are required'}), 400
@@ -2050,140 +2063,134 @@ def sync_add_comment(current_user):
         user_id = current_user['user_id']
         team_id = workspace_service.get_active_workspace(user_id)
 
-        # Get generation data
-        generation_data = db_manager.get_generation_by_id(generation_id)
-        if not generation_data:
-            return jsonify({'error': 'Generation not found'}), 404
+        def add_comment_job_logic(job_id):
+            # Get generation data
+            generation_data = db_manager.get_generation_by_id(generation_id)
+            if not generation_data:
+                raise Exception('Generation not found')
 
-        generation = generation_data['generation']
+            generation = generation_data['generation']
 
-        # Verify access
-        if generation['user_id'] != user_id:
-            if generation['team_id'] is not None:
-                if not team_service.is_team_member(user_id, generation['team_id']):
-                    return jsonify({'error': 'Access denied'}), 403
-            else:
-                return jsonify({'error': 'Access denied'}), 403
+            # Verify access
+            if generation['user_id'] != user_id:
+                if generation['team_id'] is not None:
+                    if not team_service.is_team_member(user_id, generation['team_id']):
+                        raise Exception('Access denied')
+                else:
+                    raise Exception('Access denied')
 
-        # Build comment from generation data if not provided
-        if not comment_text:
-            test_cases = generation_data.get('test_cases', [])
-            coverage_gaps = generation_data.get('coverage_gaps', [])
-            risk_areas = generation_data.get('risk_areas', [])
-            meta = generation.get('metadata', {}) or {}
+            if is_sync_job_cancelled(job_id):
+                raise SyncJobCancelledError('Cancelled by user')
 
-            # Priority breakdown
-            priority_counts = {}
-            for tc in test_cases:
-                p = tc.get('priority', 'P2')
-                priority_counts[p] = priority_counts.get(p, 0) + 1
+            # Build comment from generation data if not provided
+            comment_text = comment_text_override
+            if not comment_text:
+                test_cases = generation_data.get('test_cases', [])
+                coverage_gaps = generation_data.get('coverage_gaps', [])
+                risk_areas = generation_data.get('risk_areas', [])
 
-            # Category breakdown
-            category_counts = {}
-            for tc in test_cases:
-                c = tc.get('category', 'General')
-                category_counts[c] = category_counts.get(c, 0) + 1
+                priority_counts = {}
+                for tc in test_cases:
+                    p = tc.get('priority', 'P2')
+                    priority_counts[p] = priority_counts.get(p, 0) + 1
 
-            if integration_type == 'jira':
-                # Jira uses wiki markup
-                comment_text = f"h3. \U0001f9ea Test Cases Generated by TicketToTest AI\n\n"
-                comment_text += f"*Total Test Cases:* {len(test_cases)}\n"
-                comment_text += f"*Coverage Gaps:* {len(coverage_gaps)}\n"
-                comment_text += f"*Risk Areas:* {len(risk_areas)}\n\n"
+                category_counts = {}
+                for tc in test_cases:
+                    c = tc.get('category', 'General')
+                    category_counts[c] = category_counts.get(c, 0) + 1
 
-                if priority_counts:
-                    comment_text += "h4. Priority Distribution\n"
-                    comment_text += "||Priority||Count||\n"
-                    for p in sorted(priority_counts.keys()):
-                        comment_text += f"|{p}|{priority_counts[p]}|\n"
-                    comment_text += "\n"
+                if integration_type == 'jira':
+                    comment_text = f"h3. \U0001f9ea Test Cases Generated by TicketToTest AI\n\n"
+                    comment_text += f"*Total Test Cases:* {len(test_cases)}\n"
+                    comment_text += f"*Coverage Gaps:* {len(coverage_gaps)}\n"
+                    comment_text += f"*Risk Areas:* {len(risk_areas)}\n\n"
+                    if priority_counts:
+                        comment_text += "h4. Priority Distribution\n||Priority||Count||\n"
+                        for p in sorted(priority_counts.keys()):
+                            comment_text += f"|{p}|{priority_counts[p]}|\n"
+                        comment_text += "\n"
+                    if category_counts:
+                        comment_text += "h4. Test Categories\n||Category||Count||\n"
+                        for c in sorted(category_counts.keys()):
+                            comment_text += f"|{c}|{category_counts[c]}|\n"
+                        comment_text += "\n"
+                    if test_cases:
+                        comment_text += "h4. Test Case Summary\n||ID||Priority||Category||Title||\n"
+                        for tc in test_cases[:20]:
+                            tc_id = tc.get('id', tc.get('title', '')[:8])
+                            comment_text += f"|{tc_id}|{tc.get('priority', 'P2')}|{tc.get('category', '')}|{tc.get('title', '')}|\n"
+                        if len(test_cases) > 20:
+                            comment_text += f"\n_...and {len(test_cases) - 20} more test cases._\n"
+                    if coverage_gaps:
+                        comment_text += "\nh4. Coverage Gaps\n"
+                        for gap in coverage_gaps[:10]:
+                            comment_text += f"* {gap}\n"
+                    if risk_areas:
+                        comment_text += "\nh4. Risk Areas\n"
+                        for risk in risk_areas[:10]:
+                            comment_text += f"* (!)\u00a0{risk}\n"
+                    comment_text += f"\n----\n_Generated on {generation.get('timestamp', 'N/A')} by TicketToTest AI_"
+                else:
+                    comment_text = f"<h3>\U0001f9ea Test Cases Generated by TicketToTest AI</h3>"
+                    comment_text += f"<p><strong>Total Test Cases:</strong> {len(test_cases)}<br>"
+                    comment_text += f"<strong>Coverage Gaps:</strong> {len(coverage_gaps)}<br>"
+                    comment_text += f"<strong>Risk Areas:</strong> {len(risk_areas)}</p>"
+                    if priority_counts:
+                        comment_text += "<h4>Priority Distribution</h4><table><tr><th>Priority</th><th>Count</th></tr>"
+                        for p in sorted(priority_counts.keys()):
+                            comment_text += f"<tr><td>{p}</td><td>{priority_counts[p]}</td></tr>"
+                        comment_text += "</table>"
+                    if category_counts:
+                        comment_text += "<h4>Test Categories</h4><table><tr><th>Category</th><th>Count</th></tr>"
+                        for c in sorted(category_counts.keys()):
+                            comment_text += f"<tr><td>{c}</td><td>{category_counts[c]}</td></tr>"
+                        comment_text += "</table>"
+                    if test_cases:
+                        comment_text += "<h4>Test Case Summary</h4><table><tr><th>ID</th><th>Priority</th><th>Category</th><th>Title</th></tr>"
+                        for tc in test_cases[:20]:
+                            tc_id = tc.get('id', tc.get('title', '')[:8])
+                            comment_text += f"<tr><td>{tc_id}</td><td>{tc.get('priority', 'P2')}</td><td>{tc.get('category', '')}</td><td>{tc.get('title', '')}</td></tr>"
+                        comment_text += "</table>"
+                        if len(test_cases) > 20:
+                            comment_text += f"<p><em>...and {len(test_cases) - 20} more. See attached Excel for full details.</em></p>"
+                    if coverage_gaps:
+                        comment_text += "<h4>Coverage Gaps</h4><ul>"
+                        for gap in coverage_gaps[:10]:
+                            comment_text += f"<li>{gap}</li>"
+                        comment_text += "</ul>"
+                    if risk_areas:
+                        comment_text += "<h4>Risk Areas</h4><ul>"
+                        for risk in risk_areas[:10]:
+                            comment_text += f"<li>\u26a0\ufe0f {risk}</li>"
+                        comment_text += "</ul>"
+                    comment_text += f"<hr><p><em>Generated on {generation.get('timestamp', 'N/A')} by TicketToTest AI</em></p>"
 
-                if category_counts:
-                    comment_text += "h4. Test Categories\n"
-                    comment_text += "||Category||Count||\n"
-                    for c in sorted(category_counts.keys()):
-                        comment_text += f"|{c}|{category_counts[c]}|\n"
-                    comment_text += "\n"
+            if is_sync_job_cancelled(job_id):
+                raise SyncJobCancelledError('Cancelled by user')
 
-                if test_cases:
-                    comment_text += "h4. Test Case Summary\n"
-                    comment_text += "||ID||Priority||Category||Title||\n"
-                    for tc in test_cases[:20]:  # Limit to first 20
-                        tc_id = tc.get('id', tc.get('title', '')[:8])
-                        comment_text += f"|{tc_id}|{tc.get('priority', 'P2')}|{tc.get('category', '')}|{tc.get('title', '')}|\n"
-                    if len(test_cases) > 20:
-                        comment_text += f"\n_...and {len(test_cases) - 20} more test cases. See attached Excel for full details._\n"
+            success, error = integration_service.post_comment_to_ticket(
+                integration_type=integration_type,
+                ticket_id=ticket_id,
+                comment=comment_text,
+                user_id=user_id if not team_id else None,
+                team_id=team_id,
+                cancel_check=lambda: is_sync_job_cancelled(job_id)
+            )
 
-                if coverage_gaps:
-                    comment_text += "\nh4. Coverage Gaps\n"
-                    for gap in coverage_gaps[:10]:
-                        comment_text += f"* {gap}\n"
+            if error == 'cancelled':
+                raise SyncJobCancelledError('Cancelled by user')
 
-                if risk_areas:
-                    comment_text += "\nh4. Risk Areas\n"
-                    for risk in risk_areas[:10]:
-                        comment_text += f"* (!)\u00a0{risk}\n"
+            if error:
+                raise Exception(error)
 
-                comment_text += f"\n----\n_Generated on {generation.get('timestamp', 'N/A')} by TicketToTest AI_"
-            else:
-                # Azure DevOps uses HTML
-                comment_text = f"<h3>\U0001f9ea Test Cases Generated by TicketToTest AI</h3>"
-                comment_text += f"<p><strong>Total Test Cases:</strong> {len(test_cases)}<br>"
-                comment_text += f"<strong>Coverage Gaps:</strong> {len(coverage_gaps)}<br>"
-                comment_text += f"<strong>Risk Areas:</strong> {len(risk_areas)}</p>"
+            return {'message': f'Comment added to {ticket_id} successfully'}
 
-                if priority_counts:
-                    comment_text += "<h4>Priority Distribution</h4><table><tr><th>Priority</th><th>Count</th></tr>"
-                    for p in sorted(priority_counts.keys()):
-                        comment_text += f"<tr><td>{p}</td><td>{priority_counts[p]}</td></tr>"
-                    comment_text += "</table>"
-
-                if category_counts:
-                    comment_text += "<h4>Test Categories</h4><table><tr><th>Category</th><th>Count</th></tr>"
-                    for c in sorted(category_counts.keys()):
-                        comment_text += f"<tr><td>{c}</td><td>{category_counts[c]}</td></tr>"
-                    comment_text += "</table>"
-
-                if test_cases:
-                    comment_text += "<h4>Test Case Summary</h4><table><tr><th>ID</th><th>Priority</th><th>Category</th><th>Title</th></tr>"
-                    for tc in test_cases[:20]:
-                        tc_id = tc.get('id', tc.get('title', '')[:8])
-                        comment_text += f"<tr><td>{tc_id}</td><td>{tc.get('priority', 'P2')}</td><td>{tc.get('category', '')}</td><td>{tc.get('title', '')}</td></tr>"
-                    comment_text += "</table>"
-                    if len(test_cases) > 20:
-                        comment_text += f"<p><em>...and {len(test_cases) - 20} more test cases. See attached Excel for full details.</em></p>"
-
-                if coverage_gaps:
-                    comment_text += "<h4>Coverage Gaps</h4><ul>"
-                    for gap in coverage_gaps[:10]:
-                        comment_text += f"<li>{gap}</li>"
-                    comment_text += "</ul>"
-
-                if risk_areas:
-                    comment_text += "<h4>Risk Areas</h4><ul>"
-                    for risk in risk_areas[:10]:
-                        comment_text += f"<li>\u26a0\ufe0f {risk}</li>"
-                    comment_text += "</ul>"
-
-                comment_text += f"<hr><p><em>Generated on {generation.get('timestamp', 'N/A')} by TicketToTest AI</em></p>"
-
-        success, error = integration_service.post_comment_to_ticket(
-            integration_type=integration_type,
-            ticket_id=ticket_id,
-            comment=comment_text,
-            user_id=user_id if not team_id else None,
-            team_id=team_id
-        )
-
-        if error:
-            return jsonify({'error': error}), 400
-
-        return jsonify({'message': f'Comment added to {ticket_id} successfully'}), 200
+        job_id = start_sync_job(add_comment_job_logic)
+        return jsonify({'job_id': job_id}), 202
 
     except Exception as e:
         logger.error(f"Sync add comment error: {e}")
         return jsonify({'error': f'Failed to add comment: {str(e)}'}), 500
-
 
 
 # New: Async job-based sync_full
@@ -2241,14 +2248,21 @@ def sync_full_job(current_user):
             raise Exception('Sync cancelled by user')
         excel_buffer = export_to_excel_bytes(state)
         filename = get_excel_filename(state)
+        # Check for cancellation again right before the blocking Jira/Azure API call
+        if is_sync_job_cancelled(job_id):
+            raise Exception('Sync cancelled by user')
         success, error = integration_service.attach_excel_to_ticket(
             integration_type=integration_type,
             ticket_id=ticket_id,
             excel_buffer=excel_buffer,
             filename=filename,
             user_id=user_id if not team_id else None,
-            team_id=team_id
+            team_id=team_id,
+            cancel_check=lambda: is_sync_job_cancelled(job_id)
         )
+        # cancelled inside the blocking connect() window
+        if error == "cancelled":
+            raise Exception('Sync cancelled by user')
         results['attach_excel'] = success
         if error:
             results['errors'].append(f"Attach Excel: {error}")
@@ -2270,13 +2284,20 @@ def sync_full_job(current_user):
             comment += f"<p><strong>{total}</strong> test cases generated | <strong>{gaps}</strong> coverage gaps | <strong>{risks}</strong> risk areas</p>"
             comment += f"<p><em>Full test case Excel report has been attached to this ticket.</em></p>"
             comment += f"<hr><p><em>Generated on {generation.get('timestamp', 'N/A')}</em></p>"
+        # Check for cancellation right before the blocking comment API call
+        if is_sync_job_cancelled(job_id):
+            raise Exception('Sync cancelled by user')
         success2, error2 = integration_service.post_comment_to_ticket(
             integration_type=integration_type,
             ticket_id=ticket_id,
             comment=comment,
             user_id=user_id if not team_id else None,
-            team_id=team_id
+            team_id=team_id,
+            cancel_check=lambda: is_sync_job_cancelled(job_id)
         )
+        # cancelled inside the blocking connect() window
+        if error2 == "cancelled":
+            raise Exception('Sync cancelled by user')
         results['add_comment'] = success2
         if error2:
             results['errors'].append(f"Add comment: {error2}")

@@ -321,10 +321,16 @@ class IntegrationService:
 
     def attach_excel_to_ticket(self, integration_type: str, ticket_id: str,
                                excel_buffer, filename: str,
-                               user_id: int = None, team_id: int = None) -> tuple:
+                               user_id: int = None, team_id: int = None,
+                               cancel_check=None) -> tuple:
         """
         Attach an Excel file (BytesIO) to a ticket.
         Returns (success: bool, error: str or None).
+
+        cancel_check: optional callable() -> bool. When it returns True the
+        operation is aborted after the blocking connect() finishes but before
+        the file upload starts, allowing the caller to raise a cancellation
+        exception even when the network round-trip took several seconds.
         """
         creds = self.get_credentials(integration_type, user_id=user_id, team_id=team_id)
         if not creds:
@@ -335,8 +341,14 @@ class IntegrationService:
             if not integration:
                 return False, f"Unknown integration type: {integration_type}"
 
+            # connect() is the main blocking call (TCP + TLS + auth handshake).
+            # Check for cancellation immediately after it returns so that any
+            # cancel flag set during that network wait is respected.
             if not integration.connect():
                 return False, "Failed to connect. Check your credentials."
+
+            if cancel_check and cancel_check():
+                return False, "cancelled"
 
             # Write BytesIO to a temp file (integration APIs need file paths)
             tmp_dir = tempfile.mkdtemp()
@@ -363,10 +375,14 @@ class IntegrationService:
 
     def post_comment_to_ticket(self, integration_type: str, ticket_id: str,
                                comment: str,
-                               user_id: int = None, team_id: int = None) -> tuple:
+                               user_id: int = None, team_id: int = None,
+                               cancel_check=None) -> tuple:
         """
         Post a comment to a ticket.
         Returns (success: bool, error: str or None).
+
+        cancel_check: optional callable() -> bool, same semantics as in
+        attach_excel_to_ticket.
         """
         creds = self.get_credentials(integration_type, user_id=user_id, team_id=team_id)
         if not creds:
@@ -379,6 +395,9 @@ class IntegrationService:
 
             if not integration.connect():
                 return False, "Failed to connect. Check your credentials."
+
+            if cancel_check and cancel_check():
+                return False, "cancelled"
 
             success = integration.post_comment(ticket_id, comment)
             if success:

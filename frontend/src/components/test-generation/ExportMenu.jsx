@@ -1,9 +1,12 @@
 /**
  * ExportMenu Component
  * Dropdown menu + dialog for exporting to Xray, Zephyr Scale, TestRail
+ *
+ * The trigger button stays disabled (muted) while an export is active.
+ * Status + cancel are delegated to the footer via onStatusChange.
  */
-import { useState } from 'react';
-import { UploadCloud, Settings, XCircle, Loader } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { UploadCloud, Settings } from 'lucide-react';
 import { testManagementAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -26,10 +29,24 @@ const ExportMenu = ({ generationId, ticketId, onClose, onStatusChange }) => {
     performExport(tool, exportSuiteName);
   };
 
+  /** Exposed cancel handler — passed to the footer badge via onStatusChange */
+  const handleCancelExport = useCallback(async () => {
+    if (cancelExportFn && !cancelingExport) {
+      setCancelingExport(true);
+      if (onStatusChange) onStatusChange({ active: true, text: 'Cancelling export...', cancelling: true, onCancel: null });
+      try {
+        await cancelExportFn();
+      } catch {
+        toast.error('Failed to cancel export');
+        if (onStatusChange) onStatusChange({ active: false, text: '' });
+        setCancelingExport(false);
+      }
+    }
+  }, [cancelExportFn, cancelingExport, onStatusChange]);
+
   const performExport = async (tool, suiteName) => {
     setExporting(tool);
     setCancelingExport(false);
-    if (onStatusChange) onStatusChange({ active: true, text: 'Exporting to test tool...' });
     setShowMenu(false);
     setShowDialog(false);
     try {
@@ -45,6 +62,20 @@ const ExportMenu = ({ generationId, ticketId, onClose, onStatusChange }) => {
         ticketId || null
       );
       setCancelExportFn(() => cancel);
+      // Notify footer: active with cancel callback
+      if (onStatusChange) onStatusChange({ active: true, text: 'Exporting to test tool...', cancelling: false, onCancel: () => {
+        // Wrap so it uses latest ref
+        setCancelingExport(prev => {
+          if (!prev) {
+            if (onStatusChange) onStatusChange({ active: true, text: 'Cancelling export...', cancelling: true, onCancel: null });
+            cancel().catch(() => {
+              toast.error('Failed to cancel export');
+              if (onStatusChange) onStatusChange({ active: false, text: '' });
+            });
+          }
+          return true;
+        });
+      }});
       const result = await promise;
 
       if (tool === 'xray') {
@@ -107,49 +138,20 @@ const ExportMenu = ({ generationId, ticketId, onClose, onStatusChange }) => {
     }
   };
 
-  const handleCancelExport = async () => {
-    if (cancelExportFn && !cancelingExport) {
-      setCancelingExport(true);
-      if (onStatusChange) onStatusChange({ active: true, text: 'Cancelling export...' });
-      try {
-        await cancelExportFn();
-      } catch {
-        toast.error('Failed to cancel export');
-        if (onStatusChange) onStatusChange({ active: false, text: '' });
-        setCancelingExport(false);
-      }
-    }
-  };
-
   return (
     <>
       <div className="relative inline-block">
         <button
-          onClick={() => {
-            if (exporting) {
-              handleCancelExport();
-            } else {
-              setShowMenu(!showMenu);
-            }
-          }}
-          disabled={(!!exporting && !cancelExportFn) || cancelingExport}
+          onClick={() => setShowMenu(!showMenu)}
+          disabled={!!exporting}
           className={`flex items-center gap-2 px-3 py-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm ${
             exporting
-              ? 'bg-red-600 hover:bg-red-800 disabled:bg-red-300'
+              ? 'bg-purple-400 cursor-not-allowed'
               : 'bg-purple-600 hover:bg-purple-700'
           }`}
         >
-          {exporting ? (
-            <>
-              {cancelingExport ? <Loader size={16} className="animate-spin" /> : <XCircle size={16} />}
-              {cancelingExport ? 'Cancelling...' : cancelExportFn ? 'Cancel Export' : 'Exporting...'}
-            </>
-          ) : (
-            <>
-              <UploadCloud size={16} />
-              Export to Test Tool
-            </>
-          )}
+          <UploadCloud size={16} />
+          Export to Test Tool
         </button>
         {showMenu && (
           <>

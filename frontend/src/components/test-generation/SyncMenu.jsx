@@ -1,6 +1,9 @@
 /**
  * SyncMenu Component
  * Dropdown menu for syncing test results to Jira/Azure DevOps tickets
+ *
+ * The trigger button stays disabled (muted) while a sync is active.
+ * Status + cancel are delegated to the footer via OperationStatusBadge.
  */
 import { useState } from 'react';
 import {
@@ -8,8 +11,6 @@ import {
   RefreshCw,
   Paperclip,
   MessageSquare,
-  XCircle,
-  Loader,
 } from 'lucide-react';
 
 const SyncMenu = ({ 
@@ -18,9 +19,6 @@ const SyncMenu = ({
   canSync, 
   syncing, 
   onSync,
-  onCancelSync,
-  canCancelSync = false,
-  cancelingSync = false,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -29,31 +27,16 @@ const SyncMenu = ({
   return (
     <div className="relative">
       <button
-        onClick={() => {
-          if (syncing) {
-            onCancelSync?.();
-          } else {
-            setShowMenu(!showMenu);
-          }
-        }}
-        disabled={(!!syncing && !canCancelSync) || cancelingSync}
+        onClick={() => setShowMenu(!showMenu)}
+        disabled={!!syncing}
         className={`flex items-center gap-2 px-3 py-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm ${
           syncing
-            ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-300'
+            ? 'bg-blue-400 cursor-not-allowed'
             : 'bg-blue-600 hover:bg-blue-700'
         }`}
       >
-        {syncing ? (
-          <>
-            {cancelingSync ? <Loader size={16} className="animate-spin" /> : <XCircle size={16} />}
-            {cancelingSync ? 'Cancelling...' : canCancelSync ? 'Cancel Sync' : 'Syncing...'}
-          </>
-        ) : (
-          <>
-            <Send size={16} />
-            Sync to {integrationLabel}
-          </>
-        )}
+        <Send size={16} />
+        Sync to {integrationLabel}
       </button>
       {showMenu && !syncing && (
         <>

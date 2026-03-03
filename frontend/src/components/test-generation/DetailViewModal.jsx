@@ -11,7 +11,6 @@ import {
   Calendar,
   ExternalLink,
   X,
-  Loader,
   ClipboardList,
   Target,
   CheckCircle,
@@ -28,7 +27,7 @@ import {
 } from "lucide-react";
 import { integrationAPI } from "../../services/api";
 import toast from "react-hot-toast";
-import { AccordionSection } from "../common";
+import { AccordionSection, OperationStatusBadge } from "../common";
 import SyncMenu from "./SyncMenu";
 import ExportMenu from "./ExportMenu";
 import RefineMenu from "./RefineMenu";
@@ -85,36 +84,27 @@ const DetailViewModal = ({
     setCancelingSync(false);
     queuedSyncCancelRef.current = false;
     try {
-      if (action === "full") {
-        // Use new cancelable sync job for full sync
-        const { promise, cancel } = integrationAPI.getCancelableSync(
-          sourceIntegration,
-          gen.ticket_id,
-          gen.id,
-          action,
-        );
-        setSyncCancelFn(() => cancel);
-        if (queuedSyncCancelRef.current) {
-          await cancel();
-        }
-        await promise;
-        setSyncCancelFn(null);
-        toast.success(`Synced to ${gen.ticket_id} successfully`);
-      } else if (action === "attach") {
-        await integrationAPI.attachExcel(
-          sourceIntegration,
-          gen.ticket_id,
-          gen.id,
-        );
-        toast.success(`Excel attached to ${gen.ticket_id}`);
-      } else if (action === "comment") {
-        await integrationAPI.addComment(
-          sourceIntegration,
-          gen.ticket_id,
-          gen.id,
-        );
-        toast.success(`Comment added to ${gen.ticket_id}`);
+      // All three actions now go through the job system and are cancellable
+      const { promise, cancel } = integrationAPI.getCancelableSync(
+        sourceIntegration,
+        gen.ticket_id,
+        gen.id,
+        action,
+      );
+      setSyncCancelFn(() => cancel);
+      if (queuedSyncCancelRef.current) {
+        await cancel();
       }
+      await promise;
+      setSyncCancelFn(null);
+
+      const successMessages = {
+        full:    `Synced to ${gen.ticket_id} successfully`,
+        attach:  `Excel attached to ${gen.ticket_id}`,
+        comment: `Comment added to ${gen.ticket_id}`,
+      };
+      toast.success(successMessages[action] ?? `Synced to ${gen.ticket_id} successfully`);
+
       // Close modal after successful sync
       setTimeout(() => {
         onClose();
@@ -261,9 +251,6 @@ const DetailViewModal = ({
               canSync={canSync}
               syncing={syncing}
               onSync={handleSync}
-              onCancelSync={handleCancelSync}
-              canCancelSync={syncing === "full"}
-              cancelingSync={cancelingSync}
             />
             <RefineMenu
               generationId={gen.id}
@@ -610,30 +597,43 @@ const DetailViewModal = ({
             {testCases.length} test cases &middot;{" "}
             {Object.keys(qaRoadmap).length} strategy categories &middot;{" "}
             {coverageGaps.length} gaps identified
-            {syncing && (
-              <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-blue-200 bg-blue-50 text-blue-700 font-medium">
-                <Loader size={12} className="animate-spin" />
-                {cancelingSync
+
+            {/* Sync badge */}
+            <OperationStatusBadge
+              active={!!syncing}
+              text={
+                cancelingSync
                   ? "Cancelling sync..."
                   : syncing === "full"
                     ? "Syncing to ticket..."
                     : syncing === "attach"
                       ? "Attaching Excel..."
-                      : "Adding comment..."}
-              </span>
-            )}
-            {exportBadge.active && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-purple-200 bg-purple-50 text-purple-700 font-medium">
-                <Loader size={12} className="animate-spin" />
-                {exportBadge.text}
-              </span>
-            )}
-            {refineBadge.active && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 font-medium">
-                <Loader size={12} className="animate-spin" />
-                {refineBadge.text}
-              </span>
-            )}
+                      : syncing === "comment"
+                        ? "Adding comment..."
+                        : ""
+              }
+              cancelling={cancelingSync}
+              onCancel={syncing && !cancelingSync ? handleCancelSync : null}
+              color="blue"
+            />
+
+            {/* Export badge */}
+            <OperationStatusBadge
+              active={exportBadge.active}
+              text={exportBadge.text}
+              cancelling={exportBadge.cancelling}
+              onCancel={exportBadge.onCancel}
+              color="purple"
+            />
+
+            {/* Refine badge */}
+            <OperationStatusBadge
+              active={refineBadge.active}
+              text={refineBadge.text}
+              cancelling={refineBadge.cancelling}
+              onCancel={refineBadge.onCancel}
+              color="indigo"
+            />
           </div>
           <div className="flex items-center gap-2">
             <button

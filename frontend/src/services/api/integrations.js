@@ -91,11 +91,19 @@ export const integrationAPI = {
     return response.data;
   },
 
-  /** Start a cancellable full sync job (returns {promise, cancel}) */
+  /** Start a cancellable sync job for any action (returns {promise, cancel})
+   *  action: 'full' | 'attach' | 'comment'
+   */
   getCancelableSync: (integrationType, ticketId, generationId, action = 'full') => {
-    if (action !== 'full') {
-      throw new Error('Only full sync supports cancellation in this implementation');
-    }
+    const endpointMap = {
+      full:    '/integrations/sync/full-sync',
+      attach:  '/integrations/sync/attach-excel',
+      comment: '/integrations/sync/add-comment',
+    };
+
+    const endpoint = endpointMap[action];
+    if (!endpoint) throw new Error(`Unknown sync action: ${action}`);
+
     let jobId = null;
     let _resolve = null;
     let _reject = null;
@@ -106,7 +114,7 @@ export const integrationAPI = {
 
     (async () => {
       try {
-        const response = await apiClient.post('/integrations/sync/full-sync', {
+        const response = await apiClient.post(endpoint, {
           integration_type: integrationType,
           ticket_id: ticketId,
           generation_id: generationId,
@@ -128,14 +136,14 @@ export const integrationAPI = {
               signal: _pollController.signal,
             });
           } catch (e) {
-            if (_cancelled || e.code === 'ERR_CANCELED') return; // _reject already called
+            if (_cancelled || e.code === 'ERR_CANCELED') return;
             if (_reject) { _reject(e); _reject = null; }
             return;
           }
           const status = res.data.status;
-          if (status === 'completed') { if (_resolve) _resolve(res.data.result); return; }
-          if (status === 'error') { if (_reject) { _reject(new Error(res.data.error || 'Sync failed')); _reject = null; } return; }
-          if (status === 'cancelled') { if (_reject) { _reject(new Error('sync_cancelled')); _reject = null; } return; }
+          if (status === 'completed') { if (_resolve) { _resolve(res.data.result); _resolve = null; } return; }
+          if (status === 'error')     { if (_reject)  { _reject(new Error(res.data.error || 'Sync failed')); _reject = null; } return; }
+          if (status === 'cancelled') { if (_reject)  { _reject(new Error('sync_cancelled')); _reject = null; } return; }
           await new Promise((r) => setTimeout(r, 1000));
         }
       } catch (e) {
@@ -146,7 +154,6 @@ export const integrationAPI = {
     const cancel = async () => {
       _cancelled = true;
       if (_pollController) _pollController.abort();
-      // Immediately unblock the awaiting caller
       if (_reject) { _reject(new Error('sync_cancelled')); _reject = null; }
       if (jobId) apiClient.post(`/integrations/sync/cancel/${jobId}`).catch(() => {});
     };

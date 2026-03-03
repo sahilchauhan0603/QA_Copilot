@@ -1,6 +1,9 @@
 /**
  * RefineMenu Component
  * Dropdown menu + dialog for refining test generation results
+ *
+ * The trigger button stays disabled (muted) while a refinement is active.
+ * Status + cancel are delegated to the footer via onStatusChange.
  */
 import { useState, useRef } from 'react';
 import {
@@ -11,8 +14,6 @@ import {
   ShieldAlert,
   ListChecks,
   FileText,
-  XCircle,
-  Loader,
   Settings,
 } from 'lucide-react';
 import { testGenAPI } from '../../services/api';
@@ -44,7 +45,6 @@ const RefineMenu = ({ generationId, onClose, onStatusChange }) => {
     setRefining(true);
     setCancelingRefinement(false);
     cancelRequestedRef.current = false;
-    if (onStatusChange) onStatusChange({ active: true, text: 'Refining test cases...' });
     setShowDialog(false);
 
     try {
@@ -64,6 +64,26 @@ const RefineMenu = ({ generationId, onClose, onStatusChange }) => {
       );
       cancelFnRef.current = cancel;
       setCancelRefineFn(() => cancel);
+
+      // Notify footer: active with inline cancel callback
+      if (onStatusChange) onStatusChange({
+        active: true,
+        text: 'Refining test cases...',
+        cancelling: false,
+        onCancel: () => {
+          if (cancelRequestedRef.current) return;
+          cancelRequestedRef.current = true;
+          setCancelingRefinement(true);
+          if (onStatusChange) onStatusChange({ active: true, text: 'Cancelling refinement...', cancelling: true, onCancel: null });
+          cancelFnRef.current?.().then(() => {
+            toast.success('Refinement cancelled');
+          }).catch(() => {
+            toast.error('Failed to cancel');
+            if (onStatusChange) onStatusChange({ active: false, text: '' });
+            setCancelingRefinement(false);
+          });
+        },
+      });
 
       if (type === 'regenerate') {
         result = await promise;
@@ -137,51 +157,20 @@ const RefineMenu = ({ generationId, onClose, onStatusChange }) => {
     }
   };
 
-  const handleCancelRefinement = async () => {
-    if (cancelFnRef.current && !cancelingRefinement) {
-      cancelRequestedRef.current = true;
-      setCancelingRefinement(true);
-      if (onStatusChange) onStatusChange({ active: true, text: 'Cancelling refinement...' });
-      try {
-        await cancelFnRef.current();
-        toast.success('Refinement cancelled');
-      } catch (err) {
-        toast.error('Failed to cancel');
-        if (onStatusChange) onStatusChange({ active: false, text: '' });
-        setCancelingRefinement(false);
-      }
-    }
-  };
-
   return (
     <>
       <div className="relative">
         <button
-          onClick={() => {
-            if (refining) {
-              handleCancelRefinement();
-            } else {
-              setShowMenu(!showMenu);
-            }
-          }}
-          disabled={(refining && !cancelRefineFn) || cancelingRefinement}
+          onClick={() => setShowMenu(!showMenu)}
+          disabled={refining}
           className={`flex items-center gap-2 px-3 py-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm ${
             refining
-              ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-300'
+              ? 'bg-indigo-400 cursor-not-allowed'
               : 'bg-indigo-600 hover:bg-indigo-700'
           }`}
         >
-          {refining ? (
-            <>
-              {cancelingRefinement ? <Loader size={16} className="animate-spin" /> : <XCircle size={16} />}
-              {cancelingRefinement ? 'Cancelling...' : cancelRefineFn ? 'Cancel Refinement' : 'Refining...'}
-            </>
-          ) : (
-            <>
-              <Sparkles size={16} />
-              Refine Results
-            </>
-          )}
+          <Sparkles size={16} />
+          Refine Results
         </button>
         {showMenu && !refining && (
           <>
