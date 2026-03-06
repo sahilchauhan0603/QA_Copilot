@@ -14,6 +14,7 @@ const Layout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, fetchWorkspaces } = useAuthStore();
+  const [loggingOut, setLoggingOut] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // ── Inbox state ──
@@ -56,6 +57,8 @@ const Layout = ({ children }) => {
   };
 
   const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
     await logout();
     navigate('/login');
   };
@@ -203,10 +206,11 @@ const Layout = ({ children }) => {
 
                 <button
                   onClick={handleLogout}
-                  className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                  disabled={loggingOut}
+                  className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <LogOut size={16} />
-                  Logout
+                  {loggingOut ? 'Logging out...' : 'Logout'}
                 </button>
               </div>
             </div>
@@ -302,10 +306,11 @@ const Layout = ({ children }) => {
                   handleLogout();
                   setMobileMenuOpen(false);
                 }}
-                className="mx-2 w-[calc(100%-1rem)] flex items-center gap-2 px-4 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100  rounded-lg transition-colors"
+                disabled={loggingOut}
+                className="mx-2 w-[calc(100%-1rem)] flex items-center gap-2 px-4 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100  rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <LogOut size={16} />
-                Logout
+                {loggingOut ? 'Logging out...' : 'Logout'}
               </button>
             </div>
           )}

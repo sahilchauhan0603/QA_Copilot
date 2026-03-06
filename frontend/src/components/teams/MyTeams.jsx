@@ -2,11 +2,13 @@
  * My Teams Component
  * Read-only view of teams user is part of (for personal workspace)
  */
+import { useState } from 'react';
 import { Users, Crown, Shield, Calendar } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 
 const MyTeams = ({ onCreateTeam }) => {
   const { workspaces, switchWorkspace } = useAuthStore();
+  const [switching, setSwitching] = useState(null);
 
   // Get all team workspaces (filter out personal workspace)
   const myTeams = workspaces.filter(w => w.type === 'team');
@@ -42,14 +44,16 @@ const MyTeams = ({ onCreateTeam }) => {
   };
 
   const handleSwitchToTeam = async (teamId) => {
+    if (switching) return;
+    setSwitching(teamId);
     try {
       await switchWorkspace(teamId);
-      // Delay reload to allow toast to be visible
       setTimeout(() => {
         window.location.reload();
       }, 1500);
     } catch (err) {
       console.error('Failed to switch workspace:', err);
+      setSwitching(null);
     }
   };
 
@@ -144,9 +148,10 @@ const MyTeams = ({ onCreateTeam }) => {
               </div>
               <button
                 onClick={() => handleSwitchToTeam(team.id)}
-                className="btn-primary text-sm"
+                disabled={switching !== null}
+                className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Switch to Team →
+                {switching === team.id ? 'Switching...' : 'Switch to Team →'}
               </button>
             </div>
           </div>
