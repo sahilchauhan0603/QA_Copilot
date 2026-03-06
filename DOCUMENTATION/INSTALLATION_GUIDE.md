@@ -24,6 +24,10 @@ cd c:\THIS_DEVICE\VSCode\PROJECTS\QA_Copilot
 ```
 
 ### 2. Setup Python Environment
+
+> **Note:** You can skip this step entirely — `.\scripts\start_backend.ps1` automatically creates the virtual environment and installs all dependencies on first run.
+
+If you prefer to set it up manually:
 ```powershell
 # Create virtual environment
 python -m venv venv
@@ -35,11 +39,22 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-**⚠️ Important:** Ensure you see `(venv)` in your terminal before installing packages.
-
 ### 3. Setup PostgreSQL Database
 
 **Create database:**
+
+> **Troubleshooting:** If you see `psql : The term 'psql' is not recognized as the name of a cmdlet, function, script file, or operable program`, PostgreSQL's `bin` folder isn't in your PATH. Fix it one of two ways:
+>
+> **Option A — Add to PATH temporarily (for this session):**
+> ```powershell
+> $env:PATH += ";C:\Program Files\PostgreSQL\18\bin"
+> ```
+> **Option B — Use the full path directly:**
+> ```powershell
+> & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres
+> ```
+> Not sure which version? Run: `Get-ChildItem "C:\Program Files\PostgreSQL"`
+
 ```powershell
 # Login to PostgreSQL
 psql -U postgres

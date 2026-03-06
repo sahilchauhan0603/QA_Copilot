@@ -1,4 +1,5 @@
-# QA Copilot - Agentic Test Generation Platform
+| QA Copilot - Agentic Test Generation Platform | [Live Project](https://qa-copilot.onrender.com/login) |
+|:--|:--|
 
 > Transform Jira/Azure DevOps tickets into comprehensive test cases in 4-5 minutes using AI agents.
 
