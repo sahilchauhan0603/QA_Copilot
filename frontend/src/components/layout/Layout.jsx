@@ -268,14 +268,14 @@ const Layout = ({ children }) => {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1 group/name mb-0.5">
+                      <div className="flex items-center gap-1 mb-0.5">
                         <span className="text-sm font-semibold text-gray-900 truncate">
                           {user?.full_name || 'No full name set'}
                         </span>
                         <button
                           type="button"
                           onClick={() => { setNameInput(user?.full_name || ''); setEditingName(true); }}
-                          className="shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity p-0.5 text-gray-400 hover:text-primary-600"
+                          className="shrink-0 p-0.5 text-gray-400 hover:text-primary-600 transition-colors"
                           title="Edit name"
                         >
                           <Pencil size={12} />
@@ -324,12 +324,12 @@ const Layout = ({ children }) => {
                         )}
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1 group/uname mt-0.5">
+                      <div className="flex items-center gap-1 mt-0.5">
                         <span className="text-xs text-gray-600 truncate">@{user?.username}</span>
                         <button
                           type="button"
                           onClick={() => { setUsernameInput(user?.username || ''); setEditingUsername(true); }}
-                          className="shrink-0 opacity-0 group-hover/uname:opacity-100 transition-opacity p-0.5 text-gray-400 hover:text-primary-600"
+                          className="shrink-0 p-0.5 text-gray-400 hover:text-primary-600 transition-colors"
                           title="Edit username"
                         >
                           <Pencil size={11} />
@@ -488,10 +488,100 @@ const Layout = ({ children }) => {
               )}
               
               {/* Mobile User Info */}
-              <div className="px-4 py-3 bg-gray-50 rounded-lg mx-2">
-                <div className="text-sm font-medium text-gray-900">{user?.full_name || user?.username}</div>
+              <div className="px-4 py-3 bg-gray-50 rounded-lg mx-2 space-y-1">
+                {/* Mobile editable name */}
+                {editingName ? (
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] text-gray-400">Current: {user?.full_name || '—'}</p>
+                    <div className="flex items-center gap-1">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={nameInput}
+                        onChange={(e) => setNameInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false); }}
+                        className="text-sm font-semibold border border-primary-400 rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-primary-500"
+                        maxLength={100}
+                      />
+                      <button
+                        onClick={handleSaveName}
+                        disabled={savingName || !nameInput.trim()}
+                        className="shrink-0 px-2 py-0.5 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 disabled:opacity-50"
+                      >
+                        {savingName ? '…' : 'Save'}
+                      </button>
+                      <button onClick={() => setEditingName(false)} className="shrink-0 p-0.5 text-gray-400 hover:text-gray-600">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-medium text-gray-900 truncate">{user?.full_name || 'No full name set'}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setNameInput(user?.full_name || ''); setEditingName(true); }}
+                      className="shrink-0 p-0.5 text-gray-400 hover:text-primary-600 transition-colors"
+                      title="Edit name"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  </div>
+                )}
+                {/* Mobile editable username */}
+                {editingUsername ? (
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] text-gray-400">Current: @{user?.username || '—'}</p>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-500 shrink-0">@</span>
+                      <input
+                        autoFocus
+                        type="text"
+                        value={usernameInput}
+                        onChange={(e) => setUsernameInput(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveUsername(); if (e.key === 'Escape') setEditingUsername(false); }}
+                        className={`text-xs border rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 ${
+                          usernameAvail.available === false
+                            ? 'border-red-400 focus:ring-red-400'
+                            : usernameAvail.available === true
+                              ? 'border-green-400 focus:ring-green-400'
+                              : 'border-primary-400 focus:ring-primary-500'
+                        }`}
+                        maxLength={100}
+                      />
+                      <button
+                        onClick={handleSaveUsername}
+                        disabled={savingUsername || !usernameInput.trim() || usernameAvail.checking || usernameAvail.available === false}
+                        className="shrink-0 px-2 py-0.5 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 disabled:opacity-50"
+                      >
+                        {savingUsername ? '…' : 'Save'}
+                      </button>
+                      <button onClick={() => setEditingUsername(false)} className="shrink-0 p-0.5 text-gray-400 hover:text-gray-600">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    {usernameAvail.checking && <p className="text-[10px] text-gray-400 ml-3">Checking…</p>}
+                    {!usernameAvail.checking && usernameAvail.available === false && <p className="text-[10px] text-red-500 ml-3">Username already taken</p>}
+                    {!usernameAvail.checking && usernameAvail.available === true && <p className="text-[10px] text-green-600 ml-3">Username available</p>}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-gray-600 truncate">@{user?.username}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setUsernameInput(user?.username || ''); setEditingUsername(true); }}
+                      className="shrink-0 p-0.5 text-gray-400 hover:text-primary-600 transition-colors"
+                      title="Edit username"
+                    >
+                      <Pencil size={11} />
+                    </button>
+                  </div>
+                )}
                 <div className="text-xs text-gray-500">ID: {user?.user_id || user?.id || 'N/A'}</div>
-                <div className="text-xs text-gray-600">{user?.email}</div>
+                <div className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Mail size={11} />
+                  {user?.email}
+                </div>
               </div>
 
               {/* Mobile Logout Button */}

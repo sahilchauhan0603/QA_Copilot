@@ -7,7 +7,7 @@ import logging
 
 from database.auth_models import User, Team, TeamMember, UserWorkspaceContext
 from database.connection import get_db_connection
-from auth.team_service import TeamService
+from services.team_service import TeamService
 
 logger = logging.getLogger(__name__)
 

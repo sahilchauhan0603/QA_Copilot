@@ -7,7 +7,7 @@ import tempfile
 import os
 from database.connection import get_db_connection
 from database.auth_models import IntegrationCredential, IntegrationType
-from auth.encryption import EncryptionService
+from services.encryption import EncryptionService
 
 logger = logging.getLogger(__name__)
 

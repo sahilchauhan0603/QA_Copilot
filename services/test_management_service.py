@@ -8,7 +8,7 @@ import logging
 from integrations.xray_integration import XrayIntegration
 from integrations.zephyr_integration import ZephyrIntegration
 from integrations.testrail_integration import TestRailIntegration
-from auth.integration_service import IntegrationService
+from services.integration_service import IntegrationService
 
 logger = logging.getLogger(__name__)
 

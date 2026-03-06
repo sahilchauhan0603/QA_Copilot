@@ -679,7 +679,7 @@ const IntegrationSettings = () => {
               />
             </div>
             <div>
-              <label className="input-label">API Token</label>
+              <label className="input-label">API Token <span className="text-red-500">*</span></label>
               <div className="relative">
                 <input
                   type="password"
@@ -817,7 +817,7 @@ const IntegrationSettings = () => {
             </div>
             <div>
               <label className="input-label">
-                Personal Access Token (PAT)
+                Personal Access Token (PAT) <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -1153,7 +1153,7 @@ const IntegrationSettings = () => {
               />
             </div>
             <div>
-              <label className="input-label">API Key (Optional)</label>
+              <label className="input-label">API Key <span className="text-red-500">*</span></label>
               <div className="relative">
                 <input
                   type="password"
@@ -1174,9 +1174,6 @@ const IntegrationSettings = () => {
                 )}
               </div>
               <p className="input-hint">
-                Optional when already configured. Leave blank to keep your existing saved key.
-              </p>
-              <p className="input-hint">
                 <a
                   href="https://support.testrail.com/hc/en-us/articles/7077039051284-Accessing-the-TestRail-API"
                   target="_blank"
@@ -1188,7 +1185,7 @@ const IntegrationSettings = () => {
               </p>
             </div>
             <div>
-              <label className="input-label">Project ID (Optional)</label>
+              <label className="input-label">Project ID <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={testrailForm.project_id}
@@ -1197,7 +1194,7 @@ const IntegrationSettings = () => {
                 placeholder="e.g., 1"
               />
               <p className="input-hint">
-                Default project ID for test case exports
+                Project ID for test case exports
               </p>
             </div>
 

@@ -7,8 +7,8 @@ from flask import request, jsonify
 from typing import Callable, List, Optional
 import logging
 
-from auth.auth_service import AuthService
-from auth.team_service import TeamService
+from services.auth_service import AuthService
+from services.team_service import TeamService
 from database.auth_models import TeamRole
 
 logger = logging.getLogger(__name__)
@@ -208,7 +208,7 @@ def workspace_aware(f: Callable) -> Callable:
         
         user_id = kwargs['current_user']['user_id']
         
-        from auth.workspace_service import WorkspaceService
+        from services.workspace_service import WorkspaceService
         workspace_service = WorkspaceService()
         active_team_id = workspace_service.get_active_workspace(user_id)
         

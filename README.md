@@ -135,22 +135,28 @@ QA_Copilot/
 │   ├── sync_agent.py
 │   ├── test_generator.py
 │   ├── test_strategy.py
-│   ├── ticket_reader.py
-│   └── __pycache__/
+│   └── ticket_reader.py
 ├── api/                     # Flask REST API
 │   ├── __init__.py
 │   ├── decorators.py
-│   ├── server.py
-│   └── __pycache__/
-├── auth/                    # Authentication & Services
+│   ├── server.py           # Minimal app entry-point
+│   ├── shared.py            # Shared services & state
+│   └── routes/
+│       ├── __init__.py      # Blueprint registration
+│       ├── auth.py          # /api/auth/* routes
+│       ├── generation.py    # /api/test-generation/* routes
+│       ├── integrations.py  # /api/integrations/* routes
+│       ├── teams.py         # /api/teams/* routes
+│       ├── test_management.py # /api/test-management/* routes
+│       └── workspaces.py    # /api/workspaces/* routes
+├── services/                # Business logic services
 │   ├── __init__.py
 │   ├── auth_service.py
 │   ├── encryption.py
 │   ├── integration_service.py
 │   ├── team_service.py
 │   ├── test_management_service.py
-│   ├── workspace_service.py
-│   └── __pycache__/
+│   └── workspace_service.py
 ├── database/                # PostgreSQL models
 │   ├── __init__.py
 │   ├── auth_models.py
@@ -159,8 +165,7 @@ QA_Copilot/
 │   ├── db_manager.py
 │   ├── migration_schema.sql
 │   ├── models.py
-│   ├── README.md
-│   └── __pycache__/
+│   └── README.md
 ├── DOCUMENTATION/
 │   ├── DEPLOYMENT_GUIDE.md
 │   ├── INSTALLATION_GUIDE.md
@@ -195,23 +200,20 @@ QA_Copilot/
 │   ├── test_management_base.py
 │   ├── testrail_integration.py
 │   ├── xray_integration.py
-│   ├── zephyr_integration.py
-│   └── __pycache__/
+│   └── zephyr_integration.py
 ├── scripts/                 # Utility scripts
 │   ├── README.md
 │   ├── clear_database.ps1
 │   ├── run_migration.py
 │   ├── start_backend.ps1
-│   ├── start_frontend.ps1
-│   └── __pycache__/
+│   └── start_frontend.ps1
 ├── utils/
 │   ├── __init__.py
 │   ├── api_cache.py
 │   ├── api_helper.py
 │   ├── email_service.py
 │   ├── excel_exporter.py
-│   ├── rate_limiter.py
-│   └── __pycache__/
+│   └── rate_limiter.py
 ```
 
 ---
