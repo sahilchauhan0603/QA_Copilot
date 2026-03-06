@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { testGenAPI } from '../../services/api';
+import ImageUpload from './ImageUpload';
 
 const CustomInputTab = ({ onGenerate, generating }) => {
   const [customForm, setCustomForm] = useState({
@@ -22,6 +23,7 @@ const CustomInputTab = ({ onGenerate, generating }) => {
     priority: 'P2',
     acceptance_criteria: [''],
   });
+  const [screenshots, setScreenshots] = useState([]);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiGenerated, setAiGenerated] = useState(false);
   const [abortController, setAbortController] = useState(null);
@@ -106,6 +108,7 @@ const CustomInputTab = ({ onGenerate, generating }) => {
     const ticketData = {
       ...customForm,
       acceptance_criteria: customForm.acceptance_criteria.filter((ac) => ac.trim()),
+      images: screenshots,
     };
     onGenerate(ticketData);
   };
@@ -254,6 +257,9 @@ const CustomInputTab = ({ onGenerate, generating }) => {
           </button>
         </div>
       </div>
+
+      {/* Screenshots */}
+      <ImageUpload images={screenshots} onChange={setScreenshots} />
 
       {/* Actions */}
       <div className="flex gap-3 pt-4 border-t border-gray-100">

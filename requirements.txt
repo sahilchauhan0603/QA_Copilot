@@ -5,6 +5,7 @@ langgraph
 python-dotenv
 openpyxl
 requests
+Pillow
 
 # Jira / Azure DevOps Integrations
 jira

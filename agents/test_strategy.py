@@ -113,6 +113,10 @@ Be specific and actionable. Each scenario should clearly state what to test."""
         dependencies = state["dependencies"]
         risks = state["risk_areas"]
         
+        image_section = ""
+        if ticket.get("image_analysis"):
+            image_section = f"\n**Screenshot Analysis (UI Context):**\n{ticket['image_analysis']}\n"
+        
         return f"""Create a comprehensive QA roadmap for this change.
 
 **Ticket:** {ticket.get('ticket_id', 'Unknown')} - {ticket.get('title', '')}
@@ -130,5 +134,5 @@ Be specific and actionable. Each scenario should clearly state what to test."""
 
 **Risk Areas:**
 {chr(10).join(f"- {risk}" for risk in risks)}
-
+{image_section}
 Create a detailed QA roadmap organized by test categories."""

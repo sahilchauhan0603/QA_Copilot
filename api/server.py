@@ -17,6 +17,8 @@ import time
 import uuid as uuid_lib
 import json
 import threading
+import io
+import base64
 from dotenv import load_dotenv
 import traceback
 
@@ -1095,34 +1097,132 @@ def respond_to_invitation(current_user, invitation_id):
 # TEST GENERATION ENDPOINTS
 # ============================================
 
+# Allowed image MIME types for screenshot upload
+ALLOWED_IMAGE_TYPES = {'image/png', 'image/jpeg', 'image/jpg'}
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB per image
+MAX_IMAGES = 5
+
+
+def analyze_screenshots(uploaded_files):
+    """
+    Analyze uploaded screenshots using Gemini multimodal API.
+    Returns a text description of the UI elements and context found in the images.
+    """
+    try:
+        from PIL import Image as PILImage
+        
+        orch = get_orchestrator()
+        model = orch.llm_client.GenerativeModel(
+            model_name=os.getenv("LLM_MODEL", "gemini-2.0-flash-exp")
+        )
+        
+        images = []
+        for f in uploaded_files:
+            img_bytes = f.read()
+            img = PILImage.open(io.BytesIO(img_bytes))
+            images.append(img)
+            f.seek(0)  # Reset stream position
+        
+        count_label = "this UI screenshot" if len(images) == 1 else f"these {len(images)} UI screenshots"
+        
+        prompt = f"""Analyze {count_label} in detail and provide a comprehensive description covering:
+
+1. **UI Layout & Structure**: Page layout, sections, navigation elements, headers, footers
+2. **Interactive Elements**: Forms, buttons, inputs, dropdowns, checkboxes, toggles, links
+3. **Data & Content**: Any data displayed (tables, lists, cards), text content, labels
+4. **Visual States**: Error messages, validation states, loading indicators, success/failure notifications
+5. **User Workflow**: What process or task is being performed, current step in the workflow
+6. **Edge Cases Visible**: Any unusual states, empty states, boundary conditions shown
+
+Be very specific about element positions, labels, values, and states visible in the screenshot(s).
+This description will be used to generate comprehensive test cases, so include every testable detail you can observe."""
+
+        response = model.generate_content([prompt] + images)
+        
+        # Clean up PIL images
+        for img in images:
+            img.close()
+        
+        return response.text
+    except ImportError:
+        logger.warning("Pillow not installed - image analysis unavailable. Install with: pip install Pillow")
+        return "[Image analysis unavailable - Pillow library not installed]"
+    except Exception as e:
+        logger.error(f"Image analysis failed: {e}")
+        logger.error(traceback.format_exc())
+        return f"[Image analysis failed: {str(e)}]"
+
+
 @app.route('/api/test-generation/generate', methods=['POST'])
 @token_required
 def generate_tests(current_user):
     """Generate test cases from a ticket (returns job_id for SSE progress tracking)"""
     try:
-        data = request.get_json()
+        # Handle both JSON and multipart/form-data (when screenshots are uploaded)
+        uploaded_images = []
+        content_type = request.content_type or ''
+        
+        if 'multipart/form-data' in content_type:
+            # Parse ticket data from form field
+            ticket_data_str = request.form.get('ticket_data', '{}')
+            try:
+                data = json.loads(ticket_data_str)
+            except json.JSONDecodeError:
+                return jsonify({'error': 'Invalid ticket_data JSON in form'}), 400
+            
+            # Get uploaded screenshots
+            raw_files = request.files.getlist('screenshots')
+            for f in raw_files:
+                if f and f.filename:
+                    # Validate file type
+                    if f.content_type not in ALLOWED_IMAGE_TYPES:
+                        return jsonify({'error': f'Invalid image type: {f.content_type}. Allowed: PNG, JPEG, JPG'}), 400
+                    # Validate file size (read, check, seek back)
+                    f.seek(0, 2)  # Seek to end
+                    size = f.tell()
+                    f.seek(0)    # Seek back to start
+                    if size > MAX_IMAGE_SIZE:
+                        return jsonify({'error': f'Image {f.filename} exceeds 5MB limit'}), 400
+                    uploaded_images.append(f)
+            
+            if len(uploaded_images) > MAX_IMAGES:
+                return jsonify({'error': f'Maximum {MAX_IMAGES} images allowed'}), 400
+        else:
+            data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
         
         # Validate required fields
-        required_fields = ['ticket_id', 'title', 'description']
-        if not all(field in data for field in required_fields):
-            return jsonify({'error': 'Missing required fields: ticket_id, title, description'}), 400
+        required_fields = ['title']
+        if not all(field in data and data[field] for field in required_fields):
+            return jsonify({'error': 'Missing required field: title'}), 400
         
         # Get workspace context
         user_id = current_user['user_id']
         team_id = workspace_service.get_active_workspace(user_id)
         
+        # Analyze screenshots with Gemini multimodal (before creating ticket_info)
+        image_analysis = ''
+        screenshot_count = len(uploaded_images)
+        if uploaded_images:
+            logger.info(f"Analyzing {screenshot_count} screenshot(s) with Gemini multimodal...")
+            image_analysis = analyze_screenshots(uploaded_images)
+            logger.info(f"Image analysis completed ({len(image_analysis)} chars)")
+        
         # Create ticket info
         ticket_info = TicketInfo(
-            ticket_id=data['ticket_id'],
+            ticket_id=data.get('ticket_id', ''),
             title=data['title'],
-            description=data['description'],
+            description=data.get('description', ''),
             acceptance_criteria=data.get('acceptance_criteria', []),
             ticket_type=data.get('ticket_type', 'story'),
             priority=data.get('priority', 'P2'),
             status=data.get('status', 'In Progress'),
             attachments=data.get('attachments', []),
             comments=data.get('comments', []),
-            linked_tickets=data.get('linked_tickets', [])
+            linked_tickets=data.get('linked_tickets', []),
+            image_analysis=image_analysis
         )
         
         # Track the source of generation (custom input or integration)
@@ -1175,6 +1275,10 @@ def generate_tests(current_user):
                 # Inject source integration info into state for DB storage
                 if source_integration:
                     final_state['source_integration'] = source_integration
+                
+                # Store screenshot metadata
+                if screenshot_count > 0:
+                    final_state['screenshot_count'] = screenshot_count
                 
                 # Save to database
                 generation_id = db_manager.save_generation(

@@ -6,6 +6,7 @@ export { default as StatisticsCards } from './StatisticsCards';
 export { default as GenerationProgress } from './GenerationProgress';
 export { default as CustomInputTab } from './CustomInputTab';
 export { default as IntegrationTab } from './IntegrationTab';
+export { default as ImageUpload } from './ImageUpload';
 export { default as GenerationHistory } from './GenerationHistory';
 export { default as DetailViewModal } from './DetailViewModal';
 export { default as ExportMenu } from './ExportMenu';

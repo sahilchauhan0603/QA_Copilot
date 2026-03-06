@@ -238,9 +238,9 @@ const GenerationHistory = ({
           ) : (
             /* Table View */
             <div className="overflow-x-auto mb-6">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg">
                 <thead className="bg-gray-50">
-                  <tr>
+                  <tr className="divide-x divide-gray-200">
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Ticket
                     </th>
@@ -264,7 +264,7 @@ const GenerationHistory = ({
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredGenerations
                     .map((gen) => (
-                      <tr key={gen.id} className="hover:bg-gray-50">
+                      <tr key={gen.id} className="hover:bg-gray-50 divide-x divide-gray-200">
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">
                           {gen.ticket_id}
                         </td>

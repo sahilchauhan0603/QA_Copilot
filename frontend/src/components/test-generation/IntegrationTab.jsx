@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { integrationAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+import ImageUpload from './ImageUpload';
 
 const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
   const [integrationTicketId, setIntegrationTicketId] = useState('');
   const [fetchedTicket, setFetchedTicket] = useState(null);
   const [fetching, setFetching] = useState(false);
+  const [screenshots, setScreenshots] = useState([]);
 
   const isIntegrationConfigured = (type) => {
     return integrationConfigs.some((c) => c.integration_type === type && c.configured);
@@ -53,6 +55,7 @@ const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
       priority: fetchedTicket.priority || 'P2',
       acceptance_criteria: fetchedTicket.acceptance_criteria || [],
       integration_type: integrationType, // Backend expects 'integration_type'
+      images: screenshots,
     };
     onGenerate(ticketData);
   };
@@ -257,7 +260,10 @@ const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
             </div>
           )}
 
-          <div className="pt-3 border-t border-gray-100">
+          <div className="pt-3 border-t border-gray-100 space-y-4">
+            {/* Screenshots for additional context */}
+            <ImageUpload images={screenshots} onChange={setScreenshots} />
+
             <button
               onClick={handleIntegrationGenerate}
               disabled={generating}

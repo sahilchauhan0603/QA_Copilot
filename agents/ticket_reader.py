@@ -117,6 +117,10 @@ Be thorough and look for edge cases and implicit requirements."""
                 for c in ticket["comments"][:5]  # Last 5 comments
             )
         
+        image_analysis_section = ""
+        if ticket.get("image_analysis"):
+            image_analysis_section = f"\n**Screenshot Analysis (AI-generated from uploaded images):**\n{ticket['image_analysis']}"
+        
         return f"""Analyze this {ticket.get('ticket_type', 'ticket')} and extract all testable requirements.
 
 **Ticket ID:** {ticket.get('ticket_id', 'Unknown')}
@@ -127,9 +131,11 @@ Be thorough and look for edge cases and implicit requirements."""
 **Description:**
 {ticket.get('description', 'No description provided')}
 {ac_section}
+{image_analysis_section}
 {comments_section}
 
 **Attachments:** {', '.join(ticket.get('attachments', [])) or 'None'}
 **Linked Tickets:** {', '.join(ticket.get('linked_tickets', [])) or 'None'}
 
-Extract all requirements and identify gaps in acceptance criteria."""
+Extract all requirements and identify gaps in acceptance criteria.
+{('Pay special attention to the screenshot analysis above — it contains visual context from the actual UI that should inform your requirement extraction and gap analysis.' if ticket.get('image_analysis') else '')}"""

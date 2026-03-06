@@ -7,7 +7,7 @@ from datetime import datetime
 import operator
 
 
-class TicketInfo(TypedDict):
+class TicketInfo(TypedDict, total=False):
     """Structured ticket information"""
     ticket_id: str
     title: str
@@ -19,6 +19,7 @@ class TicketInfo(TypedDict):
     attachments: List[str]
     comments: List[Dict]
     linked_tickets: List[str]
+    image_analysis: str  # AI-generated analysis of uploaded screenshots
 
 
 class TestCase(TypedDict):

@@ -78,6 +78,8 @@ class DatabaseManager:
                         'status': state.get('ticket_info', {}).get('status', ''),
                         'source_integration': state.get('source_integration'),
                         'refinement': state.get('refinement'),  # Add refinement metadata
+                        'screenshot_count': state.get('screenshot_count', 0),
+                        'image_analysis': state.get('ticket_info', {}).get('image_analysis', ''),
                     },
                     user_id=user_id,
                     team_id=team_id

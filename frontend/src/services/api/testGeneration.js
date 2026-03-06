@@ -25,7 +25,24 @@ export const testGenAPI = {
 
     (async () => {
       try {
-        const response = await apiClient.post('/test-generation/generate', ticketData);
+        let response;
+        const images = ticketData.images || [];
+
+        if (images.length > 0) {
+          // Build FormData for multipart upload with images
+          const formData = new FormData();
+          const { images: _imgs, ...ticketInfo } = ticketData;
+          formData.append('ticket_data', JSON.stringify(ticketInfo));
+          images.forEach((file) => {
+            formData.append('screenshots', file);
+          });
+          response = await apiClient.post('/test-generation/generate', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+        } else {
+          response = await apiClient.post('/test-generation/generate', ticketData);
+        }
+
         jobId = response.data.job_id;
 
         if (!jobId) { _resolve(response.data); return; }

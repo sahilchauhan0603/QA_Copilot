@@ -4,7 +4,7 @@
  *   - StatisticsCards, GenerationProgress, CustomInputTab,
  *   - IntegrationTab, GenerationHistory, DetailViewModal
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -53,6 +53,9 @@ const TestGeneration = () => {
 
   // ──── Cancellation ────
   const [currentCancelFn, setCurrentCancelFn] = useState(null);
+
+  // ──── Progress bar ref for auto-scroll ────
+  const progressRef = useRef(null);
 
 
   // ──── Data Loaders ────
@@ -144,6 +147,10 @@ const TestGeneration = () => {
     setGenerating(true);
     // Initialize progress immediately for visibility
     setGenerationProgress({ progress: 5, currentLabel: 'Starting generation...', steps: {} });
+    // Scroll to progress bar after it renders
+    setTimeout(() => {
+      progressRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
     
     try {
       const { promise, cancel } = testGenAPI.generate(ticketData, handleProgressUpdate);
@@ -267,10 +274,12 @@ const TestGeneration = () => {
 
       {/* ─── Generation Progress (always visible when generating) ─── */}
       {generating && (
-        <GenerationProgress
-          generationProgress={generationProgress}
-          onCancel={handleCancelGeneration}
-        />
+        <div ref={progressRef}>
+          <GenerationProgress
+            generationProgress={generationProgress}
+            onCancel={handleCancelGeneration}
+          />
+        </div>
       )}
 
       {/* ─── New Generation Form ─── */}

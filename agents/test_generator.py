@@ -179,18 +179,22 @@ Make test cases specific, actionable, and complete."""
         ticket = state["ticket_info"]
         requirements = state["extracted_requirements"]
         
+        image_section = ""
+        if ticket.get("image_analysis"):
+            image_section = f"\n**Screenshot Context (from uploaded UI screenshots):**\n{ticket['image_analysis']}\n"
+        
         return f"""Generate detailed test cases for the {category} category.
 
 **Ticket:** {ticket.get('ticket_id')} - {ticket.get('title')}
 **Priority:** {ticket.get('priority')}
 
 **Requirements:**
-{chr(10).join(f"- {req}" for req in requirements[:10])}  # Limit for token efficiency
-
+{chr(10).join(f"- {req}" for req in requirements[:10])}
+{image_section}
 **Test Scenarios for {category}:**
 {chr(10).join(f"- {scenario}" for scenario in scenarios)}
 
-Generate complete, executable test cases for each scenario."""
+Generate complete, executable test cases for each scenario.{(' Use the screenshot analysis to create test cases that reference specific UI elements, field labels, button text, and visual states observed in the actual application.' if ticket.get('image_analysis') else '')}"""
     
     def _count_by_priority(self, test_cases: List[TestCase]) -> Dict[str, int]:
         """Count test cases by priority"""
