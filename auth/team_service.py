@@ -266,13 +266,18 @@ class TeamService:
                 
                 teams = []
                 for membership, team in memberships:
+                    # Count members in this team
+                    member_count = session.query(TeamMember).filter(
+                        TeamMember.team_id == team.id
+                    ).count()
                     teams.append({
                         'id': team.id,
                         'name': team.name,
                         'description': team.description,
                         'role': membership.role.value,
                         'joined_at': membership.joined_at.isoformat(),
-                        'created_at': team.created_at.isoformat()
+                        'created_at': team.created_at.isoformat(),
+                        'member_count': member_count
                     })
                 
                 return teams

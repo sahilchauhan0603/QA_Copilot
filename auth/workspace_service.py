@@ -60,7 +60,10 @@ class WorkspaceService:
                         'name': team['name'],
                         'type': 'team',
                         'role': team['role'],
-                        'description': team.get('description', '')
+                        'description': team.get('description', ''),
+                        'created_at': team.get('created_at'),
+                        'joined_at': team.get('joined_at'),
+                        'member_count': team.get('member_count', 0)
                     })
                 
                 return {

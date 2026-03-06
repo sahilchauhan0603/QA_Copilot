@@ -2,7 +2,7 @@
  * My Teams Component
  * Read-only view of teams user is part of (for personal workspace)
  */
-import { Users, Crown, Shield, ChevronRight } from 'lucide-react';
+import { Users, Crown, Shield, Calendar } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 
 const MyTeams = ({ onCreateTeam }) => {
@@ -30,6 +30,14 @@ const MyTeams = ({ onCreateTeam }) => {
         return 'bg-blue-100 text-blue-800 border-blue-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case 'admin':   return 'Admin';
+      case 'qa_lead': return 'QA Lead';
+      default:        return 'Member';
     }
   };
 
@@ -84,7 +92,7 @@ const MyTeams = ({ onCreateTeam }) => {
             <h3 className="font-semibold text-blue-900 mb-1">Your Teams</h3>
             <p className="text-sm text-blue-800">
               You are a member of {myTeams.length} team{myTeams.length !== 1 ? 's' : ''}. 
-              Click on a team to switch to that workspace and manage it.
+              Click <b>Switch to Team</b> on a card to switch to that workspace.
             </p>
           </div>
         </div>
@@ -93,36 +101,51 @@ const MyTeams = ({ onCreateTeam }) => {
       {/* Teams Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {myTeams.map((team) => (
-          <div
+            <div
             key={team.id}
-            onClick={() => handleSwitchToTeam(team.id)}
-            className="card hover:shadow-lg transition-all duration-200 cursor-pointer group border-2 border-transparent hover:border-primary-300"
+            className="card hover:shadow-md transition-all duration-200 border-2 border-transparent"
           >
-            <div className="flex items-start justify-between mb-3">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary-100 rounded-lg group-hover:bg-primary-200 transition-colors">
+                <div className="p-2 bg-primary-100 rounded-lg">
                   <Users size={24} className="text-primary-600" />
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900 text-lg">{team.name}</h3>
                   {team.description && (
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">{team.description}</p>
+                    <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">{team.description}</p>
                   )}
                 </div>
               </div>
-              <ChevronRight size={20} className="text-gray-400 group-hover:text-primary-600 transition-colors flex-shrink-0" />
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+            {/* Stats row */}
+            <div className="flex items-center gap-4 text-xs text-gray-500 mb-4">
+              <div className="flex items-center gap-1.5">
+                <Users size={13} />
+                <span>{team.member_count ?? '—'} member{team.member_count !== 1 ? 's' : ''}</span>
+              </div>
+              {team.created_at && (
+                <div className="flex items-center gap-1.5">
+                  <Calendar size={13} />
+                  <span>Created {new Date(team.created_at).toLocaleDateString()}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-3 border-t border-gray-100">
               <div className="flex items-center gap-2">
                 {getRoleIcon(team.role)}
-                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(team.role)}`}>
-                  {team.role === 'admin' ? 'Admin' : 
-                   team.role === 'qa_lead' ? 'QA Lead' : 
-                   'Member'}
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getRoleBadgeColor(team.role)}`}>
+                  My Role: {getRoleLabel(team.role)}
                 </span>
               </div>
-              <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+              <button
+                onClick={() => handleSwitchToTeam(team.id)}
+                className="btn-primary text-sm"
+              >
                 Switch to Team →
               </button>
             </div>
