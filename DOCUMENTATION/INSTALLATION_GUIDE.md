@@ -129,6 +129,15 @@ cd ..
 4. Create your first team (optional)
 5. Start generating test cases!
 
+### Manage Your Profile
+Access your profile by clicking the avatar circle in the top-right navigation bar:
+
+- **Upload a profile photo** — Hover over the avatar circle in the dropdown → click the camera icon → select an image (JPG, PNG, GIF, or WebP, max 2 MB)
+- **Edit your display name** — Hover over your name in the dropdown → click the pencil icon → type your new name → press **Enter** or click **Save**
+- **Edit your username** — Hover over your @username → click the pencil icon → type a new username → availability is checked in real-time (must be 3+ chars, alphanumeric/underscore only) → click **Save**
+
+> Profile photos are stored as base64 in the database. Username changes are validated for uniqueness before saving.
+
 ### Configure Integrations (Optional)
 
 #### Jira Setup:

@@ -1,4 +1,4 @@
-# TicketToTest AI - Deployment Guide
+# QA Copilot - Deployment Guide
 
 Simple deployment guide using **100% free services**:
 - **Database**: Supabase (500MB free)
@@ -24,7 +24,7 @@ Simple deployment guide using **100% free services**:
 
 2. **Create New Project**
    - Click **"New Project"**
-   - **Name**: `tickettotest-db`
+   - **Name**: `qa-copilot`
    - **Database Password**: Create strong password (save it!)
    - **Region**: Choose closest to you
    - **Plan**: Free
@@ -52,9 +52,9 @@ Run this from **your computer** to initialize the database:
 
 ```powershell
 # In your project folder
-cd c:\THIS_DEVICE\VSCode\PROJECTS\TicketToTest_AI_2
+cd c:\THIS_DEVICE\VSCode\PROJECTS\QA_Copilot
 
-# Activate virtual environment (if you have one)
+# Activate virtual environment
 .\venv\Scripts\Activate.ps1
 
 # Install dependencies (if not already installed)
@@ -81,7 +81,7 @@ You should see: **"🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!"**
    - Connect your GitHub repository
 
 2. **Configure Service**
-   - **Name**: `tickettotest-backend`
+   - **Name**: `qa-copilot-backend`
    - **Region**: Same as Supabase (e.g., Oregon)
    - **Branch**: `main`
    - **Runtime**: Python 3
@@ -112,15 +112,15 @@ You should see: **"🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!"**
    | `SMTP_USER` | Your Gmail |
    | `SMTP_PASSWORD` | Gmail app password |
    | `FROM_EMAIL` | Your email |
-   | `FROM_NAME` | `TicketToTest AI` |
+   | `FROM_NAME` | `QA Copilot` |
 
 4. **Deploy**
    - Click **"Create Web Service"**
    - Wait 5-10 minutes for first build
-   - Once live, your backend URL: `https://tickettotest-backend.onrender.com`
+   - Once live, your backend URL: `https://qa-copilot-backend.onrender.com`
 
 5. **Test Backend**
-   - Visit: `https://tickettotest-backend.onrender.com/api/health`
+   - Visit: `https://qa-copilot-backend.onrender.com/api/health`
    - Should return: `{"status":"healthy"}`
 
 ✅ Backend deployed!
@@ -134,7 +134,7 @@ You should see: **"🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!"**
    - Connect same GitHub repository
 
 2. **Configure Static Site**
-   - **Name**: `tickettotest-frontend`
+   - **Name**: `qa-copilot-frontend`
    - **Branch**: `main`
    - **Root Directory**: `frontend`
    - **Build Command**: `npm install && npm run build`
@@ -144,12 +144,12 @@ You should see: **"🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!"**
    - Click **"Advanced"**
    - Add variable:
      - **Key**: `VITE_API_URL`
-     - **Value**: `https://tickettotest-backend.onrender.com/api` (your backend URL)
+     - **Value**: `https://qa-copilot-backend.onrender.com/api` (your backend URL)
 
 4. **Deploy**
    - Click **"Create Static Site"**
    - Wait 3-5 minutes
-   - Your frontend URL: `https://tickettotest-frontend.onrender.com`
+   - Your frontend URL: `https://qa-copilot-frontend.onrender.com`
 
 5. **Fix React Router** (Important!)
    - Create file: `frontend/public/_redirects`
@@ -169,7 +169,7 @@ You should see: **"🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!"**
    - Find your backend service
    - Environment → Add/Update:
      - **Key**: `APP_URL`
-     - **Value**: `https://tickettotest-frontend.onrender.com` (your frontend URL)
+     - **Value**: `https://qa-copilot-frontend.onrender.com` (your frontend URL)
 
 2. **Save** - Render will auto-redeploy
 

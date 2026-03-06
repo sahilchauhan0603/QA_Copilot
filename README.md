@@ -14,7 +14,8 @@
 ✅ **Live Integrations** - Direct Jira & Azure DevOps connectivity with sync capabilities  
 ✅ **Test Management Export** - One-click export to Xray, Zephyr Scale, or TestRail  
 ✅ **Refine Results** - 6 refinement options to optimize test cases (minimize, focus, edge cases, coverage, simplify, regenerate)  
-✅ **Team Collaboration** - Multi-user authentication, teams, and workspace management  
+✅ **Team Collaboration** - Multi-user auth, role-based teams (Admin/QA Lead/QA Member), member search & filter, pending invitation management  
+✅ **User Profile Management** - Upload profile photo, edit display name and username with real-time uniqueness validation  
 ✅ **Excel Export** - Professional 4-sheet Excel output (Summary, Test Cases, QA Roadmap, Coverage)  
 ✅ **Version History** - PostgreSQL storage with audit trails and regeneration  
 ✅ **Real-time Progress** - SSE-based live updates during generation  
