@@ -362,6 +362,71 @@ class TeamService:
             logger.error(f"Error getting member role: {e}")
             return None
     
+    def update_team(
+        self,
+        team_id: int,
+        updated_by_user_id: int,
+        name: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Update team name and/or description.
+        Only team admins can update team details.
+        """
+        try:
+            with self.db.get_session() as session:
+                if not self.is_team_admin(updated_by_user_id, team_id):
+                    return False, "Only team admins can edit team details"
+
+                team = session.query(Team).filter(Team.id == team_id).first()
+                if not team:
+                    return False, "Team not found"
+
+                if name is not None:
+                    name = name.strip()
+                    if len(name) < 3 or len(name) > 100:
+                        return False, "Team name must be 3–100 characters"
+                    team.name = name
+
+                if description is not None:
+                    description = description.strip()
+                    if len(description) > 500:
+                        return False, "Description must be at most 500 characters"
+                    team.description = description or None
+
+                logger.info(f"Team {team_id} updated by user {updated_by_user_id}")
+                return True, None
+
+        except Exception as e:
+            logger.error(f"Error updating team: {e}")
+            return False, "Failed to update team. Please try again."
+
+    def get_team_stats(self, team_id: int) -> Dict[str, Any]:
+        """Return basic stats for a team (member count by role, created_at)."""
+        try:
+            with self.db.get_session() as session:
+                team = session.query(Team).filter(Team.id == team_id).first()
+                if not team:
+                    return {}
+
+                members = session.query(TeamMember).filter(
+                    TeamMember.team_id == team_id
+                ).all()
+
+                role_counts: Dict[str, int] = {}
+                for m in members:
+                    key = m.role.value
+                    role_counts[key] = role_counts.get(key, 0) + 1
+
+                return {
+                    'member_count': len(members),
+                    'role_counts': role_counts,
+                    'created_at': team.created_at.isoformat() if team.created_at else None,
+                }
+        except Exception as e:
+            logger.error(f"Error getting team stats: {e}")
+            return {}
+
     def delete_team(
         self,
         team_id: int,
@@ -486,6 +551,40 @@ class TeamService:
         except Exception as e:
             logger.error(f"Error creating invitation: {e}")
             return None, "Failed to create invitation. Please try again."
+
+    def get_team_pending_invitations(self, team_id: int, requested_by_user_id: int) -> Tuple[Optional[List[Dict[str, Any]]], Optional[str]]:
+        """Get all pending invitations for a team (admin only)."""
+        try:
+            if not self.is_team_admin(requested_by_user_id, team_id):
+                return None, "Only team admins can view pending invitations"
+
+            with self.db.get_session() as session:
+                invitations = (
+                    session.query(TeamInvitation, User)
+                    .join(User, TeamInvitation.invited_user_id == User.id)
+                    .filter(
+                        TeamInvitation.team_id == team_id,
+                        TeamInvitation.status == InvitationStatus.PENDING,
+                    )
+                    .order_by(TeamInvitation.created_at.desc())
+                    .all()
+                )
+
+                result = []
+                for inv, user in invitations:
+                    result.append({
+                        'id': inv.id,
+                        'invited_username': user.username,
+                        'invited_full_name': user.full_name,
+                        'invited_email': user.email,
+                        'role': inv.role.value,
+                        'sent_at': inv.created_at.isoformat(),
+                    })
+                return result, None
+
+        except Exception as e:
+            logger.error(f"Error fetching team pending invitations for team {team_id}: {e}")
+            return None, "Failed to fetch invitations"
 
     def get_pending_invitations(self, user_id: int) -> List[Dict[str, Any]]:
         """Get all pending invitations for a user (their inbox)."""

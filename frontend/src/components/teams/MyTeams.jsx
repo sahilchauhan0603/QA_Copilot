@@ -133,7 +133,7 @@ const MyTeams = ({ onCreateTeam }) => {
               {team.created_at && (
                 <div className="flex items-center gap-1.5">
                   <Calendar size={13} />
-                  <span>Created {new Date(team.created_at).toLocaleDateString()}</span>
+                  <span>Created {new Date(team.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                 </div>
               )}
             </div>

@@ -42,6 +42,16 @@ export const teamAPI = {
     return response.data;
   },
 
+  updateTeam: async (teamId, { name, description }) => {
+    const response = await apiClient.put(`/teams/${teamId}`, { name, description });
+    return response.data;
+  },
+
+  getTeamInvitations: async (teamId) => {
+    const response = await apiClient.get(`/teams/${teamId}/invitations`);
+    return response.data.invitations || [];
+  },
+
   // ── Invitations ──
 
   /** Send a team invitation (identifier = email, username, or public user ID) */

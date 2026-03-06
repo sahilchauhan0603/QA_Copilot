@@ -109,14 +109,14 @@ const TeamsPage = () => {
             <form onSubmit={handleCreateTeam} className="space-y-4">
               <div>
                 <label htmlFor="teamName" className="block text-sm font-medium text-gray-700 mb-1">
-                  Team Name <span className="text-red-500">*</span>
+                  Team Name<span className="text-red-500">*</span>
                 </label>
                 <input
                   id="teamName"
                   type="text"
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
-                  className="input-field"
+                  className="input-field bg-white text-black"
                   placeholder="e.g., QA Team Alpha"
                   minLength={3}
                   maxLength={100}
@@ -135,7 +135,7 @@ const TeamsPage = () => {
                   id="teamDesc"
                   value={teamDesc}
                   onChange={(e) => setTeamDesc(e.target.value)}
-                  className="input-field resize-none"
+                  className="input-field resize-none bg-white text-black"
                   rows={3}
                   placeholder="What does this team work on?"
                   disabled={isCreating}

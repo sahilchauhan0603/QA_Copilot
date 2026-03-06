@@ -2,7 +2,7 @@
  * Team Management Component
  * Create teams, manage members, and assign roles
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   Users,
@@ -12,6 +12,9 @@ import {
   Shield,
   X,
   ChevronDown,
+  Pencil,
+  Mail,
+  Search,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { teamAPI } from "../../services/api";
@@ -37,13 +40,33 @@ const TeamManagement = ({ onCancel }) => {
   const [roleChangeData, setRoleChangeData] = useState(null);
   const [showDeleteTeamModal, setShowDeleteTeamModal] = useState(false);
   const [teamToDelete, setTeamToDelete] = useState("");
+  const [showEditTeamModal, setShowEditTeamModal] = useState(false);
+  const [editTeamName, setEditTeamName] = useState("");
+  const [editTeamDesc, setEditTeamDesc] = useState("");
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamDesc, setNewTeamDesc] = useState("");
   const [newMemberIdentifier, setNewMemberIdentifier] = useState("");
   const [newMemberRole, setNewMemberRole] = useState("qa_member");
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberRoleFilter, setMemberRoleFilter] = useState("all");
 
-  // Get teams where user is admin
+  // Fetch pending invitations whenever active team workspace changes (admin only)
+  useEffect(() => {
+    if (
+      activeWorkspace?.type === 'team' &&
+      activeWorkspace?.role === 'admin' &&
+      activeWorkspace?.id
+    ) {
+      teamAPI.getTeamInvitations(activeWorkspace.id)
+        .then(setPendingInvitations)
+        .catch(() => setPendingInvitations([]));
+    } else {
+      setPendingInvitations([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeWorkspace?.id]);
   const adminTeams = workspaces.filter(
     (w) => w.type === "team" && w.role === "admin",
   );
@@ -200,8 +223,35 @@ const TeamManagement = ({ onCancel }) => {
     setRoleChangeData(null);
   };
 
-  const handleDeleteTeam = async () => {
-    if (!teamToDelete) {
+  const handleOpenEditTeam = () => {
+    setEditTeamName(activeWorkspace?.name || "");
+    setEditTeamDesc(activeWorkspace?.description || "");
+    setShowEditTeamModal(true);
+  };
+
+  const handleEditTeam = async (e) => {
+    e.preventDefault();
+    if (!editTeamName.trim() || editTeamName.trim().length < 3) {
+      toast.error("Team name must be at least 3 characters");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await teamAPI.updateTeam(activeWorkspace.id, {
+        name: editTeamName.trim(),
+        description: editTeamDesc.trim(),
+      });
+      toast.success("Team updated successfully!");
+      setShowEditTeamModal(false);
+      await fetchWorkspaces();
+    } catch (err) {
+      toast.error("Failed to update team. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteTeam = async () => {    if (!teamToDelete) {
       toast.error("Please select a team to delete");
       return;
     }
@@ -248,7 +298,16 @@ const TeamManagement = ({ onCancel }) => {
     <div className="space-y-4 sm:space-y-6">
       {/* Header - only show when in team workspace */}
       {!showingCreateForm && (
-        <div className="flex items-center justify-end gap-4">
+        <div className="flex items-center justify-end gap-3">
+          {activeWorkspace?.type === "team" && activeWorkspace?.role === "admin" && (
+            <button
+              onClick={handleOpenEditTeam}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center justify-center gap-2 shadow-md transition-all text-sm sm:text-base w-full sm:w-auto"
+            >
+              <Pencil size={16} />
+              <span>Edit Team</span>
+            </button>
+          )}
           {activeWorkspace?.type === "team" ? (
             <button
               onClick={() => setShowDeleteTeamModal(true)}
@@ -286,7 +345,7 @@ const TeamManagement = ({ onCancel }) => {
                 type="text"
                 value={newTeamName}
                 onChange={(e) => setNewTeamName(e.target.value)}
-                className="input"
+                className="input bg-white"
                 placeholder="e.g., QA Team Alpha"
                 required
                 minLength={3}
@@ -333,20 +392,79 @@ const TeamManagement = ({ onCancel }) => {
       {/* Team Management - shown only in team workspace */}
       {!showingCreateForm && activeWorkspace?.type === "team" && (
         <div className="card bg-primary-50 border border-primary-200">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <Users size={24} className="text-primary-600" />
-            <div className="flex-1">
-              <h3 className="font-semibold text-primary-900 text-base sm:text-lg">
-                {activeWorkspace.name}
-              </h3>
-              <p className="text-xs sm:text-sm text-primary-700">
-                Current Team Workspace · Role:{" "}
-                <span className="capitalize">
-                  {activeWorkspace.role?.replace("_", " ")}
-                </span>
-              </p>
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+            {/* Left: team info */}
+            <div className="flex gap-3 flex-1 min-w-0">
+              <Users size={24} className="text-primary-600 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-primary-900 text-base sm:text-lg">
+                  {activeWorkspace.name}
+                </h3>
+                <p className="text-xs sm:text-sm text-primary-700">
+                  Current Team Workspace · Role:{" "}
+                  <span className="capitalize font-medium">
+                    {activeWorkspace.role?.replace("_", " ")}
+                  </span>
+                </p>
+                {activeWorkspace.description && (
+                  <p className="text-sm text-gray-600 mt-1">~ {activeWorkspace.description}</p>
+                )}
+                {/* Stats row */}
+                <div className="flex flex-wrap gap-4 mt-3">
+                  {activeWorkspace.member_count != null && (
+                    <div className="flex items-center gap-1.5 text-xs text-primary-700">
+                      <Users size={13} />
+                      <span><span className="font-semibold">{activeWorkspace.member_count}</span> member{activeWorkspace.member_count !== 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  {activeWorkspace.created_at && (
+                    <div className="text-xs text-primary-600">
+                      Created{" "}
+                      <span className="font-semibold">
+                        {new Date(activeWorkspace.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
+                  {activeWorkspace.joined_at && (
+                    <div className="text-xs text-primary-600">
+                      Joined{" "}
+                      <span className="font-semibold">
+                        {new Date(activeWorkspace.joined_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
+
+            {/* Right: pending invitations panel (admin only) */}
+            {activeWorkspace.role === "admin" && (
+              <div className="shrink-0 sm:w-56 bg-white border border-primary-100 rounded-lg p-3 shadow-sm">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Mail size={14} className="text-primary-500" />
+                  <span className="text-xs font-semibold text-primary-700 uppercase tracking-wide">
+                    Pending Invitations
+                  </span>
+                  <span className="ml-auto text-xs font-bold bg-primary-100 text-primary-700 rounded-full px-2 py-0.5">
+                    {pendingInvitations.length}
+                  </span>
+                </div>
+                {pendingInvitations.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No pending invitations</p>
+                ) : (
+                  <ul className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
+                    {pendingInvitations.map((inv) => (
+                      <li key={inv.id} className="text-xs text-gray-700 truncate" title={`${inv.invited_full_name || inv.invited_username} — ${inv.invited_email}`}>
+                        <span className="font-medium">{inv.invited_full_name || inv.invited_username}</span>
+                        <span className="block text-gray-400 truncate">{inv.invited_email}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
+
           <button
             onClick={() => loadTeamMembers(activeWorkspace.id)}
             className="mt-4 btn-primary text-sm flex items-center justify-center gap-2 w-full sm:w-auto"
@@ -392,14 +510,64 @@ const TeamManagement = ({ onCancel }) => {
               </button>
             </div>
           </div>
-          {teamMembers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Users size={48} className="mx-auto mb-3 opacity-50" />
-              <p>No members found in this team</p>
+          {/* Search + Filter */}
+          <div className="flex flex-col sm:flex-row gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search by name, email, or ID…"
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm border text-black border-gray-300 rounded-lg focus:ring-2 bg-white focus:ring-primary-500 focus:border-transparent"
+              />
             </div>
-          ) : (
+            <div className="relative sm:w-44">
+              <select
+                value={memberRoleFilter}
+                onChange={(e) => setMemberRoleFilter(e.target.value)}
+                className="appearance-none w-full pl-3 pr-8 py-2 text-sm border text-black border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="all">All Roles</option>
+                <option value="admin">Admin</option>
+                <option value="qa_lead">QA Lead</option>
+                <option value="qa_member">QA Member</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {(() => {
+            const query = memberSearch.trim().toLowerCase();
+            const filtered = teamMembers.filter((m) => {
+              const matchesSearch =
+                !query ||
+                (m.full_name || m.username || "").toLowerCase().includes(query) ||
+                (m.email || "").toLowerCase().includes(query) ||
+                (m.public_user_id || "").toLowerCase().includes(query);
+              const matchesRole =
+                memberRoleFilter === "all" || m.role === memberRoleFilter;
+              return matchesSearch && matchesRole;
+            });
+
+            if (teamMembers.length === 0) {
+              return (
+                <div className="text-center py-8 text-gray-500">
+                  <Users size={48} className="mx-auto mb-3 opacity-50" />
+                  <p>No members found in this team</p>
+                </div>
+              );
+            }
+            if (filtered.length === 0) {
+              return (
+                <div className="text-center py-8 text-gray-400">
+                  <p className="text-sm">No members match your search</p>
+                </div>
+              );
+            }
+            return (
             <div className="space-y-3">
-              {teamMembers.map((member) => (
+              {filtered.map((member) => (
                 <div
                   key={member.user_id}
                   className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
@@ -462,7 +630,8 @@ const TeamManagement = ({ onCancel }) => {
                 </div>
               ))}
             </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
@@ -803,6 +972,83 @@ const TeamManagement = ({ onCancel }) => {
                       </button>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Edit Team Modal */}
+            {showEditTeamModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-gray-900">Edit Team</h3>
+                    <button
+                      onClick={() => setShowEditTeamModal(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+                  <form onSubmit={handleEditTeam} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Team Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editTeamName}
+                        onChange={(e) => setEditTeamName(e.target.value)}
+                        className="input"
+                        placeholder="e.g., QA Team Alpha"
+                        required
+                        minLength={3}
+                        maxLength={100}
+                        autoFocus
+                      />
+                      <p className="text-xs text-gray-500 mt-1">3–100 characters</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Description
+                      </label>
+                      <textarea
+                        value={editTeamDesc}
+                        onChange={(e) => setEditTeamDesc(e.target.value)}
+                        className="input"
+                        rows={3}
+                        placeholder="Brief description of the team's purpose..."
+                        maxLength={500}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Max 500 characters</p>
+                    </div>
+                    <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowEditTeamModal(false)}
+                        className="btn-secondary w-full sm:w-auto"
+                        disabled={isLoading}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isLoading || !editTeamName.trim()}
+                        className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
+                      >
+                        {isLoading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Pencil size={15} />
+                            Save Changes
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
             )}

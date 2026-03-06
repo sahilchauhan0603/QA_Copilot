@@ -842,10 +842,10 @@ def create_team(current_user):
         return jsonify({'error': 'Failed to create team'}), 500
 
 
-@app.route('/api/teams/<int:team_id>', methods=['GET', 'DELETE'])
+@app.route('/api/teams/<int:team_id>', methods=['GET', 'PUT', 'DELETE'])
 @token_required
 def team_operations(current_user, team_id):
-    """Get or delete team details"""
+    """Get, update, or delete team details"""
     if request.method == 'GET':
         # Get team details - requires team membership
         if not team_service.is_team_member(current_user['user_id'], team_id):
@@ -854,16 +854,47 @@ def team_operations(current_user, team_id):
         try:
             members = team_service.get_team_members(team_id)
             user_role = team_service.get_member_role(current_user['user_id'], team_id)
+            stats = team_service.get_team_stats(team_id)
             
             return jsonify({
                 'team_id': team_id,
                 'members': members,
-                'your_role': user_role.value if user_role else None
+                'your_role': user_role.value if user_role else None,
+                'stats': stats,
             }), 200
             
         except Exception as e:
             logger.error(f"Get team error: {e}")
             return jsonify({'error': 'Failed to get team details'}), 500
+
+    elif request.method == 'PUT':
+        # Update team name/description - admin only
+        if not team_service.is_team_admin(current_user['user_id'], team_id):
+            return jsonify({'error': 'Access denied: Admin privileges required'}), 403
+
+        try:
+            data = request.get_json() or {}
+            name = data.get('name')
+            description = data.get('description')
+
+            if name is None and description is None:
+                return jsonify({'error': 'No fields to update'}), 400
+
+            success, error = team_service.update_team(
+                team_id=team_id,
+                updated_by_user_id=current_user['user_id'],
+                name=name,
+                description=description,
+            )
+
+            if error:
+                return jsonify({'error': error}), 400
+
+            return jsonify({'message': 'Team updated successfully'}), 200
+
+        except Exception as e:
+            logger.error(f"Update team error: {e}")
+            return jsonify({'error': 'Failed to update team'}), 500
     
     elif request.method == 'DELETE':
         # Delete team - requires admin privileges
@@ -991,6 +1022,19 @@ def update_member_role(current_user, team_id, user_id):
 # ============================================
 # TEAM INVITATION ENDPOINTS
 # ============================================
+
+@app.route('/api/teams/<int:team_id>/invitations', methods=['GET'])
+@token_required
+def get_team_invitations(current_user, team_id):
+    """Get pending invitations for a team (admin only)"""
+    invitations, error = team_service.get_team_pending_invitations(
+        team_id=team_id,
+        requested_by_user_id=current_user['user_id'],
+    )
+    if error:
+        return jsonify({'error': error}), 403
+    return jsonify({'invitations': invitations}), 200
+
 
 @app.route('/api/invitations/send', methods=['POST'])
 @token_required

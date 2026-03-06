@@ -92,7 +92,10 @@ const GenerationProgress = ({ generationProgress, onCancel }) => {
       </div>
 
       {currentLabel && (
-        <div className="mt-3 text-sm text-gray-600 text-center italic">{currentLabel}</div>
+        <div className="mt-3 flex items-center justify-center gap-2 text-sm text-gray-600 italic">
+          {currentLabel}
+          <Loader size={14} className="animate-spin text-primary-600 shrink-0" />
+        </div>
       )}
     </div>
   );
