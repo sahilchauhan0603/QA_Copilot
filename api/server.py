@@ -665,16 +665,24 @@ def get_current_user(current_user):
 @app.route('/api/auth/profile', methods=['PUT'])
 @token_required
 def update_profile(current_user):
-    """Update the current user's full name"""
+    """Update the current user's full name and/or username"""
     try:
-        data = request.get_json()
-        full_name = (data or {}).get('full_name', '').strip()
-        if not full_name:
-            return jsonify({'error': 'full_name is required'}), 400
+        data = request.get_json() or {}
+        full_name = data.get('full_name', '').strip() or None
+        username = data.get('username', '').strip() or None
 
-        ok, err = auth_service.update_user_name(current_user['user_id'], full_name)
-        if not ok:
-            return jsonify({'error': err}), 400
+        if not full_name and not username:
+            return jsonify({'error': 'At least one of full_name or username is required'}), 400
+
+        if full_name:
+            ok, err = auth_service.update_user_name(current_user['user_id'], full_name)
+            if not ok:
+                return jsonify({'error': err}), 400
+
+        if username:
+            ok, err = auth_service.update_user_username(current_user['user_id'], username)
+            if not ok:
+                return jsonify({'error': err}), 400
 
         profile = auth_service.get_user_profile(current_user['user_id'])
         return jsonify({'user': profile}), 200

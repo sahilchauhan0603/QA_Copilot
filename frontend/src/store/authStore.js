@@ -216,14 +216,14 @@ const useAuthStore = create(
         return workspaces.find(w => w.id === activeWorkspace) || null;
       },
 
-      updateProfile: async (fullName) => {
+      updateProfile: async ({ fullName, username } = {}) => {
         try {
-          const data = await authAPI.updateProfile(fullName);
+          const data = await authAPI.updateProfile({ fullName, username });
           set((state) => ({ user: { ...state.user, ...data.user } }));
-          toast.success('Name updated!');
+          toast.success(username ? 'Username updated!' : 'Name updated!');
           return { success: true };
         } catch (error) {
-          const msg = error.response?.data?.error || 'Failed to update name';
+          const msg = error.response?.data?.error || 'Failed to update profile';
           toast.error(msg);
           return { success: false, error: msg };
         }

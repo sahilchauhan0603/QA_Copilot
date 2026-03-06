@@ -22,6 +22,12 @@ const Layout = ({ children }) => {
   const [nameInput, setNameInput] = useState('');
   const [savingName, setSavingName] = useState(false);
 
+  // ── Edit username state ──
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [usernameAvail, setUsernameAvail] = useState({ available: null, checking: false });
+
   // ── Avatar upload state ──
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef(null);
@@ -68,9 +74,45 @@ const Layout = ({ children }) => {
   const handleSaveName = async () => {
     if (!nameInput.trim() || savingName) return;
     setSavingName(true);
-    await updateProfile(nameInput.trim());
+    await updateProfile({ fullName: nameInput.trim() });
     setSavingName(false);
     setEditingName(false);
+  };
+
+  // Debounced username availability check (skip if unchanged)
+  useEffect(() => {
+    const val = usernameInput.trim();
+    if (!editingUsername || !val || val.length < 3 || val === user?.username) {
+      setUsernameAvail({ available: null, checking: false });
+      return;
+    }
+    setUsernameAvail((p) => ({ ...p, checking: true }));
+    const timer = setTimeout(async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const res = await fetch(`${API_URL}/auth/check-availability`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: val }),
+        });
+        const data = await res.json();
+        setUsernameAvail({ available: data.username_available ?? null, checking: false });
+      } catch {
+        setUsernameAvail({ available: null, checking: false });
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [usernameInput, editingUsername, user?.username]);
+
+  const handleSaveUsername = async () => {
+    const val = usernameInput.trim();
+    if (!val || savingUsername) return;
+    if (usernameAvail.checking) return;
+    if (usernameAvail.available === false) return;
+    setSavingUsername(true);
+    const result = await updateProfile({ username: val });
+    setSavingUsername(false);
+    if (result.success) setEditingUsername(false);
   };
 
   const handleAvatarFileChange = async (e) => {
@@ -240,9 +282,60 @@ const Layout = ({ children }) => {
                         </button>
                       </div>
                     )}
-                    <div className="text-xs text-gray-600 truncate mt-0.5">
-                      @{user?.username}
-                    </div>
+                    {/* Editable username row */}
+                    {editingUsername ? (
+                      <div className="mt-0.5">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500 shrink-0">@</span>
+                          <input
+                            autoFocus
+                            type="text"
+                            value={usernameInput}
+                            onChange={(e) => setUsernameInput(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveUsername(); if (e.key === 'Escape') setEditingUsername(false); }}
+                            className={`text-xs text-gray-700 border rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 ${
+                              usernameAvail.available === false
+                                ? 'border-red-400 focus:ring-red-400'
+                                : usernameAvail.available === true
+                                  ? 'border-green-400 focus:ring-green-400'
+                                  : 'border-primary-400 focus:ring-primary-500'
+                            }`}
+                            maxLength={100}
+                          />
+                          <button
+                            onClick={handleSaveUsername}
+                            disabled={savingUsername || !usernameInput.trim() || usernameAvail.checking || usernameAvail.available === false}
+                            className="shrink-0 px-2 py-0.5 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 disabled:opacity-50"
+                          >
+                            {savingUsername ? '…' : 'Save'}
+                          </button>
+                          <button onClick={() => setEditingUsername(false)} className="shrink-0 p-0.5 text-gray-400 hover:text-gray-600">
+                            <X size={14} />
+                          </button>
+                        </div>
+                        {usernameAvail.checking && (
+                          <p className="text-[10px] text-gray-400 mt-0.5 ml-3">Checking…</p>
+                        )}
+                        {!usernameAvail.checking && usernameAvail.available === false && (
+                          <p className="text-[10px] text-red-500 mt-0.5 ml-3">Username already taken</p>
+                        )}
+                        {!usernameAvail.checking && usernameAvail.available === true && (
+                          <p className="text-[10px] text-green-600 mt-0.5 ml-3">Username available</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 group/uname mt-0.5">
+                        <span className="text-xs text-gray-600 truncate">@{user?.username}</span>
+                        <button
+                          type="button"
+                          onClick={() => { setUsernameInput(user?.username || ''); setEditingUsername(true); }}
+                          className="shrink-0 opacity-0 group-hover/uname:opacity-100 transition-opacity p-0.5 text-gray-400 hover:text-primary-600"
+                          title="Edit username"
+                        >
+                          <Pencil size={11} />
+                        </button>
+                      </div>
+                    )}
                     <div className="text-xs text-gray-500 truncate mt-0.5">
                       ID: {user?.user_id || user?.id || 'N/A'}
                     </div>

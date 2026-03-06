@@ -50,8 +50,11 @@ export const authAPI = {
     return response.data;
   },
 
-  updateProfile: async (fullName) => {
-    const response = await apiClient.put('/auth/profile', { full_name: fullName });
+  updateProfile: async ({ fullName, username } = {}) => {
+    const body = {};
+    if (fullName !== undefined) body.full_name = fullName;
+    if (username !== undefined) body.username = username;
+    const response = await apiClient.put('/auth/profile', body);
     return response.data;
   },
 

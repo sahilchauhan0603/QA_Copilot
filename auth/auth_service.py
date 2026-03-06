@@ -927,6 +927,33 @@ class AuthService:
             logger.error(f"Error updating user name: {e}")
             return False, "Failed to update name"
 
+    def update_user_username(self, user_id: int, username: str) -> Tuple[bool, Optional[str]]:
+        """Update a user's username (must be unique, 3-100 chars, alphanumeric/underscores)."""
+        import re
+        username = username.strip()
+        if not username or len(username) < 3 or len(username) > 100:
+            return False, "Username must be between 3 and 100 characters"
+        if not re.match(r'^[a-zA-Z0-9_]+$', username):
+            return False, "Username can only contain letters, numbers, and underscores"
+        try:
+            with self.db.get_session() as session:
+                # Check uniqueness
+                existing = session.query(User).filter(
+                    User.username == username,
+                    User.id != user_id
+                ).first()
+                if existing:
+                    return False, "Username is already taken"
+                user = session.query(User).filter(User.id == user_id, User.is_active == True).first()
+                if not user:
+                    return False, "User not found"
+                user.username = username
+                session.commit()
+                return True, None
+        except Exception as e:
+            logger.error(f"Error updating username: {e}")
+            return False, "Failed to update username"
+
     def update_user_avatar(self, user_id: int, avatar_data_url: str) -> Tuple[bool, Optional[str]]:
         """Store a base64 avatar data URL for the user."""
         # Sanity check: must be a data URL image
