@@ -903,8 +903,46 @@ class AuthService:
                     'user_id': user.public_user_id,
                     'username': user.username,
                     'email': user.email,
-                    'full_name': user.full_name
+                    'full_name': user.full_name,
+                    'avatar_url': user.avatar_url,
                 }
         except Exception as e:
             logger.error(f"Error getting user profile: {e}")
             return None
+
+    def update_user_name(self, user_id: int, full_name: str) -> Tuple[bool, Optional[str]]:
+        """Update a user's full name."""
+        full_name = full_name.strip()
+        if not full_name or len(full_name) > 255:
+            return False, "Full name must be between 1 and 255 characters"
+        try:
+            with self.db.get_session() as session:
+                user = session.query(User).filter(User.id == user_id, User.is_active == True).first()
+                if not user:
+                    return False, "User not found"
+                user.full_name = full_name
+                session.commit()
+                return True, None
+        except Exception as e:
+            logger.error(f"Error updating user name: {e}")
+            return False, "Failed to update name"
+
+    def update_user_avatar(self, user_id: int, avatar_data_url: str) -> Tuple[bool, Optional[str]]:
+        """Store a base64 avatar data URL for the user."""
+        # Sanity check: must be a data URL image
+        if not avatar_data_url.startswith("data:image/"):
+            return False, "Invalid image data"
+        # Rough size cap: ~1 MB base64
+        if len(avatar_data_url) > 1_400_000:
+            return False, "Image is too large (max ~1 MB)"
+        try:
+            with self.db.get_session() as session:
+                user = session.query(User).filter(User.id == user_id, User.is_active == True).first()
+                if not user:
+                    return False, "User not found"
+                user.avatar_url = avatar_data_url
+                session.commit()
+                return True, None
+        except Exception as e:
+            logger.error(f"Error updating user avatar: {e}")
+            return False, "Failed to save avatar"

@@ -49,4 +49,14 @@ export const authAPI = {
     const response = await apiClient.get('/auth/me');
     return response.data;
   },
+
+  updateProfile: async (fullName) => {
+    const response = await apiClient.put('/auth/profile', { full_name: fullName });
+    return response.data;
+  },
+
+  uploadAvatar: async (avatarDataUrl) => {
+    const response = await apiClient.post('/auth/avatar', { avatar_data_url: avatarDataUrl });
+    return response.data;
+  },
 };

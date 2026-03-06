@@ -41,6 +41,7 @@ class User(Base):
     username = Column(String(100), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=True)   # nullable for OAuth-only accounts
     full_name = Column(String(255))
+    avatar_url = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     email_verified = Column(Boolean, default=False, nullable=False)
     email_verified_at = Column(DateTime(timezone=True), nullable=True)

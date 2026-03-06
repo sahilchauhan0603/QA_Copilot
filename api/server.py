@@ -662,6 +662,48 @@ def get_current_user(current_user):
         return jsonify({'error': 'Failed to get user information'}), 500
 
 
+@app.route('/api/auth/profile', methods=['PUT'])
+@token_required
+def update_profile(current_user):
+    """Update the current user's full name"""
+    try:
+        data = request.get_json()
+        full_name = (data or {}).get('full_name', '').strip()
+        if not full_name:
+            return jsonify({'error': 'full_name is required'}), 400
+
+        ok, err = auth_service.update_user_name(current_user['user_id'], full_name)
+        if not ok:
+            return jsonify({'error': err}), 400
+
+        profile = auth_service.get_user_profile(current_user['user_id'])
+        return jsonify({'user': profile}), 200
+    except Exception as e:
+        logger.error(f"Update profile error: {e}")
+        return jsonify({'error': 'Failed to update profile'}), 500
+
+
+@app.route('/api/auth/avatar', methods=['POST'])
+@token_required
+def update_avatar(current_user):
+    """Upload / replace profile avatar (accepts base64 data URL in JSON body)"""
+    try:
+        data = request.get_json()
+        avatar_data_url = (data or {}).get('avatar_data_url', '').strip()
+        if not avatar_data_url:
+            return jsonify({'error': 'avatar_data_url is required'}), 400
+
+        ok, err = auth_service.update_user_avatar(current_user['user_id'], avatar_data_url)
+        if not ok:
+            return jsonify({'error': err}), 400
+
+        profile = auth_service.get_user_profile(current_user['user_id'])
+        return jsonify({'user': profile}), 200
+    except Exception as e:
+        logger.error(f"Update avatar error: {e}")
+        return jsonify({'error': 'Failed to save avatar'}), 500
+
+
 @app.route('/api/auth/forgot-password', methods=['POST'])
 def forgot_password():
     """Request password reset email"""

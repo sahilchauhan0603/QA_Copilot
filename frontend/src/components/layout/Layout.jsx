@@ -2,9 +2,9 @@
  * Layout Component
  * Shared layout with navigation for authenticated pages
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogOut, Menu, X, Home, TestTube, Users, Settings, UserCircle2, Mail, Inbox, Check, XCircle } from 'lucide-react';
+import { LogOut, Menu, X, Home, TestTube, Users, Settings, UserCircle2, Mail, Inbox, Check, XCircle, Pencil, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
 import { teamAPI } from '../../services/api';
@@ -13,9 +13,18 @@ import WorkspaceSelector from './WorkspaceSelector';
 const Layout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, fetchWorkspaces } = useAuthStore();
+  const { user, logout, fetchWorkspaces, updateProfile, uploadAvatar } = useAuthStore();
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // ── Edit name state ──
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [savingName, setSavingName] = useState(false);
+
+  // ── Avatar upload state ──
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
 
   // ── Inbox state ──
   const [invitations, setInvitations] = useState([]);
@@ -54,6 +63,30 @@ const Layout = ({ children }) => {
     } finally {
       setRespondingId(null);
     }
+  };
+
+  const handleSaveName = async () => {
+    if (!nameInput.trim() || savingName) return;
+    setSavingName(true);
+    await updateProfile(nameInput.trim());
+    setSavingName(false);
+    setEditingName(false);
+  };
+
+  const handleAvatarFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error('Image must be under 2 MB'); return; }
+    setUploadingAvatar(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      await uploadAvatar(ev.target.result);
+      setUploadingAvatar(false);
+    };
+    reader.readAsDataURL(file);
+    // reset so same file can be re-selected
+    e.target.value = '';
   };
 
   const handleLogout = async () => {
@@ -115,13 +148,26 @@ const Layout = ({ children }) => {
             </div>
             
             {/* Desktop User Menu */}
-            <div className="hidden md:block relative group">    
+            <div className="hidden md:block relative group">
+              {/* hidden file input for avatar */}
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarFileChange}
+              />
+
               <button
-                className="relative w-8 h-8 rounded-full bg-white text-gray-600 hover:bg-blue-50 transition-colors flex items-center justify-center"
+                className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-transparent hover:border-primary-400 transition-colors flex items-center justify-center bg-primary-100 text-primary-700 font-semibold text-sm"
                 aria-label="Open profile menu"
                 aria-haspopup="menu"
               >
-                <UserCircle2 size={30} />
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <span>{(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}</span>
+                )}
                 {invitationCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
                     {invitationCount > 9 ? '9+' : invitationCount}
@@ -132,13 +178,68 @@ const Layout = ({ children }) => {
               <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-lg p-3 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 transition-all duration-150 z-50">
                 {/* User info */}
                 <div className="flex items-start gap-3 pb-3 border-b border-gray-100">
-                  <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-semibold">
-                    {(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-gray-900 truncate">
-                      {user?.full_name || 'No full name set'}
-                    </div>
+                  {/* Avatar with camera-on-hover */}
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    className="relative w-12 h-12 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-semibold text-lg shrink-0 group/avatar overflow-hidden"
+                    title="Change profile picture"
+                  >
+                    {user?.avatar_url ? (
+                      <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}</span>
+                    )}
+                    <span className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                      {uploadingAvatar
+                        ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        : <Camera size={16} className="text-white" />}
+                    </span>
+                  </button>
+
+                  <div className="min-w-0 flex-1">
+                    {/* Editable name row */}
+                    {editingName ? (
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={nameInput}
+                          onChange={(e) => setNameInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false); }}
+                          className="text-sm font-semibold text-gray-900 border border-primary-400 rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-primary-500"
+                          maxLength={255}
+                        />
+                        <button
+                          onClick={handleSaveName}
+                          disabled={savingName || !nameInput.trim()}
+                          className="shrink-0 px-2 py-0.5 bg-primary-600 text-white text-xs rounded hover:bg-primary-700 disabled:opacity-50"
+                        >
+                          {savingName ? '…' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => setEditingName(false)}
+                          className="shrink-0 p-0.5 text-gray-400 hover:text-gray-600"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 group/name mb-0.5">
+                        <span className="text-sm font-semibold text-gray-900 truncate">
+                          {user?.full_name || 'No full name set'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { setNameInput(user?.full_name || ''); setEditingName(true); }}
+                          className="shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity p-0.5 text-gray-400 hover:text-primary-600"
+                          title="Edit name"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      </div>
+                    )}
                     <div className="text-xs text-gray-600 truncate mt-0.5">
                       @{user?.username}
                     </div>

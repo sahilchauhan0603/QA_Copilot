@@ -215,6 +215,32 @@ const useAuthStore = create(
         }
         return workspaces.find(w => w.id === activeWorkspace) || null;
       },
+
+      updateProfile: async (fullName) => {
+        try {
+          const data = await authAPI.updateProfile(fullName);
+          set((state) => ({ user: { ...state.user, ...data.user } }));
+          toast.success('Name updated!');
+          return { success: true };
+        } catch (error) {
+          const msg = error.response?.data?.error || 'Failed to update name';
+          toast.error(msg);
+          return { success: false, error: msg };
+        }
+      },
+
+      uploadAvatar: async (avatarDataUrl) => {
+        try {
+          const data = await authAPI.uploadAvatar(avatarDataUrl);
+          set((state) => ({ user: { ...state.user, ...data.user } }));
+          toast.success('Profile picture updated!');
+          return { success: true };
+        } catch (error) {
+          const msg = error.response?.data?.error || 'Failed to upload avatar';
+          toast.error(msg);
+          return { success: false, error: msg };
+        }
+      },
     }),
     {
       name: 'auth-storage',

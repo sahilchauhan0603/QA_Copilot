@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
+    avatar_url TEXT,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     email_verified BOOLEAN DEFAULT FALSE NOT NULL,
     email_verified_at TIMESTAMP WITH TIME ZONE,
