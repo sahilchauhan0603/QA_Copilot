@@ -86,7 +86,7 @@ You should see: **"🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!"**
    - **Branch**: `main`
    - **Runtime**: Python 3
    - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `gunicorn --workers 4 --bind 0.0.0.0:$PORT --timeout 120 api.server:app`
+   - **Start Command**: `PYTHONPATH=backend gunicorn --workers 4 --bind 0.0.0.0:$PORT --timeout 120 api.server:app`
    - **Instance Type**: Free
 
 3. **Add Environment Variables**
@@ -99,6 +99,7 @@ You should see: **"🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!"**
    | `FLASK_SECRET_KEY` | Random string | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
    | `JWT_SECRET_KEY` | Random string | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
    | `ENCRYPTION_KEY` | Fernet key | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+   | `PYTHONPATH` | `backend` | Required — tells Python where to find backend packages |
    | `LLM_MODEL` | `gemini-2.0-flash-exp` | |
    | `LLM_TEMPERATURE` | `0.3` | |
    | `FLASK_DEBUG` | `false` | |

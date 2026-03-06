@@ -4,11 +4,11 @@ Used for encrypting/decrypting user credentials for integrations
 """
 import os
 from cryptography.fernet import Fernet
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import json
 import logging
 
-load_dotenv()
+load_dotenv(find_dotenv(usecwd=False))
 logger = logging.getLogger(__name__)
 
 

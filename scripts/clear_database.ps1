@@ -16,7 +16,7 @@ if ($confirm -ne "yes") {
 
 $projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $venvPython = Join-Path $projectRoot "venv\Scripts\python.exe"
-$resetSql = Join-Path $projectRoot "database\clear_database.sql"
+$resetSql = Join-Path $projectRoot "backend\database\clear_database.sql"
 
 if (-not (Test-Path $venvPython)) {
     Write-Host "[ERROR] venv python not found at: $venvPython" -ForegroundColor Red
@@ -38,13 +38,13 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
 project_root = Path(r"$projectRoot")
-load_dotenv(dotenv_path=project_root / ".env")
+load_dotenv(dotenv_path=project_root / "backend" / ".env")
 
 database_url = os.getenv("DATABASE_URL")
 if not database_url:
     raise SystemExit("DATABASE_URL not found in .env")
 
-sql_path = project_root / "database" / "clear_database.sql"
+sql_path = project_root / "backend" / "database" / "clear_database.sql"
 sql = sql_path.read_text(encoding="utf-8")
 
 engine = create_engine(database_url)

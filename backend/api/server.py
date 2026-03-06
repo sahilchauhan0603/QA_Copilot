@@ -12,13 +12,13 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 import logging
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
 from database.connection import init_database
 from api.routes import register_blueprints
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from backend/.env
+load_dotenv(find_dotenv(usecwd=False))
 
 # Configure logging
 logging.basicConfig(

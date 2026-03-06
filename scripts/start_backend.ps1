@@ -6,6 +6,9 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $projectRoot
 
+# Set PYTHONPATH so Python can find all backend packages
+$env:PYTHONPATH = "$projectRoot\backend"
+
 Write-Host "==================================" -ForegroundColor Cyan
 Write-Host "QA Copilot - Backend Setup" -ForegroundColor Cyan
 Write-Host "==================================" -ForegroundColor Cyan
@@ -34,14 +37,14 @@ Write-Host "Installing dependencies..." -ForegroundColor Yellow
 & $venvPython -m pip install -r requirements.txt
 
 # Check if .env exists
-if (-not (Test-Path ".env")) {
+if (-not (Test-Path "backend\.env")) {
     Write-Host ""
     Write-Host "ERROR: .env file not found!" -ForegroundColor Red
-    Write-Host "Please copy .env.example to .env and configure it:" -ForegroundColor Yellow
+    Write-Host "Please copy backend\.env.example to backend\.env and configure it:" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "  Copy-Item .env.example .env" -ForegroundColor Cyan
+    Write-Host "  Copy-Item backend\.env.example backend\.env" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Then edit .env with your credentials:" -ForegroundColor Yellow
+    Write-Host "Then edit backend\.env with your credentials:" -ForegroundColor Yellow
     Write-Host "  - GOOGLE_API_KEY (required)" -ForegroundColor Yellow
     Write-Host "  - DATABASE_URL (required)" -ForegroundColor Yellow
     Write-Host "  - JWT_SECRET_KEY (required)" -ForegroundColor Yellow
@@ -55,7 +58,7 @@ if (-not (Test-Path ".env")) {
 # Generate encryption key if needed
 Write-Host ""
 Write-Host "Checking encryption key..." -ForegroundColor Yellow
-$envContent = Get-Content .env -Raw
+$envContent = Get-Content backend\.env -Raw
 if ($envContent -notmatch "ENCRYPTION_KEY=(?!your-fernet)[\w\-_]+") {
     Write-Host ""
     Write-Host "WARNING: ENCRYPTION_KEY not properly configured!" -ForegroundColor Yellow
@@ -71,7 +74,7 @@ if ($envContent -notmatch "ENCRYPTION_KEY=(?!your-fernet)[\w\-_]+") {
 # Initialize database
 Write-Host ""
 Write-Host "Initializing database..." -ForegroundColor Yellow
-& $venvPython -c "from database.connection import init_database; init_database()"
+& $venvPython -c "import sys; sys.path.insert(0, r'$projectRoot\backend'); from database.connection import init_database; init_database()"
 
 Write-Host ""
 Write-Host "==================================" -ForegroundColor Green
@@ -82,5 +85,5 @@ Write-Host "Starting API server..." -ForegroundColor Yellow
 Write-Host "Server will be available at: http://localhost:5000" -ForegroundColor Cyan
 Write-Host ""
 
-# Start server
+# Start server (run from project root; PYTHONPATH points to backend/)
 & $venvPython -m api.server

@@ -10,8 +10,11 @@ This script runs:
 import sys
 import os
 
-# Add parent directory to path so we can import from database module
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add backend directory to path so we can import from database module
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+backend_dir = os.path.join(project_root, 'backend')
+sys.path.insert(0, backend_dir)
 
 from database.connection import get_db_connection
 from sqlalchemy import text
@@ -21,7 +24,7 @@ def read_sql_file(filename):
     """Read SQL file from database directory"""
     sql_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        'database',
+        'backend', 'database',
         filename
     )
     with open(sql_path, 'r', encoding='utf-8') as f:

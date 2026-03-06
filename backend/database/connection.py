@@ -7,12 +7,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import QueuePool
 from contextlib import contextmanager
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import logging
 
 from database.auth_models import Base
 
-load_dotenv()
+load_dotenv(find_dotenv(usecwd=False))
 logger = logging.getLogger(__name__)
 
 

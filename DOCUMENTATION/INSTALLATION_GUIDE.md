@@ -66,7 +66,7 @@ CREATE DATABASE qa_copilot;
 \q
 ```
 
-**Update connection string in `.env`:**
+**Update connection string in `backend/.env`:**
 ```env
 DATABASE_URL=postgresql://postgres:your_password@localhost:5432/qa_copilot
 ```
@@ -80,10 +80,10 @@ python scripts/run_migration.py
 
 **Copy template:**
 ```powershell
-Copy-Item .env.example .env
+Copy-Item backend\.env.example backend\.env
 ```
 
-**Edit `.env` with your credentials:**
+**Edit `backend/.env` with your credentials:**
 ```env
 # Google Gemini API
 GOOGLE_API_KEY=your-gemini-api-key-here
@@ -270,7 +270,7 @@ python scripts/run_migration.py
 
 ## Performance Tips
 
-- Use `gemini-2.0-flash-exp` for faster generation (set in `.env`)
+- Use `gemini-2.0-flash-exp` for faster generation (set in `backend/.env`)
 - Close unnecessary browser tabs during generation
 - Ensure stable internet connection (agents make multiple API calls)
 

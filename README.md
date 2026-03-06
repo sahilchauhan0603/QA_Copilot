@@ -126,51 +126,67 @@ Five specialized agents working autonomously in sequence:
 QA_Copilot/
 ├── README.md
 ├── requirements.txt
-├── agents/                  # AI agent system
-│   ├── __init__.py
-│   ├── context_builder.py
-│   ├── coverage_auditor.py
-│   ├── orchestrator.py
-│   ├── refine_agent.py
-│   ├── state.py
-│   ├── sync_agent.py
-│   ├── test_generator.py
-│   ├── test_strategy.py
-│   └── ticket_reader.py
-├── api/                     # Flask REST API
-│   ├── __init__.py
-│   ├── decorators.py
-│   ├── server.py           # Minimal app entry-point
-│   ├── shared.py            # Shared services & state
-│   └── routes/
-│       ├── __init__.py      # Blueprint registration
-│       ├── auth.py          # /api/auth/* routes
-│       ├── generation.py    # /api/test-generation/* routes
-│       ├── integrations.py  # /api/integrations/* routes
-│       ├── teams.py         # /api/teams/* routes
-│       ├── test_management.py # /api/test-management/* routes
-│       └── workspaces.py    # /api/workspaces/* routes
-├── services/                # Business logic services
-│   ├── __init__.py
-│   ├── auth_service.py
-│   ├── encryption.py
-│   ├── integration_service.py
-│   ├── team_service.py
-│   ├── test_management_service.py
-│   └── workspace_service.py
-├── database/                # PostgreSQL models
-│   ├── __init__.py
-│   ├── auth_models.py
-│   ├── clear_database.sql
-│   ├── connection.py
-│   ├── db_manager.py
-│   ├── migration_schema.sql
-│   ├── models.py
-│   └── README.md
-├── DOCUMENTATION/
-│   ├── DEPLOYMENT_GUIDE.md
-│   ├── INSTALLATION_GUIDE.md
-│   └── TEST_MANAGEMENT_INTEGRATION.md
+├── backend/                 # All backend Python code
+│   ├── .env                 # Environment variables (not committed)
+│   ├── .env.example         # Environment variable template
+│   ├── agents/              # AI agent system
+│   │   ├── __init__.py
+│   │   ├── context_builder.py
+│   │   ├── coverage_auditor.py
+│   │   ├── orchestrator.py
+│   │   ├── refine_agent.py
+│   │   ├── state.py
+│   │   ├── sync_agent.py
+│   │   ├── test_generator.py
+│   │   ├── test_strategy.py
+│   │   └── ticket_reader.py
+│   ├── api/                 # Flask REST API
+│   │   ├── __init__.py
+│   │   ├── decorators.py
+│   │   ├── server.py        # Minimal app entry-point
+│   │   ├── shared.py        # Shared services & state
+│   │   └── routes/
+│   │       ├── __init__.py      # Blueprint registration
+│   │       ├── auth.py          # /api/auth/* routes
+│   │       ├── generation.py    # /api/test-generation/* routes
+│   │       ├── integrations.py  # /api/integrations/* routes
+│   │       ├── teams.py         # /api/teams/* routes
+│   │       ├── test_management.py # /api/test-management/* routes
+│   │       └── workspaces.py    # /api/workspaces/* routes
+│   ├── services/            # Business logic services
+│   │   ├── __init__.py
+│   │   ├── auth_service.py
+│   │   ├── encryption.py
+│   │   ├── integration_service.py
+│   │   ├── team_service.py
+│   │   ├── test_management_service.py
+│   │   └── workspace_service.py
+│   ├── database/            # PostgreSQL models & migrations
+│   │   ├── __init__.py
+│   │   ├── auth_models.py
+│   │   ├── clear_database.sql
+│   │   ├── connection.py
+│   │   ├── db_manager.py
+│   │   ├── migration_schema.sql
+│   │   ├── models.py
+│   │   └── README.md
+│   ├── integrations/        # Ticket & Test Management connectors
+│   │   ├── __init__.py
+│   │   ├── azure_devops_integration.py
+│   │   ├── base.py
+│   │   ├── jira_integration.py
+│   │   ├── manager.py
+│   │   ├── test_management_base.py
+│   │   ├── testrail_integration.py
+│   │   ├── xray_integration.py
+│   │   └── zephyr_integration.py
+│   └── utils/
+│       ├── __init__.py
+│       ├── api_cache.py
+│       ├── api_helper.py
+│       ├── email_service.py
+│       ├── excel_exporter.py
+│       └── rate_limiter.py
 ├── frontend/                # React UI (Vite)
 │   ├── index.html
 │   ├── package.json
@@ -192,29 +208,16 @@ QA_Copilot/
 │       ├── pages/
 │       ├── services/
 │       └── store/
-├── integrations/            # Ticket & Test Management
-│   ├── __init__.py
-│   ├── azure_devops_integration.py
-│   ├── base.py
-│   ├── jira_integration.py
-│   ├── manager.py
-│   ├── test_management_base.py
-│   ├── testrail_integration.py
-│   ├── xray_integration.py
-│   └── zephyr_integration.py
-├── scripts/                 # Utility scripts
-│   ├── README.md
-│   ├── clear_database.ps1
-│   ├── run_migration.py
-│   ├── start_backend.ps1
-│   └── start_frontend.ps1
-├── utils/
-│   ├── __init__.py
-│   ├── api_cache.py
-│   ├── api_helper.py
-│   ├── email_service.py
-│   ├── excel_exporter.py
-│   └── rate_limiter.py
+├── DOCUMENTATION/
+│   ├── DEPLOYMENT_GUIDE.md
+│   ├── INSTALLATION_GUIDE.md
+│   └── TEST_MANAGEMENT_INTEGRATION.md
+└── scripts/                 # Utility scripts
+    ├── README.md
+    ├── clear_database.ps1
+    ├── run_migration.py
+    ├── start_backend.ps1
+    └── start_frontend.ps1
 ```
 
 ---
@@ -232,7 +235,8 @@ QA_Copilot/
 
 ## 🗺️ Roadmap
 
-- [ ] Webhook monitoring for auto-regeneration on ticket updates
+- [ ] Web crawling feature to analyze websites and automatically generate test cases.
+- [ ] Webhook monitoring for auto-regeneration on ticket updates.
 
 ---
 

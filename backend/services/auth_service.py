@@ -11,13 +11,13 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, Dict, Any
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import logging
 
 from database.auth_models import User, UserSession, PasswordResetToken, EmailVerificationToken
 from database.connection import get_db_connection
 
-load_dotenv()
+load_dotenv(find_dotenv(usecwd=False))
 logger = logging.getLogger(__name__)
 
 
