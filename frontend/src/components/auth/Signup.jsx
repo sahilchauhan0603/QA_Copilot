@@ -43,6 +43,15 @@ const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Detect if this window is the OAuth popup callback (evaluated once, before first paint)
+  const [isPopupCallback] = useState(
+    () =>
+      window.opener != null &&
+      window.opener !== window &&
+      (window.location.hash.includes('access_token') ||
+        new URLSearchParams(window.location.search).has('code')),
+  );
+
   // Google OAuth state
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showUsernameForm, setShowUsernameForm] = useState(false);
@@ -216,6 +225,22 @@ const Signup = () => {
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
+    const isOAuthRedirect =
+      window.location.hash.includes('access_token') ||
+      new URLSearchParams(window.location.search).has('code');
+
+    // ── Popup callback: relay session to opener window, then close ──
+    if (window.opener && window.opener !== window && isOAuthRedirect) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        window.opener.postMessage(
+          { type: 'GOOGLE_OAUTH_RESULT', session: session || null },
+          window.location.origin,
+        );
+        window.close();
+      });
+      return;
+    }
+
     const handleOAuthCallback = async (session) => {
       if (!session) return;
       if (oauthHandled.current) return;   // already handled
@@ -246,9 +271,6 @@ const Signup = () => {
     // Only trigger if we're actually returning from an OAuth redirect
     // AND we were the ones who started the flow (sessionStorage flag)
     const initiated = sessionStorage.getItem('google_oauth_initiated');
-    const isOAuthRedirect =
-      window.location.hash.includes('access_token') ||
-      new URLSearchParams(window.location.search).has('code');
 
     if (!initiated || !isOAuthRedirect) {
       // Clean up stale flag (e.g. user pressed back without completing auth)
@@ -261,22 +283,94 @@ const Signup = () => {
       handleOAuthCallback(session);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); 
 
   const handleGoogleSignIn = async () => {
     if (!isSupabaseConfigured) return;
     setGoogleLoading(true);
     try {
-      sessionStorage.setItem('google_oauth_initiated', '1');
-      await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin + '/signup',
           queryParams: { access_type: 'offline', prompt: 'select_account' },
+          skipBrowserRedirect: true,
         },
       });
+
+      if (error || !data?.url) {
+        setGoogleLoading(false);
+        return;
+      }
+
+      // Open Google sign-in in a centered popup instead of redirecting
+      const w = 500, h = 640;
+      const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
+      const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
+      const popup = window.open(
+        data.url,
+        'google-signin-popup',
+        `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`,
+      );
+
+      if (!popup) {
+        // Popup blocked — fall back to full-page redirect
+        sessionStorage.setItem('google_oauth_initiated', '1');
+        await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin + '/signup',
+            queryParams: { access_type: 'offline', prompt: 'select_account' },
+          },
+        });
+        return;
+      }
+
+      let pollInterval;
+      const cleanup = () => {
+        window.removeEventListener('message', onMessage);
+        clearInterval(pollInterval);
+      };
+
+      const onMessage = async (event) => {
+        if (event.origin !== window.location.origin) return;
+        if (event.data?.type !== 'GOOGLE_OAUTH_RESULT') return;
+        cleanup();
+        const { session } = event.data;
+        if (!session) {
+          setGoogleLoading(false);
+          return;
+        }
+        try {
+          const result = await googleLogin(session.access_token);
+          if (result.success) {
+            navigate('/dashboard');
+          } else if (result.needsUsername) {
+            setGoogleProfile({ email: result.email, fullName: result.fullName || '' });
+            setOauthToken(session.access_token);
+            setNewUsername(
+              (result.fullName || result.email.split('@')[0])
+                .toLowerCase()
+                .replace(/[^a-z0-9_]/g, '_')
+                .slice(0, 30),
+            );
+            setShowUsernameForm(true);
+          }
+        } finally {
+          setGoogleLoading(false);
+        }
+      };
+
+      window.addEventListener('message', onMessage);
+
+      // Detect if user manually closes the popup without completing sign-in
+      pollInterval = setInterval(() => {
+        if (popup.closed) {
+          cleanup();
+          setGoogleLoading(false);
+        }
+      }, 500);
     } catch {
-      sessionStorage.removeItem('google_oauth_initiated');
       setGoogleLoading(false);
     }
   };
@@ -319,6 +413,18 @@ const Signup = () => {
       setResendLoading(false);
     }
   };
+
+  // If running inside the OAuth popup, show a minimal loader while useEffect relays the session
+  if (isPopupCallback) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Completing sign-in…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (signupComplete) {
     return (
