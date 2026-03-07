@@ -244,13 +244,14 @@ const Layout = ({ children }) => {
                     {/* Editable name row */}
                     {editingName ? (
                       <div className="flex items-center gap-1 mb-0.5">
+                        <p className="text-[10px] text-gray-400">Current: {user?.full_name || '—'}</p>
                         <input
                           autoFocus
                           type="text"
                           value={nameInput}
                           onChange={(e) => setNameInput(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false); }}
-                          className="text-sm font-semibold text-gray-900 border border-primary-400 rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-primary-500"
+                          className="text-sm font-semibold text-gray-900 bg-white border border-primary-400 rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-primary-500"
                           maxLength={255}
                         />
                         <button
@@ -284,7 +285,8 @@ const Layout = ({ children }) => {
                     )}
                     {/* Editable username row */}
                     {editingUsername ? (
-                      <div className="mt-0.5">
+                      <div className="mt-1">
+                        <p className="text-[10px] text-gray-400">Current: @{user?.username || '—'}</p>
                         <div className="flex items-center gap-1">
                           <span className="text-xs text-gray-500 shrink-0">@</span>
                           <input
@@ -293,7 +295,7 @@ const Layout = ({ children }) => {
                             value={usernameInput}
                             onChange={(e) => setUsernameInput(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
                             onKeyDown={(e) => { if (e.key === 'Enter') handleSaveUsername(); if (e.key === 'Escape') setEditingUsername(false); }}
-                            className={`text-xs text-gray-700 border rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 ${
+                            className={`text-xs text-gray-700 border bg-white rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 ${
                               usernameAvail.available === false
                                 ? 'border-red-400 focus:ring-red-400'
                                 : usernameAvail.available === true
@@ -500,7 +502,7 @@ const Layout = ({ children }) => {
                         value={nameInput}
                         onChange={(e) => setNameInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false); }}
-                        className="text-sm font-semibold border border-primary-400 rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-primary-500"
+                        className="text-sm font-semibold bg-white text-gray-400 border border-primary-400 rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-primary-500"
                         maxLength={100}
                       />
                       <button
@@ -540,7 +542,7 @@ const Layout = ({ children }) => {
                         value={usernameInput}
                         onChange={(e) => setUsernameInput(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleSaveUsername(); if (e.key === 'Escape') setEditingUsername(false); }}
-                        className={`text-xs border rounded px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 ${
+                        className={`text-xs border rounded bg-white text-gray-700 px-1.5 py-0.5 w-full focus:outline-none focus:ring-1 ${
                           usernameAvail.available === false
                             ? 'border-red-400 focus:ring-red-400'
                             : usernameAvail.available === true

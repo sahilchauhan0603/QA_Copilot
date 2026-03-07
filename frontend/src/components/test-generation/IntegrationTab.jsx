@@ -23,6 +23,7 @@ const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
   const [fetchedTicket, setFetchedTicket] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [screenshots, setScreenshots] = useState([]);
+  const [additionalDescription, setAdditionalDescription] = useState('');
 
   const isIntegrationConfigured = (type) => {
     return integrationConfigs.some((c) => c.integration_type === type && c.configured);
@@ -37,6 +38,7 @@ const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
     try {
       const result = await integrationAPI.fetchTicket(integrationType, integrationTicketId.trim());
       setFetchedTicket(result.ticket);
+      setAdditionalDescription('');
       toast.success('Ticket fetched successfully');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to fetch ticket');
@@ -47,10 +49,16 @@ const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
 
   const handleIntegrationGenerate = () => {
     if (!fetchedTicket) return;
+    const baseDescription = fetchedTicket.description || '';
+    const combined = additionalDescription.trim()
+      ? baseDescription
+        ? `${baseDescription}\n\nAdditional context:\n${additionalDescription.trim()}`
+        : additionalDescription.trim()
+      : baseDescription;
     const ticketData = {
       ticket_id: fetchedTicket.ticket_id,
       title: fetchedTicket.title,
-      description: fetchedTicket.description || '',
+      description: combined,
       ticket_type: fetchedTicket.ticket_type || 'story',
       priority: fetchedTicket.priority || 'P2',
       acceptance_criteria: fetchedTicket.acceptance_criteria || [],
@@ -261,6 +269,20 @@ const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
           )}
 
           <div className="pt-3 border-t border-gray-100 space-y-4">
+            {/* Optional additional description */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                Additional Description <span className="normal-case text-gray-400">(optional)</span>
+              </label>
+              <textarea
+                value={additionalDescription}
+                onChange={(e) => setAdditionalDescription(e.target.value)}
+                rows={3}
+                className="input w-full resize-none text-sm"
+                placeholder="Add any extra context, edge cases, or notes for the AI to consider..."
+              />
+            </div>
+
             {/* Screenshots for additional context */}
             <ImageUpload images={screenshots} onChange={setScreenshots} />
 
