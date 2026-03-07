@@ -193,15 +193,32 @@ Access your profile by clicking the avatar circle in the top-right navigation ba
 2. Select Jira or Azure DevOps
 3. Enter ticket ID (e.g., `PROJ-123` or `12345`)
 4. Click **Fetch Ticket**
-5. Click **Generate Tests**
-6. Wait 4-5 minutes for AI agents to complete
-7. View results and download Excel
+5. *(Optional)* Upload screenshots or code/config files for deeper AI analysis
+6. Click **Generate Tests**
+7. Wait 4-5 minutes for AI agents to complete
+8. View results and download Excel
 
 **Option 2: Manual Input**
 1. Go to **Create** tab
 2. Enter ticket details manually
-3. Click **Generate Tests**
-4. View results and download Excel
+3. *(Optional)* Upload screenshots or code/config files for deeper AI analysis
+4. Click **Generate Tests**
+5. View results and download Excel
+
+### Attach Files for Code-Aware Generation
+
+Both the **Custom** and **Integration** tabs support uploading source code or config files alongside your ticket. The AI agents read the files and derive test cases from the actual implementation.
+
+**Supported file types:** `.py`, `.js`, `.jsx`, `.ts`, `.tsx`, `.java`, `.cs`, `.go`, `.rb`, `.php`, `.html`, `.css`, `.json`, `.yaml`, `.yml`, `.sql`, `.md`, `.txt`, `.vue`, `.kt`, `.swift`, `.cpp`, `.c`
+
+**Limits:** up to **3 files**, max **500 KB each** (~1,500–2,000 lines is the recommended sweet spot)
+
+1. In the test generation form, scroll to the **Code / Config Files** section below the screenshot uploader
+2. Click the upload zone or drag and drop one or more files
+3. Files appear as a list with name and size — click ✕ to remove any
+4. Proceed to click **Generate Test Cases** as normal
+
+> The AI will analyze the uploaded code, identify functions, validation logic, error handling paths, and boundary conditions, and produce test cases that reference the actual implementation rather than just the ticket description.
 
 ### Sync Back to Tickets
 1. After generation, open detail view

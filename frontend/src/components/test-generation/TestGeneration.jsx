@@ -6,7 +6,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, History, ChevronUp } from 'lucide-react';
+import { Plus, X, History, ChevronUp, Loader } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { testGenAPI, integrationAPI } from '../../services/api';
 
