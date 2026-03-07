@@ -905,6 +905,7 @@ class AuthService:
                     'email': user.email,
                     'full_name': user.full_name,
                     'avatar_url': user.avatar_url,
+                    'created_at': user.created_at.isoformat() if user.created_at else None,
                 }
         except Exception as e:
             logger.error(f"Error getting user profile: {e}")
