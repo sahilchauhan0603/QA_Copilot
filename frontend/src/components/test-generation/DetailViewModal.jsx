@@ -239,12 +239,14 @@ const DetailViewModal = ({
               <span className="hidden sm:inline">Export Excel</span>
               <span className="sm:hidden">Excel</span>
             </button>
-            <ExportMenu
-              generationId={gen.id}
-              ticketId={gen.ticket_id}
-              onClose={onClose}
-              onStatusChange={setExportBadge}
-            />
+            {canSync && (
+              <ExportMenu
+                generationId={gen.id}
+                ticketId={gen.ticket_id}
+                onClose={onClose}
+                onStatusChange={setExportBadge}
+              />
+            )}
             <SyncMenu
               sourceIntegration={sourceIntegration}
               integrationLabel={integrationLabel}
