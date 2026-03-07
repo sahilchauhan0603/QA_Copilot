@@ -27,14 +27,18 @@ export const testGenAPI = {
       try {
         let response;
         const images = ticketData.images || [];
+        const codeFiles = ticketData.codeFiles || [];
 
-        if (images.length > 0) {
-          // Build FormData for multipart upload with images
+        if (images.length > 0 || codeFiles.length > 0) {
+          // Build FormData for multipart upload with images and/or code files
           const formData = new FormData();
-          const { images: _imgs, ...ticketInfo } = ticketData;
+          const { images: _imgs, codeFiles: _cfs, ...ticketInfo } = ticketData;
           formData.append('ticket_data', JSON.stringify(ticketInfo));
           images.forEach((file) => {
             formData.append('screenshots', file);
+          });
+          codeFiles.forEach((file) => {
+            formData.append('code_files', file);
           });
           response = await apiClient.post('/test-generation/generate', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },

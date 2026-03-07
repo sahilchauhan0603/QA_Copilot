@@ -15,6 +15,7 @@ import {
 import { integrationAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 import ImageUpload from './ImageUpload';
+import FileUpload from './FileUpload';
 
 const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
   const [fetchedTicket, setFetchedTicket] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [screenshots, setScreenshots] = useState([]);
+  const [codeFiles, setCodeFiles] = useState([]);
   const [additionalDescription, setAdditionalDescription] = useState('');
 
   const isIntegrationConfigured = (type) => {
@@ -64,6 +66,7 @@ const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
       acceptance_criteria: fetchedTicket.acceptance_criteria || [],
       integration_type: integrationType, // Backend expects 'integration_type'
       images: screenshots,
+      codeFiles: codeFiles,
     };
     onGenerate(ticketData);
   };
@@ -286,10 +289,13 @@ const IntegrationTab = ({ integrationConfigs, onGenerate, generating }) => {
             {/* Screenshots for additional context */}
             <ImageUpload images={screenshots} onChange={setScreenshots} />
 
+            {/* Code Files */}
+            <FileUpload files={codeFiles} onChange={setCodeFiles} />
+
             <button
               onClick={handleIntegrationGenerate}
               disabled={generating}
-              className="btn-primary flex items-center gap-2"
+              className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {generating ? (
                 <>

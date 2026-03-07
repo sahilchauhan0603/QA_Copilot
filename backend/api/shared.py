@@ -234,6 +234,15 @@ ALLOWED_IMAGE_TYPES = {'image/png', 'image/jpeg', 'image/jpg'}
 MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB per image
 MAX_IMAGES = 5
 
+# ── File attachment analysis ───────────────────────────────────────
+MAX_FILE_SIZE = 500 * 1024          # 500 KB per file (hard limit)
+MAX_FILES = 3                       # max 3 files per request
+ALLOWED_FILE_EXTENSIONS = {
+    '.py', '.js', '.jsx', '.ts', '.tsx', '.java', '.cs', '.go', '.rb',
+    '.php', '.html', '.css', '.json', '.yaml', '.yml', '.sql', '.md',
+    '.txt', '.vue', '.kt', '.swift', '.cpp', '.c',
+}
+
 
 def analyze_screenshots(uploaded_files):
     """Analyze uploaded screenshots using Gemini multimodal API."""
@@ -279,3 +288,30 @@ This description will be used to generate comprehensive test cases, so include e
         logger.error(f"Image analysis failed: {e}")
         logger.error(traceback.format_exc())
         return f"[Image analysis failed: {str(e)}]"
+
+
+def extract_file_contents(uploaded_files):
+    """
+    Read uploaded text-based code/config files and return a combined string
+    suitable for injection into agent prompts.
+
+    Each file is returned as a labelled block:
+    --- filename.py (123 lines) ---
+    <content>
+    """
+    sections = []
+    for f in uploaded_files:
+        try:
+            raw = f.read()
+            f.seek(0)
+            # Attempt UTF-8 first, fallback to latin-1
+            try:
+                text = raw.decode('utf-8')
+            except UnicodeDecodeError:
+                text = raw.decode('latin-1')
+            line_count = text.count('\n') + (1 if text and not text.endswith('\n') else 0)
+            sections.append(f"--- {f.filename} ({line_count} lines) ---\n{text}")
+        except Exception as e:
+            logger.warning(f"Could not read file {getattr(f, 'filename', '?')}: {e}")
+            sections.append(f"--- {getattr(f, 'filename', 'unknown')} --- [read error]")
+    return "\n\n".join(sections)

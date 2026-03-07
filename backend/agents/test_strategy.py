@@ -117,6 +117,10 @@ Be specific and actionable. Each scenario should clearly state what to test."""
         if ticket.get("image_analysis"):
             image_section = f"\n**Screenshot Analysis (UI Context):**\n{ticket['image_analysis']}\n"
         
+        file_section = ""
+        if ticket.get("file_analysis"):
+            file_section = f"\n**Attached Source Code / Config Files:**\n{ticket['file_analysis']}\n"
+        
         return f"""Create a comprehensive QA roadmap for this change.
 
 **Ticket:** {ticket.get('ticket_id', 'Unknown')} - {ticket.get('title', '')}
@@ -134,5 +138,5 @@ Be specific and actionable. Each scenario should clearly state what to test."""
 
 **Risk Areas:**
 {chr(10).join(f"- {risk}" for risk in risks)}
-{image_section}
-Create a detailed QA roadmap organized by test categories."""
+{image_section}{file_section}
+Create a detailed QA roadmap organized by test categories.{(' Use the attached source code to derive test scenarios based on the actual implementation — cover all code branches, error handling, and boundary conditions found in the code.' if ticket.get('file_analysis') else '')}"""

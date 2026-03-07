@@ -13,6 +13,7 @@ import {
 import toast from 'react-hot-toast';
 import { testGenAPI } from '../../services/api';
 import ImageUpload from './ImageUpload';
+import FileUpload from './FileUpload';
 
 const CustomInputTab = ({ onGenerate, generating }) => {
   const [customForm, setCustomForm] = useState({
@@ -24,6 +25,7 @@ const CustomInputTab = ({ onGenerate, generating }) => {
     acceptance_criteria: [''],
   });
   const [screenshots, setScreenshots] = useState([]);
+  const [codeFiles, setCodeFiles] = useState([]);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiGenerated, setAiGenerated] = useState(false);
   const [abortController, setAbortController] = useState(null);
@@ -109,6 +111,7 @@ const CustomInputTab = ({ onGenerate, generating }) => {
       ...customForm,
       acceptance_criteria: customForm.acceptance_criteria.filter((ac) => ac.trim()),
       images: screenshots,
+      codeFiles: codeFiles,
     };
     onGenerate(ticketData);
   };
@@ -260,6 +263,9 @@ const CustomInputTab = ({ onGenerate, generating }) => {
 
       {/* Screenshots */}
       <ImageUpload images={screenshots} onChange={setScreenshots} />
+
+      {/* Code Files */}
+      <FileUpload files={codeFiles} onChange={setCodeFiles} />
 
       {/* Actions */}
       <div className="flex gap-3 pt-4 border-t border-gray-100">

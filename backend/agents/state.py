@@ -20,6 +20,7 @@ class TicketInfo(TypedDict, total=False):
     comments: List[Dict]
     linked_tickets: List[str]
     image_analysis: str  # AI-generated analysis of uploaded screenshots
+    file_analysis: str   # Raw content of uploaded code/config files
 
 
 class TestCase(TypedDict):

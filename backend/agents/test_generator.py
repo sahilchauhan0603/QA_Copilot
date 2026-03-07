@@ -183,6 +183,10 @@ Make test cases specific, actionable, and complete."""
         if ticket.get("image_analysis"):
             image_section = f"\n**Screenshot Context (from uploaded UI screenshots):**\n{ticket['image_analysis']}\n"
         
+        file_section = ""
+        if ticket.get("file_analysis"):
+            file_section = f"\n**Attached Source Code / Config Files:**\n{ticket['file_analysis']}\n"
+        
         return f"""Generate detailed test cases for the {category} category.
 
 **Ticket:** {ticket.get('ticket_id')} - {ticket.get('title')}
@@ -190,11 +194,11 @@ Make test cases specific, actionable, and complete."""
 
 **Requirements:**
 {chr(10).join(f"- {req}" for req in requirements[:10])}
-{image_section}
+{image_section}{file_section}
 **Test Scenarios for {category}:**
 {chr(10).join(f"- {scenario}" for scenario in scenarios)}
 
-Generate complete, executable test cases for each scenario.{(' Use the screenshot analysis to create test cases that reference specific UI elements, field labels, button text, and visual states observed in the actual application.' if ticket.get('image_analysis') else '')}"""
+Generate complete, executable test cases for each scenario.{(' Use the screenshot analysis to create test cases that reference specific UI elements, field labels, button text, and visual states observed in the actual application.' if ticket.get('image_analysis') else '')}{(' Reference the attached source code to create precise test cases covering all code paths, input validations, error handling, and boundary conditions found in the implementation.' if ticket.get('file_analysis') else '')}"""
     
     def _count_by_priority(self, test_cases: List[TestCase]) -> Dict[str, int]:
         """Count test cases by priority"""

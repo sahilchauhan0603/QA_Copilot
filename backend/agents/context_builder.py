@@ -115,6 +115,10 @@ Think about:
         if ticket.get("image_analysis"):
             image_section = f"\n**Screenshot Analysis:**\n{ticket['image_analysis']}\n"
         
+        file_section = ""
+        if ticket.get("file_analysis"):
+            file_section = f"\n**Attached Source Code / Config Files:**\n{ticket['file_analysis']}\n"
+        
         return f"""Analyze the system context and impacts for this change.
 
 **Ticket Type:** {ticket.get('ticket_type', 'Unknown')}
@@ -123,7 +127,7 @@ Think about:
 
 **Extracted Requirements:**
 {chr(10).join(f"- {req}" for req in requirements)}
-{image_section}
+{image_section}{file_section}
 **Linked Tickets:** {', '.join(ticket.get('linked_tickets', [])) or 'None'}
 
-Identify all impacted modules, dependencies, and risk areas."""
+Identify all impacted modules, dependencies, and risk areas.{(' Carefully analyze the attached source code to understand the implementation details, identify components, and map dependencies.' if ticket.get('file_analysis') else '')}"""

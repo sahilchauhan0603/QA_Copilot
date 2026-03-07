@@ -215,7 +215,7 @@ const ExportMenu = ({ generationId, ticketId, onClose, onStatusChange }) => {
                 value={exportSuiteName}
                 onChange={(e) => setExportSuiteName(e.target.value)}
                 placeholder={`Enter ${selectedTool === 'zephyr' ? 'cycle' : 'suite'} name...`}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full px-3 py-2 border border-gray-300 bg-white text-black rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 autoFocus
               />
               <p className="mt-2 text-xs text-gray-500">

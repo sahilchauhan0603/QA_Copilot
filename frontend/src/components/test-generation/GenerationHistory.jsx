@@ -203,7 +203,7 @@ const GenerationHistory = ({
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar size={14} />
-                        <span>{new Date(gen.timestamp).toLocaleDateString()}</span>
+                        <span>{new Date(gen.timestamp).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                       </div>
                     </div>
 
@@ -302,7 +302,7 @@ const GenerationHistory = ({
                           {gen.total_test_cases}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500">
-                          {new Date(gen.timestamp).toLocaleDateString()}
+                          {new Date(gen.timestamp).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <div className="flex gap-2">

@@ -121,6 +121,10 @@ Be thorough and look for edge cases and implicit requirements."""
         if ticket.get("image_analysis"):
             image_analysis_section = f"\n**Screenshot Analysis (AI-generated from uploaded images):**\n{ticket['image_analysis']}"
         
+        file_analysis_section = ""
+        if ticket.get("file_analysis"):
+            file_analysis_section = f"\n**Attached Source Code / Config Files:**\n{ticket['file_analysis']}"
+        
         return f"""Analyze this {ticket.get('ticket_type', 'ticket')} and extract all testable requirements.
 
 **Ticket ID:** {ticket.get('ticket_id', 'Unknown')}
@@ -132,10 +136,11 @@ Be thorough and look for edge cases and implicit requirements."""
 {ticket.get('description', 'No description provided')}
 {ac_section}
 {image_analysis_section}
+{file_analysis_section}
 {comments_section}
 
 **Attachments:** {', '.join(ticket.get('attachments', [])) or 'None'}
 **Linked Tickets:** {', '.join(ticket.get('linked_tickets', [])) or 'None'}
 
 Extract all requirements and identify gaps in acceptance criteria.
-{('Pay special attention to the screenshot analysis above — it contains visual context from the actual UI that should inform your requirement extraction and gap analysis.' if ticket.get('image_analysis') else '')}"""
+{('Pay special attention to the screenshot analysis above — it contains visual context from the actual UI that should inform your requirement extraction and gap analysis.' if ticket.get('image_analysis') else '')}{(' Analyze the attached source code carefully — extract testable requirements from the actual implementation, including function signatures, validation logic, error handling paths, and edge cases visible in the code.' if ticket.get('file_analysis') else '')}"""

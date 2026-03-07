@@ -16,8 +16,9 @@ import google.generativeai as genai
 from api.decorators import token_required
 from api.shared import (
     auth_service, team_service, workspace_service, db_manager,
-    get_orchestrator, analyze_screenshots,
+    get_orchestrator, analyze_screenshots, extract_file_contents,
     AGENT_STEPS, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE, MAX_IMAGES,
+    MAX_FILE_SIZE, MAX_FILES, ALLOWED_FILE_EXTENSIONS,
     get_progress_store, get_progress_lock, _update_progress,
     start_refine_job, cancel_refine_job, is_refine_job_cancelled,
     get_refine_job_status_payload, RefineJobCancelledError,
@@ -122,6 +123,7 @@ def cancel_generation(current_user, job_id):
 def generate_tests(current_user):
     try:
         uploaded_images = []
+        uploaded_code_files = []
         content_type = request.content_type or ''
 
         if 'multipart/form-data' in content_type:
@@ -144,6 +146,23 @@ def generate_tests(current_user):
                     uploaded_images.append(f)
             if len(uploaded_images) > MAX_IMAGES:
                 return jsonify({'error': f'Maximum {MAX_IMAGES} images allowed'}), 400
+
+            # --- Code / config file attachments ---
+            uploaded_code_files = []
+            raw_code_files = request.files.getlist('code_files')
+            for f in raw_code_files:
+                if f and f.filename:
+                    ext = os.path.splitext(f.filename)[1].lower()
+                    if ext not in ALLOWED_FILE_EXTENSIONS:
+                        return jsonify({'error': f'Unsupported file type: {ext}. Allowed: {" ".join(sorted(ALLOWED_FILE_EXTENSIONS))}'}), 400
+                    f.seek(0, 2)
+                    size = f.tell()
+                    f.seek(0)
+                    if size > MAX_FILE_SIZE:
+                        return jsonify({'error': f'File {f.filename} exceeds 500 KB limit'}), 400
+                    uploaded_code_files.append(f)
+            if len(uploaded_code_files) > MAX_FILES:
+                return jsonify({'error': f'Maximum {MAX_FILES} code files allowed'}), 400
         else:
             data = request.get_json()
 
@@ -162,6 +181,12 @@ def generate_tests(current_user):
             image_analysis = analyze_screenshots(uploaded_images)
             logger.info(f"Image analysis completed ({len(image_analysis)} chars)")
 
+        file_analysis = ''
+        if uploaded_code_files:
+            logger.info(f"Extracting content from {len(uploaded_code_files)} code file(s)...")
+            file_analysis = extract_file_contents(uploaded_code_files)
+            logger.info(f"File extraction completed ({len(file_analysis)} chars)")
+
         ticket_info = TicketInfo(
             ticket_id=data.get('ticket_id', ''),
             title=data['title'],
@@ -173,7 +198,8 @@ def generate_tests(current_user):
             attachments=data.get('attachments', []),
             comments=data.get('comments', []),
             linked_tickets=data.get('linked_tickets', []),
-            image_analysis=image_analysis
+            image_analysis=image_analysis,
+            file_analysis=file_analysis
         )
 
         source_integration = data.get('integration_type')
