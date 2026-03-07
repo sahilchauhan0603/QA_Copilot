@@ -63,7 +63,7 @@ const GenerationHistory = ({
   return (
     <div className="card">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h3 className="text-lg font-semibold">Generation History</h3>
+        <h3 className="text-lg font-semibold text-black">Generation History</h3>
 
         {/* View Mode Toggle */}
         <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">

@@ -6,7 +6,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, History, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { testGenAPI, integrationAPI } from '../../services/api';
 
@@ -29,6 +29,7 @@ const TestGeneration = () => {
   const [selectedGeneration, setSelectedGeneration] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
   const [activeTab, setActiveTab] = useState('custom');
   const [loadingView, setLoadingView] = useState(false);
 
@@ -164,6 +165,7 @@ const TestGeneration = () => {
       // Delay before closing form to show success
       await new Promise(resolve => setTimeout(resolve, 1500));
       setShowNewForm(false);
+      setShowHistory(true);
       
       setCurrentPage(1);
       await loadGenerations(1);
@@ -285,7 +287,7 @@ const TestGeneration = () => {
       {/* ─── New Generation Form ─── */}
       {!showNewForm ? (
         <button
-          onClick={() => setShowNewForm(true)}
+          onClick={() => { setShowNewForm(true); setShowHistory(false); }}
           disabled={generating}
           className="btn-primary flex items-center gap-2"
         >
@@ -298,7 +300,7 @@ const TestGeneration = () => {
             <h3 className="text-lg font-semibold">New Test Generation</h3>
             {!generating && (
               <button
-                onClick={() => setShowNewForm(false)}
+                onClick={() => { setShowNewForm(false); setShowHistory(true); }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X size={20} />
@@ -344,8 +346,22 @@ const TestGeneration = () => {
         </div>
       )}
 
+      {/* ─── View History Toggle (shown when form is open) ─── */}
+      {showNewForm && (
+        <button
+          onClick={() => setShowHistory((prev) => !prev)}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary-600 transition-colors"
+        >
+          {showHistory ? (
+            <><ChevronUp size={16} /> Hide History</>
+          ) : (
+            <><History size={16} /> View History</>
+          )}
+        </button>
+      )}
+
       {/* ─── Generation History ─── */}
-      <GenerationHistory
+      {showHistory && <GenerationHistory
         filteredGenerations={generations}
         totalGenerations={totalGenerations}
         currentPage={currentPage}
@@ -360,7 +376,7 @@ const TestGeneration = () => {
         onView={viewGeneration}
         onDownload={downloadExcel}
         onDelete={deleteGeneration}
-      />
+      />}
 
       {/* ─── Loading Overlay ─── */}
       {loadingView && createPortal(
