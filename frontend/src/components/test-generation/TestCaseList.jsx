@@ -50,7 +50,7 @@ const TestCaseList = ({ testCases }) => {
         <select
           value={tcPriorityFilter}
           onChange={(e) => setTcPriorityFilter(e.target.value)}
-          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+          className="text-sm border cursor-pointer border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
         >
           <option value="all">All Priorities</option>
           {priorities.map((p) => (
@@ -62,7 +62,7 @@ const TestCaseList = ({ testCases }) => {
         <select
           value={tcCategoryFilter}
           onChange={(e) => setTcCategoryFilter(e.target.value)}
-          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+          className="text-sm border cursor-pointer border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
         >
           <option value="all">All Categories</option>
           {categories.map((c) => (
@@ -131,14 +131,14 @@ const TestCaseList = ({ testCases }) => {
                 <div className="px-4 pb-4 pt-2 border-t border-gray-100 space-y-3">
                   {tc.preconditions && (
                     <div>
-                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      <div className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-1">
                         Preconditions
                       </div>
                       <p className="text-sm text-gray-700">{tc.preconditions}</p>
                     </div>
                   )}
                   <div>
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    <div className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-1">
                       Test Steps
                     </div>
                     <ol className="list-decimal list-inside space-y-1">
@@ -150,14 +150,14 @@ const TestCaseList = ({ testCases }) => {
                     </ol>
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    <div className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-1">
                       Expected Result
                     </div>
                     <p className="text-sm text-gray-700">{tc.expected_result}</p>
                   </div>
                   {tc.test_data && (
                     <div>
-                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      <div className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-1">
                         Test Data
                       </div>
                       <p className="text-sm text-gray-700 bg-gray-50 rounded p-2 font-mono whitespace-pre-wrap">
