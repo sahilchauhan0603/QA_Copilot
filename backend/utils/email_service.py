@@ -4,6 +4,7 @@ Handles email sending for password reset and notifications
 """
 import smtplib
 import os
+import base64
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -23,6 +24,7 @@ class EmailService:
         self.from_email = os.getenv('FROM_EMAIL', self.smtp_user)
         self.from_name = os.getenv('FROM_NAME', 'QA Copilot')
         self.app_url = os.getenv('APP_URL', 'http://localhost:3000')
+        self._logo_html = self._build_logo_html()
         
         # Check if email is configured
         self.is_configured = bool(self.smtp_user and self.smtp_password)
@@ -30,6 +32,32 @@ class EmailService:
         if not self.is_configured:
             logger.warning("Email service not configured. Set SMTP_USER and SMTP_PASSWORD environment variables.")
     
+    def _build_logo_html(self) -> str:
+        """Return an <img> tag for the logo.
+        Priority: LOGO_URL env var → base64-embedded file → empty string.
+        """
+        logo_url = os.getenv('LOGO_URL', '').strip()
+        if logo_url:
+            return f'<img src="{logo_url}" alt="QA Copilot" width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />'
+
+        # Try embedding the logo from the filesystem as a base64 data URI
+        candidate_paths = [
+            os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'logo.png'),
+            os.path.join(os.getcwd(), 'frontend', 'public', 'logo.png'),
+        ]
+        for path in candidate_paths:
+            try:
+                abs_path = os.path.abspath(path)
+                if os.path.exists(abs_path):
+                    with open(abs_path, 'rb') as f:
+                        data = base64.b64encode(f.read()).decode('utf-8')
+                    return (f'<img src="data:image/png;base64,{data}" alt="QA Copilot"'
+                            f' width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />')
+            except Exception:
+                continue
+
+        return ''
+
     def send_email(self, to_email: str, subject: str, html_body: str, text_body: Optional[str] = None) -> bool:
         """
         Send an email
@@ -230,7 +258,7 @@ QA Copilot Team
 <body>
     <div class="container">
         <div class="header">
-            <img src="{self.app_url}/logo.png" alt="QA Copilot" width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />
+            {self._logo_html}
             <h1>🔐 Password Reset Request</h1>
             <p>Secure your account with a new password</p>
         </div>
@@ -376,7 +404,7 @@ QA Copilot Team
 <body>
     <div class="container">
         <div class="header">
-            <img src="{self.app_url}/logo.png" alt="QA Copilot" width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />
+            {self._logo_html}
             <h1>Verify Your Email</h1>
             <p>Complete your QA Copilot signup</p>
         </div>
@@ -530,7 +558,7 @@ QA Copilot Team
 <body>
     <div class="container">
         <div class="header">
-            <img src="{self.app_url}/logo.png" alt="QA Copilot" width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />
+            {self._logo_html}
             <h1>Team Invitation</h1>
             <p>You've been invited to collaborate</p>
         </div>
@@ -636,7 +664,7 @@ QA Copilot Team
 <body>
     <div class="container">
         <div class="header">
-            <img src="{self.app_url}/logo.png" alt="QA Copilot" width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />
+            {self._logo_html}
             <h1>{emoji} Invitation {action_past.title()}</h1>
             <p>Team: {team_name}</p>
         </div>
