@@ -42,6 +42,11 @@ export const teamAPI = {
     return response.data;
   },
 
+  leaveTeam: async (teamId) => {
+    const response = await apiClient.post(`/teams/${teamId}/leave`);
+    return response.data;
+  },
+
   updateTeam: async (teamId, { name, description }) => {
     const response = await apiClient.put(`/teams/${teamId}`, { name, description });
     return response.data;

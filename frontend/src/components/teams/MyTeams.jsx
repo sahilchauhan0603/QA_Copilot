@@ -96,7 +96,7 @@ const MyTeams = ({ onCreateTeam }) => {
             <h3 className="font-semibold text-blue-900 mb-1">Your Teams</h3>
             <p className="text-sm text-blue-800">
               You are a member of {myTeams.length} team{myTeams.length !== 1 ? 's' : ''}. 
-              Click <b>Switch to Team</b> on a card to switch to that workspace.
+              Click <b>Switch to Team</b> on a card to switch to that workspace & manage it.
             </p>
           </div>
         </div>

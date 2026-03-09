@@ -153,6 +153,22 @@ def remove_team_member(current_user, team_id, user_id):
         return jsonify({'error': 'Failed to remove team member'}), 500
 
 
+@teams_bp.route('/teams/<int:team_id>/leave', methods=['POST'])
+@token_required
+def leave_team(current_user, team_id):
+    """Allow a non-admin member to leave a team."""
+    try:
+        success, error = team_service.leave_team(
+            team_id=team_id, user_id=current_user['user_id']
+        )
+        if error:
+            return jsonify({'error': error}), 400
+        return jsonify({'message': 'You have left the team'}), 200
+    except Exception as e:
+        logger.error(f"Leave team error: {e}")
+        return jsonify({'error': 'Failed to leave team'}), 500
+
+
 @teams_bp.route('/teams/<int:team_id>/members/<int:user_id>/role', methods=['PUT'])
 @token_required
 @team_admin_required

@@ -191,7 +191,34 @@ class TeamService:
         except Exception as e:
             logger.error(f"Error removing team member: {e}")
             return False, "Failed to remove team member. Please try again."
-    
+
+    def leave_team(
+        self,
+        team_id: int,
+        user_id: int,
+    ) -> Tuple[bool, Optional[str]]:
+        """Allow a member to leave a team. Admins cannot leave (they must delete or transfer)."""
+        try:
+            with self.db.get_session() as session:
+                member = session.query(TeamMember).filter(
+                    TeamMember.team_id == team_id,
+                    TeamMember.user_id == user_id
+                ).first()
+
+                if not member:
+                    return False, "You are not a member of this team"
+
+                if member.role == TeamRole.ADMIN:
+                    return False, "Admins cannot leave the team. Delete the team or transfer ownership first."
+
+                session.delete(member)
+                logger.info(f"User {user_id} left team {team_id}")
+                return True, None
+
+        except Exception as e:
+            logger.error(f"Error leaving team: {e}")
+            return False, "Failed to leave team. Please try again."
+
     def update_member_role(
         self,
         team_id: int,

@@ -1,13 +1,13 @@
 """
 Email Service
-Handles email sending for password reset and notifications
+Handles email sending for password reset, verification, and team notifications.
 """
 import smtplib
 import os
-import base64
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     """Service for sending emails"""
-    
+
     def __init__(self):
         self.smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
         self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
@@ -24,23 +24,19 @@ class EmailService:
         self.from_email = os.getenv('FROM_EMAIL', self.smtp_user)
         self.from_name = os.getenv('FROM_NAME', 'QA Copilot')
         self.app_url = os.getenv('APP_URL', 'http://localhost:3000')
-        self._logo_html = self._build_logo_html()
-        
-        # Check if email is configured
+
         self.is_configured = bool(self.smtp_user and self.smtp_password)
-        
         if not self.is_configured:
             logger.warning("Email service not configured. Set SMTP_USER and SMTP_PASSWORD environment variables.")
-    
-    def _build_logo_html(self) -> str:
-        """Return an <img> tag for the logo.
-        Priority: LOGO_URL env var → base64-embedded file → empty string.
-        """
-        logo_url = os.getenv('LOGO_URL', '').strip()
-        if logo_url:
-            return f'<img src="{logo_url}" alt="QA Copilot" width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />'
 
-        # Try embedding the logo from the filesystem as a base64 data URI
+        # Pre-load logo bytes (used as CID inline attachment)
+        self._logo_bytes: Optional[bytes] = self._load_logo_bytes()
+        self._logo_url: Optional[str] = os.getenv('LOGO_URL', '').strip() or None
+
+    # ── Logo helpers ────────────────────────────────────────────────
+
+    def _load_logo_bytes(self) -> Optional[bytes]:
+        """Try to read the logo PNG from known filesystem paths."""
         candidate_paths = [
             os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'logo.png'),
             os.path.join(os.getcwd(), 'frontend', 'public', 'logo.png'),
@@ -50,644 +46,324 @@ class EmailService:
                 abs_path = os.path.abspath(path)
                 if os.path.exists(abs_path):
                     with open(abs_path, 'rb') as f:
-                        data = base64.b64encode(f.read()).decode('utf-8')
-                    return (f'<img src="data:image/png;base64,{data}" alt="QA Copilot"'
-                            f' width="64" height="64" style="display:block;margin:0 auto 16px;border-radius:12px;" />')
+                        return f.read()
             except Exception:
                 continue
+        return None
 
+    def _get_logo_img_tag(self) -> str:
+        """Return an <img> tag referencing either LOGO_URL or the CID attachment."""
+        if self._logo_url:
+            return (
+                f'<img src="{self._logo_url}" alt="QA Copilot" width="48" height="48" '
+                f'style="display:block;margin:0 auto 12px;border-radius:10px;" />'
+            )
+        if self._logo_bytes:
+            return (
+                '<img src="cid:qac_logo" alt="QA Copilot" width="48" height="48" '
+                'style="display:block;margin:0 auto 12px;border-radius:10px;" />'
+            )
         return ''
 
+    # ── Core send ───────────────────────────────────────────────────
+
     def send_email(self, to_email: str, subject: str, html_body: str, text_body: Optional[str] = None) -> bool:
-        """
-        Send an email
-        
-        Args:
-            to_email: Recipient email address
-            subject: Email subject
-            html_body: HTML email body
-            text_body: Optional plain text email body (fallback)
-            
-        Returns:
-            True if sent successfully, False otherwise
-        """
         if not self.is_configured:
-            logger.error("Cannot send email - email service not configured")
+            logger.error("Cannot send email — service not configured (missing SMTP_USER / SMTP_PASSWORD)")
             return False
-        
+
         try:
-            # Create message
-            msg = MIMEMultipart('alternative')
+            # Use 'related' as the outer type so CID images work,
+            # with an inner 'alternative' part for text/html.
+            msg = MIMEMultipart('related')
             msg['Subject'] = subject
             msg['From'] = f"{self.from_name} <{self.from_email}>"
             msg['To'] = to_email
-            
-            # Attach plain text version
+
+            alt_part = MIMEMultipart('alternative')
             if text_body:
-                part1 = MIMEText(text_body, 'plain')
-                msg.attach(part1)
-            
-            # Attach HTML version
-            part2 = MIMEText(html_body, 'html')
-            msg.attach(part2)
-            
-            # Send email
+                alt_part.attach(MIMEText(text_body, 'plain', 'utf-8'))
+            alt_part.attach(MIMEText(html_body, 'html', 'utf-8'))
+            msg.attach(alt_part)
+
+            # Attach logo as CID inline image if available (and not using URL)
+            if self._logo_bytes and not self._logo_url:
+                logo_img = MIMEImage(self._logo_bytes, _subtype='png')
+                logo_img.add_header('Content-ID', '<qac_logo>')
+                logo_img.add_header('Content-Disposition', 'inline', filename='logo.png')
+                msg.attach(logo_img)
+
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                server.ehlo()
                 server.starttls()
+                server.ehlo()
                 server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
-            
+
             logger.info(f"Email sent successfully to {to_email}")
             return True
-            
+
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"SMTP authentication failed for {self.smtp_user}: {e}")
+            return False
+        except smtplib.SMTPRecipientsRefused as e:
+            logger.error(f"Recipient refused — {to_email}: {e}")
+            return False
         except Exception as e:
             logger.error(f"Failed to send email to {to_email}: {e}")
             return False
-    
-    def send_password_reset_email(self, to_email: str, username: str, reset_token: str) -> bool:
-        """
-        Send password reset email with reset link
-        
-        Args:
-            to_email: User's email address
-            username: User's username
-            reset_token: Password reset token
-            
-        Returns:
-            True if sent successfully, False otherwise
-        """
-        reset_link = f"{self.app_url}/reset-password?token={reset_token}"
-        
-        subject = "Password Reset Request - QA Copilot"
-        
-        text_body = f"""
-Hello {username},
 
-We received a request to reset the password for your QA Copilot account.
+    # ── Shared HTML wrapper ─────────────────────────────────────────
 
-To reset your password, please click the link in the email or visit your password reset page.
+    def _wrap_html(self, header_bg: str, header_title: str, header_subtitle: str, body_html: str) -> str:
+        """Build a complete, inline-styled HTML email with logo, header, body, and footer."""
+        logo = self._get_logo_img_tag()
+        year = '2026'
 
-Security Notice:
-• This link expires in 1 hour for your protection
-• If you didn't request this reset, please ignore this email
-• Your password remains unchanged until you complete the reset process
-
-Best regards,
-QA Copilot Team
-"""
-        
-        html_body = f"""
+        return f"""\
 <!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }}
-        .container {{
-            background-color: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }}
-        .header {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px 30px;
-            text-align: center;
-        }}
-        .header h1 {{
-            margin: 0;
-            font-size: 32px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }}
-        .header p {{
-            margin: 10px 0 0 0;
-            font-size: 16px;
-            opacity: 0.95;
-        }}
-        .content {{
-            padding: 40px;
-        }}
-        .greeting {{
-            font-size: 18px;
-            color: #333;
-            margin-bottom: 20px;
-        }}
-        .message {{
-            font-size: 15px;
-            color: #555;
-            line-height: 1.7;
-            margin-bottom: 30px;
-        }}
-        .button-container {{
-            text-align: center;
-            margin: 35px 0;
-        }}
-        .button {{
-            display: inline-block;
-            padding: 16px 48px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white !important;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 16px;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-            transition: all 0.3s ease;
-        }}
-        .button:hover {{
-            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
-            transform: translateY(-2px);
-        }}
-        .security-notice {{
-            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
-            border-left: 4px solid #ff9800;
-            padding: 20px;
-            margin: 30px 0;
-            border-radius: 6px;
-        }}
-        .security-notice h3 {{
-            margin: 0 0 12px 0;
-            font-size: 16px;
-            color: #e65100;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }}
-        .security-notice ul {{
-            margin: 0;
-            padding-left: 20px;
-            color: #555;
-        }}
-        .security-notice li {{
-            margin: 8px 0;
-            font-size: 14px;
-        }}
-        .footer {{
-            padding: 30px 40px;
-            background-color: #f9f9f9;
-            border-top: 1px solid #e0e0e0;
-        }}
-        .footer p {{
-            margin: 8px 0;
-            font-size: 14px;
-            color: #666;
-        }}
-        .footer .signature {{
-            font-weight: 600;
-            color: #667eea;
-            margin-top: 16px;
-        }}
-        .footer .disclaimer {{
-            font-size: 12px;
-            color: #999;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #e0e0e0;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            {self._logo_html}
-            <h1>🔐 Password Reset Request</h1>
-            <p>Secure your account with a new password</p>
-        </div>
-        
-        <div class="content">
-            <p class="greeting">Hello <strong>{username}</strong>,</p>
-            
-            <p class="message">
-                We received a request to reset the password for your QA Copilot account. 
-                To proceed with resetting your password, please click the button below:
-            </p>
-            
-            <div class="button-container">
-                <a href="{reset_link}" class="button">Reset My Password</a>
-            </div>
-            
-            <div class="security-notice">
-                <h3>🛡️ Security Notice</h3>
-                <ul>
-                    <li><strong>This link expires in 1 hour</strong> for your protection</li>
-                    <li>If you didn't request this reset, you can safely ignore this email</li>
-                    <li>Your password will remain unchanged until you complete the reset process</li>
-                    <li>Never share this email or reset link with anyone</li>
-                </ul>
-            </div>
-            
-            <p class="message" style="margin-bottom: 0;">
-                If you're having trouble with the button above, please contact our support team for assistance.
-            </p>
-        </div>
-        
-        <div class="footer">
-            <p>Best regards,</p>
-            <p class="signature">QA Copilot Team</p>
-            <p class="disclaimer">
-                This is an automated security message. Please do not reply to this email.
-                If you need assistance, please contact our support team.
-            </p>
-        </div>
-    </div>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;padding:32px 16px;">
+<tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+  <!-- Header -->
+  <tr>
+    <td style="background:{header_bg};padding:36px 32px;text-align:center;">
+      {logo}
+      <h1 style="margin:0;font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">{header_title}</h1>
+      <p style="margin:8px 0 0;font-size:14px;color:rgba(255,255,255,0.9);">{header_subtitle}</p>
+    </td>
+  </tr>
+
+  <!-- Body -->
+  <tr>
+    <td style="padding:36px 32px;">
+      {body_html}
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="padding:24px 32px;background-color:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
+      <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#6366f1;">QA Copilot Team</p>
+      <p style="margin:0;font-size:11px;color:#9ca3af;">This is an automated message. Please do not reply to this email.</p>
+      <p style="margin:12px 0 0;font-size:11px;color:#d1d5db;">&copy; {year} QA Copilot. All rights reserved.</p>
+    </td>
+  </tr>
+
+</table>
+</td></tr></table>
 </body>
-</html>
-"""
-        
+</html>"""
+
+    @staticmethod
+    def _btn(href: str, label: str, bg: str = 'linear-gradient(135deg,#6366f1,#8b5cf6)') -> str:
+        """Return an inline-styled CTA button."""
+        return (
+            f'<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px auto;">'
+            f'<tr><td align="center" style="border-radius:8px;background:{bg};">'
+            f'<a href="{href}" target="_blank" '
+            f'style="display:inline-block;padding:14px 40px;color:#ffffff;font-size:15px;font-weight:600;'
+            f'text-decoration:none;border-radius:8px;">{label}</a>'
+            f'</td></tr></table>'
+        )
+
+    @staticmethod
+    def _info_box(html_content: str, border_color: str = '#6366f1', bg: str = '#f5f3ff') -> str:
+        """Return an inline-styled info / notice box."""
+        return (
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">'
+            f'<tr><td style="background:{bg};border-left:4px solid {border_color};'
+            f'padding:16px 20px;border-radius:6px;font-size:14px;color:#1e293b;line-height:1.7;">'
+            f'{html_content}</td></tr></table>'
+        )
+
+    # ── Email: Password Reset ──────────────────────────────────────
+
+    def send_password_reset_email(self, to_email: str, username: str, reset_token: str) -> bool:
+        reset_link = f"{self.app_url}/reset-password?token={reset_token}"
+        subject = "Password Reset Request — QA Copilot"
+
+        text_body = (
+            f"Hello {username},\n\n"
+            f"We received a request to reset the password for your QA Copilot account.\n\n"
+            f"Reset your password: {reset_link}\n\n"
+            f"This link expires in 1 hour.\n"
+            f"If you didn't request this, you can safely ignore this email.\n\n"
+            f"— QA Copilot Team"
+        )
+
+        body = (
+            f'<p style="margin:0 0 16px;font-size:15px;color:#374151;">Hello <strong>{username}</strong>,</p>'
+            f'<p style="margin:0 0 6px;font-size:15px;color:#4b5563;line-height:1.7;">'
+            f'We received a request to reset the password associated with your QA Copilot account. '
+            f'Click the button below to set a new password:</p>'
+            + self._btn(reset_link, 'Reset My Password')
+            + self._info_box(
+                '<strong style="color:#b45309;">&#x1f6e1;&#xfe0f; Security Notice</strong><br/>'
+                '&#8226; This link expires in <strong>1 hour</strong><br/>'
+                '&#8226; If you did not request this reset, please ignore this email<br/>'
+                '&#8226; Your password will remain unchanged until you complete the process<br/>'
+                '&#8226; Never share this link with anyone',
+                border_color='#f59e0b', bg='#fffbeb',
+            )
+            + '<p style="margin:0;font-size:13px;color:#9ca3af;">Having trouble? Contact our support team for assistance.</p>'
+        )
+
+        html_body = self._wrap_html(
+            header_bg='linear-gradient(135deg,#667eea,#764ba2)',
+            header_title='Password Reset Request',
+            header_subtitle='Secure your account with a new password',
+            body_html=body,
+        )
         return self.send_email(to_email, subject, html_body, text_body)
+
+    # ── Email: Email Verification ──────────────────────────────────
 
     def send_email_verification_email(self, to_email: str, username: str, verification_token: str) -> bool:
-        """
-        Send email verification message with verification link.
-
-        Args:
-            to_email: User's email address
-            username: User's username
-            verification_token: Email verification token
-
-        Returns:
-            True if sent successfully, False otherwise
-        """
         verify_link = f"{self.app_url}/verify-email?token={verification_token}"
-        subject = "Verify Your Email - QA Copilot"
+        subject = "Verify Your Email — QA Copilot"
 
-        text_body = f"""
-Hello {username},
+        text_body = (
+            f"Hello {username},\n\n"
+            f"Thank you for signing up for QA Copilot!\n\n"
+            f"Please verify your email address: {verify_link}\n\n"
+            f"This link expires in 24 hours.\n"
+            f"If you did not create this account, you can ignore this email.\n\n"
+            f"— QA Copilot Team"
+        )
 
-Thanks for signing up for QA Copilot.
+        body = (
+            f'<p style="margin:0 0 16px;font-size:15px;color:#374151;">Hello <strong>{username}</strong>,</p>'
+            f'<p style="margin:0 0 6px;font-size:15px;color:#4b5563;line-height:1.7;">'
+            f'Thank you for signing up for QA Copilot! To activate your account and start '
+            f'generating test cases, please verify your email address by clicking the button below:</p>'
+            + self._btn(verify_link, 'Verify My Email', bg='linear-gradient(135deg,#0ea5e9,#0284c7)')
+            + self._info_box(
+                '<strong>&#x1f512; Security Notice</strong><br/>'
+                '&#8226; This verification link expires in <strong>24 hours</strong><br/>'
+                '&#8226; If you did not create this account, you can safely ignore this email',
+                border_color='#0284c7', bg='#f0f9ff',
+            )
+        )
 
-Please verify your email address by clicking this link:
-{verify_link}
-
-Security notice:
-- This verification link expires in 24 hours
-- If you did not create this account, you can ignore this email
-
-Best regards,
-QA Copilot Team
-"""
-
-        html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }}
-        .container {{
-            background-color: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }}
-        .header {{
-            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-            color: white;
-            padding: 36px 30px;
-            text-align: center;
-        }}
-        .header h1 {{
-            margin: 0;
-            font-size: 30px;
-            font-weight: 700;
-        }}
-        .content {{
-            padding: 36px;
-        }}
-        .button-container {{
-            text-align: center;
-            margin: 30px 0;
-        }}
-        .button {{
-            display: inline-block;
-            padding: 14px 36px;
-            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-            color: white !important;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 16px;
-        }}
-        .notice {{
-            background: #f0f9ff;
-            border-left: 4px solid #0284c7;
-            padding: 16px;
-            border-radius: 6px;
-            font-size: 14px;
-            color: #0f172a;
-        }}
-        .footer {{
-            padding: 24px 36px;
-            background: #f8fafc;
-            border-top: 1px solid #e2e8f0;
-            font-size: 13px;
-            color: #64748b;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            {self._logo_html}
-            <h1>Verify Your Email</h1>
-            <p>Complete your QA Copilot signup</p>
-        </div>
-        <div class="content">
-            <p>Hello <strong>{username}</strong>,</p>
-            <p>Thanks for signing up for QA Copilot. Please verify your email to activate login access.</p>
-            <div class="button-container">
-                <a href="{verify_link}" class="button">Verify Email</a>
-            </div>
-            <div class="notice">
-                <strong>Security notice:</strong><br/>
-                This link expires in 24 hours. If you did not create this account, you can ignore this email.
-            </div>
-        </div>
-        <div class="footer">
-            QA Copilot Team<br/>
-            This is an automated message. Please do not reply.
-        </div>
-    </div>
-</body>
-</html>
-"""
-
+        html_body = self._wrap_html(
+            header_bg='linear-gradient(135deg,#0ea5e9,#0284c7)',
+            header_title='Verify Your Email',
+            header_subtitle='One quick step to activate your account',
+            body_html=body,
+        )
         return self.send_email(to_email, subject, html_body, text_body)
+
+    # ── Email: Team Invitation ─────────────────────────────────────
 
     def send_team_invitation_email(
         self, to_email: str, to_username: str, team_name: str, invited_by: str, role: str
     ) -> bool:
-        """
-        Send a team invitation notification email.
-
-        Args:
-            to_email: Invitee's email
-            to_username: Invitee's username
-            team_name: Name of the team
-            invited_by: Username of the person who sent the invite
-            role: Role being offered (e.g. qa_member)
-
-        Returns:
-            True if sent successfully, False otherwise
-        """
         inbox_link = f"{self.app_url}/dashboard"
         role_display = role.replace('_', ' ').title()
-
         subject = f"You're invited to join {team_name} — QA Copilot"
 
-        text_body = f"""
-Hello {to_username},
+        text_body = (
+            f"Hello {to_username},\n\n"
+            f"{invited_by} has invited you to join \"{team_name}\" as a {role_display} on QA Copilot.\n\n"
+            f"Log in to accept or decline: {inbox_link}\n\n"
+            f"If you did not expect this invitation, you can safely ignore it.\n\n"
+            f"— QA Copilot Team"
+        )
 
-{invited_by} has invited you to join the team "{team_name}" as a {role_display} on QA Copilot.
+        invite_card = (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            'style="margin:24px 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">'
+            '<tr><td style="padding:20px;">'
+            f'<p style="margin:0 0 6px;font-size:20px;font-weight:700;color:#1e293b;">{team_name}</p>'
+            f'<p style="margin:0 0 10px;font-size:14px;color:#64748b;">Invited by <strong>{invited_by}</strong></p>'
+            f'<span style="display:inline-block;padding:5px 14px;background:#ede9fe;color:#6d28d9;'
+            f'border-radius:20px;font-size:13px;font-weight:600;">{role_display}</span>'
+            '</td></tr></table>'
+        )
 
-Log in to your account and check your Inbox to accept or decline this invitation:
-{inbox_link}
+        body = (
+            f'<p style="margin:0 0 16px;font-size:15px;color:#374151;">Hello <strong>{to_username}</strong>,</p>'
+            f'<p style="margin:0 0 6px;font-size:15px;color:#4b5563;line-height:1.7;">'
+            f'You have been invited to join a team on QA Copilot. '
+            f'Review the details below and head to your Inbox to accept or decline.</p>'
+            + invite_card
+            + self._btn(inbox_link, 'Open My Inbox', bg='linear-gradient(135deg,#6366f1,#8b5cf6)')
+            + '<p style="margin:0;font-size:13px;color:#9ca3af;">'
+            'If you did not expect this invitation, you can safely ignore this email.</p>'
+        )
 
-If you did not expect this invitation, you can safely ignore it.
-
-Best regards,
-QA Copilot Team
-"""
-
-        html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }}
-        .container {{
-            background-color: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }}
-        .header {{
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            color: white;
-            padding: 36px 30px;
-            text-align: center;
-        }}
-        .header h1 {{
-            margin: 0;
-            font-size: 28px;
-            font-weight: 700;
-        }}
-        .header p {{
-            margin: 8px 0 0;
-            font-size: 15px;
-            opacity: 0.9;
-        }}
-        .content {{
-            padding: 36px;
-        }}
-        .invite-card {{
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 24px 0;
-        }}
-        .invite-card .team-name {{
-            font-size: 20px;
-            font-weight: 700;
-            color: #1e293b;
-            margin-bottom: 8px;
-        }}
-        .invite-card .detail {{
-            font-size: 14px;
-            color: #64748b;
-            margin: 4px 0;
-        }}
-        .invite-card .role-badge {{
-            display: inline-block;
-            padding: 4px 12px;
-            background: #ede9fe;
-            color: #6d28d9;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 600;
-            margin-top: 8px;
-        }}
-        .button-container {{
-            text-align: center;
-            margin: 30px 0;
-        }}
-        .button {{
-            display: inline-block;
-            padding: 14px 40px;
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            color: white !important;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 16px;
-        }}
-        .footer {{
-            padding: 24px 36px;
-            background: #f8fafc;
-            border-top: 1px solid #e2e8f0;
-            font-size: 13px;
-            color: #64748b;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            {self._logo_html}
-            <h1>Team Invitation</h1>
-            <p>You've been invited to collaborate</p>
-        </div>
-        <div class="content">
-            <p>Hello <strong>{to_username}</strong>,</p>
-            <p><strong>{invited_by}</strong> has invited you to join a team on QA Copilot.</p>
-
-            <div class="invite-card">
-                <div class="team-name">{team_name}</div>
-                <div class="detail">Invited by: {invited_by}</div>
-                <span class="role-badge">{role_display}</span>
-            </div>
-
-            <p>Log in and open your <strong>Inbox</strong> (profile icon) to accept or decline.</p>
-
-            <div class="button-container">
-                <a href="{inbox_link}" class="button">Open QA Copilot</a>
-            </div>
-
-            <p style="font-size: 13px; color: #94a3b8;">
-                If you did not expect this invitation, you can safely ignore this email.
-            </p>
-        </div>
-        <div class="footer">
-            QA Copilot Team<br/>
-            This is an automated message. Please do not reply.
-        </div>
-    </div>
-</body>
-</html>
-"""
-
+        html_body = self._wrap_html(
+            header_bg='linear-gradient(135deg,#6366f1,#8b5cf6)',
+            header_title='Team Invitation',
+            header_subtitle="You've been invited to collaborate",
+            body_html=body,
+        )
         return self.send_email(to_email, subject, html_body, text_body)
+
+    # ── Email: Invitation Response (to inviter) ────────────────────
 
     def send_invitation_response_email(
         self, to_email: str, to_username: str, invitee_username: str,
         invitee_email: str, team_name: str, accepted: bool
     ) -> bool:
-        """
-        Notify the team admin (inviter) that their invitation was accepted or rejected.
-        """
-        action = "accepted" if accepted else "declined"
-        action_past = "accepted" if accepted else "declined"
-        emoji = "🎉" if accepted else "❌"
-        header_color = "linear-gradient(135deg, #10b981 0%, #059669 100%)" if accepted else "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
-        badge_bg = "#d1fae5" if accepted else "#fee2e2"
-        badge_color = "#065f46" if accepted else "#991b1b"
+        action = 'accepted' if accepted else 'declined'
+        emoji = '\U0001f389' if accepted else '\u274c'
+        header_bg = 'linear-gradient(135deg,#10b981,#059669)' if accepted else 'linear-gradient(135deg,#ef4444,#dc2626)'
+        badge_bg = '#d1fae5' if accepted else '#fee2e2'
+        badge_color = '#065f46' if accepted else '#991b1b'
 
-        subject = f"{emoji} {invitee_username} {action_past} your invitation to {team_name} — QA Copilot"
+        subject = f"{invitee_username} {action} your invitation to {team_name} — QA Copilot"
 
-        text_body = f"""
-Hello {to_username},
+        follow_up = (
+            f'They are now a member of your team. You can manage roles in Team Management.'
+            if accepted else
+            f'No further action is needed. You can invite someone else at any time.'
+        )
 
-{invitee_username} ({invitee_email}) has {action_past} your invitation to join "{team_name}".
+        text_body = (
+            f"Hello {to_username},\n\n"
+            f"{invitee_username} ({invitee_email}) has {action} your invitation to join \"{team_name}\".\n\n"
+            f"{follow_up}\n\n"
+            f"— QA Copilot Team"
+        )
 
-{"They are now a member of your team. You can manage members in Team Management." if accepted else "No further action is needed. You can invite someone else anytime."}
+        response_card = (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            'style="margin:24px 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">'
+            '<tr><td style="padding:20px;">'
+            f'<p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#1e293b;">{invitee_username}</p>'
+            f'<p style="margin:0 0 12px;font-size:14px;color:#64748b;">{invitee_email}</p>'
+            f'<span style="display:inline-block;padding:6px 16px;background:{badge_bg};color:{badge_color};'
+            f'border-radius:20px;font-size:13px;font-weight:700;">{action.title()}</span>'
+            '</td></tr></table>'
+        )
 
-Best regards,
-QA Copilot Team
-"""
+        info_html = (
+            f'<strong>{invitee_username}</strong> is now a member of <strong>{team_name}</strong>. '
+            f'You can manage their role in Team Management.'
+            if accepted else
+            f'You can invite someone else to join <strong>{team_name}</strong> at any time.'
+        )
 
-        html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6; color: #333; max-width: 600px;
-            margin: 0 auto; padding: 20px; background-color: #f5f5f5;
-        }}
-        .container {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }}
-        .header {{
-            background: {header_color};
-            color: white; padding: 36px 30px; text-align: center;
-        }}
-        .header h1 {{ margin: 0; font-size: 28px; font-weight: 700; }}
-        .header p {{ margin: 8px 0 0; font-size: 15px; opacity: 0.9; }}
-        .content {{ padding: 36px; }}
-        .invitee-card {{
-            background: #f8fafc; border: 1px solid #e2e8f0;
-            border-radius: 10px; padding: 20px; margin: 24px 0;
-        }}
-        .invitee-card .name {{ font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }}
-        .invitee-card .email {{ font-size: 14px; color: #64748b; }}
-        .status-badge {{
-            display: inline-block; padding: 6px 16px;
-            background: {badge_bg}; color: {badge_color};
-            border-radius: 20px; font-size: 14px; font-weight: 700;
-            margin-top: 12px;
-        }}
-        .info-box {{
-            background: #f0f9ff; border-left: 4px solid #0284c7;
-            padding: 16px; border-radius: 6px; font-size: 14px; color: #0f172a;
-            margin-top: 20px;
-        }}
-        .footer {{
-            padding: 24px 36px; background: #f8fafc;
-            border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            {self._logo_html}
-            <h1>{emoji} Invitation {action_past.title()}</h1>
-            <p>Team: {team_name}</p>
-        </div>
-        <div class="content">
-            <p>Hello <strong>{to_username}</strong>,</p>
-            <p>Your team invitation has received a response:</p>
-            <div class="invitee-card">
-                <div class="name">{invitee_username}</div>
-                <div class="email">{invitee_email}</div>
-                <span class="status-badge">{emoji} {action_past.title()}</span>
-            </div>
-            <div class="info-box">
-                {"🎉 <strong>" + invitee_username + "</strong> is now a member of <strong>" + team_name + "</strong>. You can manage roles and members in Team Management." if accepted else "No further action needed. You can invite someone else to join <strong>" + team_name + "</strong> at any time."}
-            </div>
-        </div>
-        <div class="footer">
-            QA Copilot Team<br/>
-            This is an automated message. Please do not reply.
-        </div>
-    </div>
-</body>
-</html>
-"""
+        body = (
+            f'<p style="margin:0 0 16px;font-size:15px;color:#374151;">Hello <strong>{to_username}</strong>,</p>'
+            f'<p style="margin:0 0 6px;font-size:15px;color:#4b5563;line-height:1.7;">'
+            f'Your team invitation has received a response:</p>'
+            + response_card
+            + self._info_box(info_html, border_color='#0284c7', bg='#f0f9ff')
+        )
+
+        html_body = self._wrap_html(
+            header_bg=header_bg,
+            header_title=f'Invitation {action.title()}',
+            header_subtitle=f'Team: {team_name}',
+            body_html=body,
+        )
         return self.send_email(to_email, subject, html_body, text_body)
 
 

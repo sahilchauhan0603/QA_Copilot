@@ -15,6 +15,7 @@ import {
   Pencil,
   Mail,
   Search,
+  LogOut,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { teamAPI } from "../../services/api";
@@ -40,6 +41,7 @@ const TeamManagement = ({ onCancel }) => {
   const [roleChangeData, setRoleChangeData] = useState(null);
   const [showDeleteTeamModal, setShowDeleteTeamModal] = useState(false);
   const [teamToDelete, setTeamToDelete] = useState("");
+  const [showLeaveTeamModal, setShowLeaveTeamModal] = useState(false);
   const [showEditTeamModal, setShowEditTeamModal] = useState(false);
   const [editTeamName, setEditTeamName] = useState("");
   const [editTeamDesc, setEditTeamDesc] = useState("");
@@ -48,6 +50,7 @@ const TeamManagement = ({ onCancel }) => {
   const [newMemberIdentifier, setNewMemberIdentifier] = useState("");
   const [newMemberRole, setNewMemberRole] = useState("qa_member");
   const [isLoading, setIsLoading] = useState(false);
+  const [sendingInvite, setSendingInvite] = useState(false);
   const [pendingInvitations, setPendingInvitations] = useState([]);
   const [memberSearch, setMemberSearch] = useState("");
   const [memberRoleFilter, setMemberRoleFilter] = useState("all");
@@ -128,12 +131,13 @@ const TeamManagement = ({ onCancel }) => {
 
   const handleAddMember = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
+    if (sendingInvite) return;
+    setSendingInvite(true);
 
     const identifier = newMemberIdentifier.trim();
     if (!identifier || identifier.length < 3) {
       toast.error("Please enter a valid email, username, or User ID");
-      setIsLoading(false);
+      setSendingInvite(false);
       return;
     }
 
@@ -148,7 +152,7 @@ const TeamManagement = ({ onCancel }) => {
     } catch (err) {
       // error toast already handled by axios interceptor
     } finally {
-      setIsLoading(false);
+      setSendingInvite(false);
     }
   };
 
@@ -287,6 +291,24 @@ const TeamManagement = ({ onCancel }) => {
     }
   };
 
+  const handleLeaveTeam = async () => {
+    if (!activeWorkspace?.id) return;
+    setIsLoading(true);
+    try {
+      await teamAPI.leaveTeam(activeWorkspace.id);
+      toast.success('You have left the team');
+      setShowLeaveTeamModal(false);
+      await switchWorkspace(null);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      toast.error('Failed to leave team');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const isAdmin = currentUserRole === "admin";
 
   // Show create form if in personal workspace
@@ -308,7 +330,7 @@ const TeamManagement = ({ onCancel }) => {
               <span>Edit Team</span>
             </button>
           )}
-          {activeWorkspace?.type === "team" ? (
+          {activeWorkspace?.type === "team" && activeWorkspace?.role === "admin" ? (
             <button
               onClick={() => setShowDeleteTeamModal(true)}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center justify-center gap-2 shadow-md transition-all text-sm sm:text-base w-full sm:w-auto"
@@ -316,6 +338,14 @@ const TeamManagement = ({ onCancel }) => {
             >
               <Trash2 size={18} />
               <span>Delete Team</span>
+            </button>
+          ) : activeWorkspace?.type === "team" ? (
+            <button
+              onClick={() => setShowLeaveTeamModal(true)}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center justify-center gap-2 shadow-md transition-all text-sm sm:text-base w-full sm:w-auto"
+            >
+              <LogOut size={18} />
+              <span>Leave Team</span>
             </button>
           ) : null}
         </div>
@@ -794,16 +824,20 @@ const TeamManagement = ({ onCancel }) => {
                           setNewMemberRole("qa_member");
                         }}
                         className="btn-secondary w-full sm:w-auto"
+                        disabled={sendingInvite}
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        disabled={isLoading}
-                        className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
+                        disabled={sendingInvite}
+                        className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isLoading ? (
-                          "Sending..."
+                        {sendingInvite ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Sending...
+                          </>
                         ) : (
                           <>
                             <UserPlus size={16} />
@@ -1154,6 +1188,60 @@ const TeamManagement = ({ onCancel }) => {
                           <>
                             <Trash2 size={16} />
                             Delete Team Permanently
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Leave Team Confirmation Modal */}
+            {showLeaveTeamModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-red-600">
+                      Leave Team
+                    </h3>
+                    <button
+                      onClick={() => setShowLeaveTeamModal(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+                  <div className="space-y-4">
+                    <p className="text-gray-700">
+                      Are you sure you want to leave <strong>{activeWorkspace?.name}</strong>?
+                    </p>
+                    <p className="text-sm text-red-600">
+                      ⚠️ You will lose access to all team data. You'll need a new invitation to rejoin.
+                    </p>
+                    <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowLeaveTeamModal(false)}
+                        className="btn-secondary w-full sm:w-auto"
+                        disabled={isLoading}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleLeaveTeam}
+                        disabled={isLoading}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2 w-full sm:w-auto"
+                      >
+                        {isLoading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Leaving...
+                          </>
+                        ) : (
+                          <>
+                            <LogOut size={16} />
+                            Leave Team
                           </>
                         )}
                       </button>

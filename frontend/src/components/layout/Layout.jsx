@@ -236,23 +236,25 @@ const Layout = ({ children }) => {
             {/* Desktop User Menu */}
             <div className="hidden md:block relative group">
               <button
-                className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-transparent hover:border-primary-400 transition-colors flex items-center justify-center bg-primary-100 text-primary-700 font-semibold text-sm"
+                className="relative w-9 h-9 rounded-full border-2 border-transparent hover:border-primary-400 transition-colors flex items-center justify-center bg-primary-100 text-primary-700 font-semibold text-sm"
                 aria-label="Open profile menu"
                 aria-haspopup="menu"
               >
-                {user?.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    alt="avatar"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span>
-                    {(user?.full_name || user?.username || "U")
-                      .charAt(0)
-                      .toUpperCase()}
-                  </span>
-                )}
+                <span className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
+                  {user?.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt="avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>
+                      {(user?.full_name || user?.username || "U")
+                        .charAt(0)
+                        .toUpperCase()}
+                    </span>
+                  )}
+                </span>
                 {invitationCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
                     {invitationCount > 9 ? "9+" : invitationCount}
