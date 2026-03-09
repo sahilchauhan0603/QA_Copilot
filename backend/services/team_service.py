@@ -541,12 +541,14 @@ class TeamService:
                 if existing_inv:
                     return None, "An invitation is already pending for this user"
 
-                # Remove old rejected/expired row so the unique constraint allows re-invite
+                # Remove any previous non-pending invitation so the unique constraint
+                # (team_id, invited_user_id) allows a fresh invite (covers ACCEPTED rows
+                # left behind when a member leaves the team, plus REJECTED / EXPIRED).
                 session.query(TeamInvitation).filter(
                     TeamInvitation.team_id == team_id,
                     TeamInvitation.invited_user_id == invited_user_id,
-                    TeamInvitation.status.in_([InvitationStatus.REJECTED, InvitationStatus.EXPIRED]),
-                ).delete()
+                    TeamInvitation.status != InvitationStatus.PENDING,
+                ).delete(synchronize_session='fetch')
 
                 invitation = TeamInvitation(
                     team_id=team_id,

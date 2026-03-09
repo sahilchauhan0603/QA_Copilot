@@ -71,10 +71,10 @@ if ($envContent -notmatch "ENCRYPTION_KEY=(?!your-fernet)[\w\-_]+") {
     Read-Host
 }
 
-# Initialize database
+# Initialize database (load .env first so DATABASE_URL is available)
 Write-Host ""
 Write-Host "Initializing database..." -ForegroundColor Yellow
-& $venvPython -c "import sys; sys.path.insert(0, r'$projectRoot\backend'); from database.connection import init_database; init_database()"
+& $venvPython -c "import sys, os; sys.path.insert(0, r'$projectRoot\backend'); from dotenv import load_dotenv; load_dotenv(r'$projectRoot\backend\.env'); from database.connection import init_database; init_database()"
 
 Write-Host ""
 Write-Host "==================================" -ForegroundColor Green
