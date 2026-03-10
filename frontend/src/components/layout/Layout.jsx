@@ -20,10 +20,11 @@ import {
   Pencil,
   Camera,
   CalendarDays,
+  Zap,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import useAuthStore from "../../store/authStore";
-import { teamAPI } from "../../services/api";
+import { teamAPI, webhookAPI } from "../../services/api";
 import WorkspaceSelector from "./WorkspaceSelector";
 
 const Layout = ({ children }) => {
@@ -58,6 +59,12 @@ const Layout = ({ children }) => {
   const [showInbox, setShowInbox] = useState(true);
   const [respondingId, setRespondingId] = useState(null);
 
+  // ── Auto-regen notifications ──
+  const [autoRegens, setAutoRegens] = useState([]);
+  const [autoRegenCount, setAutoRegenCount] = useState(0);
+  const [showAutoRegenPanel, setShowAutoRegenPanel] = useState(false);
+  const autoRegenPanelRef = useRef(null);
+
   const fetchInvitations = useCallback(async () => {
     try {
       const data = await teamAPI.getMyInvitations();
@@ -74,6 +81,42 @@ const Layout = ({ children }) => {
     const interval = setInterval(fetchInvitations, 30000);
     return () => clearInterval(interval);
   }, [fetchInvitations]);
+
+  const fetchAutoRegens = useCallback(async () => {
+    try {
+      const data = await webhookAPI.getRecentActivity();
+      const items = data.activity || [];
+      setAutoRegens(items);
+      const lastSeen = localStorage.getItem('qa_copilot_last_auto_regen_seen');
+      if (lastSeen) {
+        const lastSeenDate = new Date(lastSeen);
+        setAutoRegenCount(items.filter(i => new Date(i.created_at) > lastSeenDate).length);
+      } else {
+        setAutoRegenCount(items.length);
+      }
+    } catch {
+      // silent — non-critical
+    }
+  }, []);
+
+  // Poll auto-regens on mount and every 60 seconds
+  useEffect(() => {
+    fetchAutoRegens();
+    const interval = setInterval(fetchAutoRegens, 60000);
+    return () => clearInterval(interval);
+  }, [fetchAutoRegens]);
+
+  // Close auto-regen panel on outside click
+  useEffect(() => {
+    if (!showAutoRegenPanel) return;
+    const handler = (e) => {
+      if (autoRegenPanelRef.current && !autoRegenPanelRef.current.contains(e.target)) {
+        setShowAutoRegenPanel(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showAutoRegenPanel]);
 
   const handleRespondInvitation = async (invitationId, action) => {
     setRespondingId(invitationId);
@@ -222,6 +265,85 @@ const Layout = ({ children }) => {
             {/* Desktop Workspace Selector */}
             <div className="hidden lg:block mr-4">
               <WorkspaceSelector />
+            </div>
+
+            {/* Webhook Auto-Regen Notification Bell */}
+            <div className="hidden md:block relative mr-1" ref={autoRegenPanelRef}>
+              <button
+                onClick={() => {
+                  const opening = !showAutoRegenPanel;
+                  setShowAutoRegenPanel(opening);
+                  if (opening) {
+                    localStorage.setItem('qa_copilot_last_auto_regen_seen', new Date().toISOString());
+                    setAutoRegenCount(0);
+                  }
+                }}
+                className="relative p-2 text-gray-500 hover:bg-amber-50 hover:text-amber-600 rounded-lg transition-colors"
+                title="Webhook Auto-Regenerations"
+                aria-label="Webhook auto-regeneration notifications"
+              >
+                <Zap size={20} />
+                {autoRegenCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+                    {autoRegenCount > 9 ? '9+' : autoRegenCount}
+                  </span>
+                )}
+              </button>
+
+              {showAutoRegenPanel && (
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-amber-50">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+                      <Zap size={15} />
+                      Auto-Regenerations
+                    </span>
+                    {autoRegens.length > 0 && (
+                      <span className="text-xs text-amber-600">{autoRegens.length} recent</span>
+                    )}
+                  </div>
+                  <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                    {autoRegens.length === 0 ? (
+                      <p className="text-xs text-gray-400 text-center py-6">No auto-regenerations yet</p>
+                    ) : (
+                      autoRegens.map((item) => (
+                        <div key={item.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{item.ticket_id}</p>
+                              {item.ticket_title && (
+                                <p className="text-xs text-gray-500 truncate mt-0.5">{item.ticket_title}</p>
+                              )}
+                            </div>
+                            <span className="shrink-0 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                              {item.total_test_cases} tests
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            {item.auto_regen_source && (
+                              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] capitalize">
+                                via {item.auto_regen_source.replace('_', ' ')}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-gray-400">
+                              {new Date(item.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {autoRegens.length > 0 && (
+                    <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+                      <button
+                        onClick={() => { navigate('/test-generation'); setShowAutoRegenPanel(false); }}
+                        className="w-full text-xs text-primary-600 hover:text-primary-700 font-medium text-center"
+                      >
+                        View in Generation History →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Hidden file input for avatar — outside md:block so mobile can use the same ref */}

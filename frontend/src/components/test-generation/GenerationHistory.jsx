@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Loader,
   GitBranch,
+  Zap,
 } from 'lucide-react';
 
 const GenerationHistory = ({
@@ -176,6 +177,12 @@ const GenerationHistory = ({
                               ✨ Refined Generation - {gen.generation_metadata.refinement.refinement_type}
                             </span>
                           )}
+                          {gen.generation_metadata?.webhook_auto_regen && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                              <Zap size={10} />
+                              Auto-Regenerated
+                            </span>
+                          )}
                         </div>
                         <h4 className="text-sm font-medium text-gray-900 line-clamp-2">
                           {gen.ticket_title}
@@ -294,6 +301,12 @@ const GenerationHistory = ({
                             {gen.generation_metadata?.refinement?.is_refined && (
                               <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs inline-block">
                                 ✨ Refined Generation - {gen.generation_metadata.refinement.refinement_type}
+                              </span>
+                            )}
+                            {gen.generation_metadata?.webhook_auto_regen && (
+                              <span className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs">
+                                <Zap size={10} />
+                                Auto-Regenerated
                               </span>
                             )}
                           </div>

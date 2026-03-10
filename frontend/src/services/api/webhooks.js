@@ -33,4 +33,11 @@ export const webhookAPI = {
     const response = await apiClient.delete(`/webhooks/subscriptions/${subId}`);
     return response.data;
   },
+
+  /** Get recent auto-regeneration activity (optional: since ISO timestamp) */
+  getRecentActivity: async (since) => {
+    const params = since ? { since } : {};
+    const response = await apiClient.get('/webhooks/recent-activity', { params });
+    return response.data;
+  },
 };

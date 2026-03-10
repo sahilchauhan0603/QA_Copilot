@@ -78,6 +78,8 @@ class DatabaseManager:
                         'status': state.get('ticket_info', {}).get('status', ''),
                         'source_integration': state.get('source_integration'),
                         'refinement': state.get('refinement'),  # Add refinement metadata
+                        'webhook_auto_regen': state.get('webhook_auto_regen', False),
+                        'auto_regen_source': state.get('auto_regen_source'),
                         'screenshot_count': state.get('screenshot_count', 0),
                         'image_analysis': state.get('ticket_info', {}).get('image_analysis', ''),
                     },
