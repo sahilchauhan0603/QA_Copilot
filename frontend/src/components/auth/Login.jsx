@@ -356,7 +356,7 @@ const Login = () => {
     },
     {
       icon: Zap,
-      label: "Online Today",
+      label: "Online",
       value: stats.active_users_today,
       color: "text-pink-300",
     },

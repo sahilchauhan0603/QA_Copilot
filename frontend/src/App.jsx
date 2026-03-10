@@ -2,7 +2,7 @@
  * Main App Component
  * Routing and app structure
  */
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useEffect, useState } from 'react';
 import Login from './components/auth/Login';
@@ -18,6 +18,103 @@ import SettingsPage from './pages/SettingsPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import useAuthStore from './store/authStore';
 import './index.css';
+
+function AppRoutes({ isAuthenticated }) {
+  const location = useLocation();
+
+  // Set document title based on route
+  useEffect(() => {
+    const titles = {
+      '/login': 'Login',
+      '/signup': 'Sign Up',
+      '/forgot-password': 'Forgot Password',
+      '/reset-password': 'Reset Password',
+      '/verify-email': 'Verify Email',
+      '/dashboard': 'Dashboard',
+      '/test-generation': 'Test Generation',
+      '/teams': 'Teams',
+      '/settings': 'Settings',
+    };
+    const pageTitle = titles[location.pathname] ?? 'QA Copilot';
+    document.title = `${pageTitle} | QA Copilot`;
+  }, [location.pathname]);
+
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />}
+      />
+      <Route
+        path="/signup"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Signup />}
+      />
+      <Route
+        path="/forgot-password"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ForgotPassword />}
+      />
+      <Route
+        path="/reset-password"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ResetPassword />}
+      />
+      <Route
+        path="/verify-email"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <VerifyEmail />}
+      />
+
+      {/* Protected Routes with Layout */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <HomePage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/test-generation"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <TestGenerationPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/teams"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <TeamsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <SettingsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/"
+        element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />}
+      />
+      <Route
+        path="*"
+        element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />}
+      />
+    </Routes>
+  );
+}
 
 function App() {
   const { isAuthenticated, initializeAuth } = useAuthStore();
@@ -74,79 +171,7 @@ function App() {
           },
         }}
       />
-      <Routes>
-        <Route 
-          path="/login" 
-          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} 
-        />
-        <Route 
-          path="/signup" 
-          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Signup />} 
-        />
-        <Route 
-          path="/forgot-password" 
-          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} 
-        />
-        <Route 
-          path="/reset-password" 
-          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ResetPassword />} 
-        />
-        <Route 
-          path="/verify-email" 
-          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <VerifyEmail />} 
-        />
-        
-        {/* Protected Routes with Layout */}
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <HomePage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/test-generation"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <TestGenerationPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/teams"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <TeamsPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <SettingsPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        
-        <Route 
-          path="/" 
-          element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} 
-        />
-        <Route 
-          path="*" 
-          element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} 
-        />
-      </Routes>
+      <AppRoutes isAuthenticated={isAuthenticated} />
     </Router>
   );
 }
