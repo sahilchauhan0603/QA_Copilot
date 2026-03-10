@@ -22,9 +22,10 @@ DECLARE
         'password_reset_tokens',
         'email_verification_tokens',
         'user_sessions',
-        -- User context & integrations
+        -- User context, integrations & webhooks
         'user_workspace_context',
         'integration_credentials',
+        'webhook_subscriptions',
         -- Teams
         'team_invitations',
         'team_members',

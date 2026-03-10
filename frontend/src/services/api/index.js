@@ -10,6 +10,7 @@ export { teamAPI } from './teams';
 export { integrationAPI } from './integrations';
 export { testManagementAPI } from './testManagement';
 export { testGenAPI } from './testGeneration';
+export { webhookAPI } from './webhooks';
 
 // Default export for backward compatibility (apiClient)
 export { default } from './client';

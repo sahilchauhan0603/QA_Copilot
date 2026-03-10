@@ -1,6 +1,6 @@
 # Scripts Directory
 
-Utility scripts for managing and running the TicketToTest AI application.
+Utility scripts for managing and running the QA Copilot AI application.
 
 ## Available Scripts
 
@@ -13,7 +13,12 @@ Run database migrations to update the schema.
 python scripts/run_migration.py
 ```
 
-This script applies all schema migrations (base schema, enum updates, auth-related tables/columns).
+This script applies all schema migrations in 5 steps:
+1. Main schema — all tables including OAuth columns and `webhook_subscriptions`
+2. Test management enum — adds `xray`, `zephyr`, `testrail` enum values
+3. Password reset tokens
+4. Email verification tokens and user columns
+5. Public user IDs (`QC-XXXXXXXX` style)
 
 #### `check_database.py`
 Check database connection and view current database state.

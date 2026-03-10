@@ -241,6 +241,50 @@ class EmailVerificationToken(Base):
         return f"<EmailVerificationToken(id={self.id}, user_id={self.user_id}, used={self.used})>"
 
 
+class WebhookSubscription(Base):
+    """Webhook subscription for auto-regeneration on ticket updates"""
+    __tablename__ = 'webhook_subscriptions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    team_id = Column(Integer, ForeignKey('teams.id', ondelete='SET NULL'), nullable=True, index=True)
+    integration_type = Column(Enum(IntegrationType, name='integration_type', native_enum=True, values_callable=lambda x: [e.value for e in x]), nullable=False)
+    ticket_id = Column(String(100), nullable=False)
+    ticket_title = Column(Text)
+    generation_id = Column(String(36), nullable=True)  # UUID of the latest generation
+    content_hash = Column(String(64))  # SHA-256 of ticket content for change detection
+    is_active = Column(Boolean, default=True, nullable=False)
+    last_triggered_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'team_id', 'integration_type', 'ticket_id', name='uq_webhook_subscription'),
+    )
+
+    # Relationships
+    user = relationship("User")
+    team = relationship("Team")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'team_id': self.team_id,
+            'integration_type': self.integration_type.value,
+            'ticket_id': self.ticket_id,
+            'ticket_title': self.ticket_title,
+            'generation_id': self.generation_id,
+            'is_active': self.is_active,
+            'last_triggered_at': self.last_triggered_at.isoformat() if self.last_triggered_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def __repr__(self):
+        return f"<WebhookSubscription(id={self.id}, ticket_id='{self.ticket_id}', user_id={self.user_id})>"
+
+
 class InvitationStatus(str, enum.Enum):
     """Team invitation statuses"""
     PENDING = "pending"

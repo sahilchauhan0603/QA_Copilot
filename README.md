@@ -23,6 +23,7 @@
 ✅ **Real-time Progress** - SSE-based live updates during generation  
 ✅ **Password Reset** - Secure email-based password recovery  
 ✅ **Sync to Tickets** - Attach Excel files and post comments directly to Jira/DevOps
+✅ **Webhook Monitoring** - Auto-regenerate test cases when Jira/Azure DevOps tickets are updated, with email notifications
 
 ### What You Get
 
@@ -238,7 +239,6 @@ QA_Copilot/
 ## 🗺️ Roadmap
 
 - [ ] Web crawling feature to analyze websites and automatically generate test cases.
-- [ ] Webhook monitoring for auto-regeneration on ticket updates.
 
 ---
 

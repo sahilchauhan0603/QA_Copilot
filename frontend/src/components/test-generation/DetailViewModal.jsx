@@ -3,7 +3,7 @@
  * Full-screen modal showing generation details with test cases,
  * requirements, coverage gaps, sync, export, and refine capabilities
  */
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   FileText,
@@ -24,8 +24,11 @@ import {
   ShieldAlert,
   HelpCircle,
   Settings,
+  Bell,
+  BellOff,
+  Loader,
 } from "lucide-react";
-import { integrationAPI } from "../../services/api";
+import { integrationAPI, webhookAPI } from "../../services/api";
 import toast from "react-hot-toast";
 import { AccordionSection, OperationStatusBadge } from "../common";
 import SyncMenu from "./SyncMenu";
@@ -77,6 +80,58 @@ const DetailViewModal = ({
   // Footer badges state for refinement/export
   const [refineBadge, setRefineBadge] = useState({ active: false, text: "" });
   const [exportBadge, setExportBadge] = useState({ active: false, text: "" });
+
+  // Webhook monitoring state
+  const [monitoring, setMonitoring] = useState(null); // null=unknown, true/false
+  const [monitorLoading, setMonitorLoading] = useState(false);
+
+  // Check if ticket is already monitored on mount
+  useEffect(() => {
+    if (!sourceIntegration || !gen?.ticket_id) return;
+    webhookAPI.getSubscriptions().then((data) => {
+      const match = (data.subscriptions || []).find(
+        (s) =>
+          s.ticket_id === gen.ticket_id &&
+          s.integration_type === sourceIntegration &&
+          s.is_active
+      );
+      setMonitoring(!!match);
+    }).catch(() => setMonitoring(false));
+  }, [sourceIntegration, gen?.ticket_id]);
+
+  const handleToggleMonitoring = async () => {
+    if (!sourceIntegration || !gen?.ticket_id) return;
+    setMonitorLoading(true);
+    try {
+      if (monitoring) {
+        // Find and disable subscription
+        const data = await webhookAPI.getSubscriptions();
+        const match = (data.subscriptions || []).find(
+          (s) =>
+            s.ticket_id === gen.ticket_id &&
+            s.integration_type === sourceIntegration
+        );
+        if (match) {
+          await webhookAPI.updateSubscription(match.id, { is_active: false });
+        }
+        setMonitoring(false);
+        toast.success(`Stopped monitoring ${gen.ticket_id}`);
+      } else {
+        await webhookAPI.createSubscription(
+          sourceIntegration,
+          gen.ticket_id,
+          gen.ticket_title,
+          gen.id
+        );
+        setMonitoring(true);
+        toast.success(`Now monitoring ${gen.ticket_id} for changes`);
+      }
+    } catch (err) {
+      toast.error('Failed to update monitoring');
+    } finally {
+      setMonitorLoading(false);
+    }
+  };
 
   const handleSync = async (action) => {
     if (!sourceIntegration || !gen?.ticket_id || !gen?.id) return;
@@ -259,6 +314,35 @@ const DetailViewModal = ({
               onClose={onClose}
               onStatusChange={setRefineBadge}
             />
+
+            {/* Monitor Ticket Toggle */}
+            {canSync && (
+              <button
+                onClick={handleToggleMonitoring}
+                disabled={monitorLoading || monitoring === null}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm ${
+                  monitoring
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
+                }`}
+                title={
+                  monitoring
+                    ? 'Stop monitoring this ticket for changes'
+                    : 'Auto-regenerate tests when this ticket is updated'
+                }
+              >
+                {monitorLoading ? (
+                  <Loader size={14} className="animate-spin" />
+                ) : monitoring ? (
+                  <Bell size={14} />
+                ) : (
+                  <BellOff size={14} />
+                )}
+                <span className="hidden sm:inline">
+                  {monitoring ? 'Monitoring' : 'Monitor'}
+                </span>
+              </button>
+            )}
           </div>
         </div>
 

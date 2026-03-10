@@ -1,7 +1,7 @@
 """
 Run database migrations using SQLAlchemy
 This script runs:
-1. Main schema migration (creates all base tables)
+1. Main schema migration (creates all base tables, OAuth columns, webhook_subscriptions)
 2. Test management enum migration (ensures xray/zephyr/testrail enum values)
 3. Password reset token migration (adds password reset functionality)
 4. Email verification migration (adds signup verification functionality)
@@ -131,7 +131,7 @@ def run_migration():
         engine = db.engine
 
         print("=" * 60)
-        print("DATABASE MIGRATION - TicketToTest AI")
+        print("DATABASE MIGRATION - QA Copilot AI")
         print("=" * 60)
         db_name = db.database_url.split('@')[1] if '@' in db.database_url else 'database'
         print(f"Connected to: {db_name}")
@@ -140,6 +140,7 @@ def run_migration():
         # Step 1: Run main schema migration
         print("Step 1/5: Running main schema migration...")
         print("  - Creating base tables (users, teams, workspaces, etc.)")
+        print("  - Including OAuth columns and webhook_subscriptions table")
 
         main_schema_sql = read_sql_file('migration_schema.sql')
 
@@ -148,12 +149,13 @@ def run_migration():
             conn.commit()
 
         print("  [OK] Main schema migration completed")
-        print("     - Users table")
+        print("     - Users table (with OAuth columns)")
         print("     - Teams table")
         print("     - Team members table")
         print("     - Integration credentials table")
         print("     - Generations & test cases tables")
         print("     - Workspace context table")
+        print("     - Webhook subscriptions table")
         print()
 
         # Step 2: Ensure all integration enum values exist
@@ -196,7 +198,7 @@ def run_migration():
         print()
 
         # Step 5: Run public user ID migration
-        print("Step 5/6: Running public user ID migration...")
+        print("Step 5/5: Running public user ID migration...")
         print("  - Adding QC-style public user IDs")
 
         with engine.connect() as conn:
@@ -206,21 +208,6 @@ def run_migration():
         print("  [OK] Public user ID migration completed")
         print("     - users.public_user_id")
         print("     - Uniqueness constraint and index")
-        print()
-
-        # Step 6: Run Google OAuth migration
-        print("Step 6/6: Running Google OAuth migration...")
-        print("  - Making password_hash nullable for OAuth-only accounts")
-        print("  - Adding oauth_provider and oauth_sub columns")
-
-        oauth_sql = read_sql_file('oauth_migration.sql')
-        with engine.connect() as conn:
-            conn.execute(text(oauth_sql))
-            conn.commit()
-
-        print("  [OK] Google OAuth migration completed")
-        print("     - users.password_hash: now nullable")
-        print("     - users.oauth_provider / users.oauth_sub added")
         print()
 
         print("=" * 60)

@@ -1,6 +1,6 @@
 -- ============================================
 -- PostgreSQL Migration Schema
--- Ticket-to-Test AI - Authentication & Team Management
+-- QA Copilot - Authentication & Team Management
 -- ============================================
 
 -- Enable UUID extension (optional, for future use)
@@ -31,12 +31,14 @@ CREATE TABLE IF NOT EXISTS users (
     public_user_id VARCHAR(20) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     username VARCHAR(100) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),                          -- nullable for OAuth-only accounts
     full_name VARCHAR(255),
     avatar_url TEXT,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     email_verified BOOLEAN DEFAULT FALSE NOT NULL,
     email_verified_at TIMESTAMP WITH TIME ZONE,
+    oauth_provider VARCHAR(50) DEFAULT NULL,             -- 'google', etc.
+    oauth_sub VARCHAR(255) DEFAULT NULL,                 -- OAuth subject / Supabase user UUID
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -46,6 +48,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS public_user_id VARCHAR(20);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_public_user_id ON users(public_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth_sub ON users (oauth_sub) WHERE oauth_sub IS NOT NULL;
 
 -- ============================================
 -- TEAMS TABLE
@@ -224,6 +227,42 @@ CREATE INDEX IF NOT EXISTS idx_invitations_team ON team_invitations(team_id);
 CREATE INDEX IF NOT EXISTS idx_invitations_status ON team_invitations(status);
 
 -- ============================================
+-- GOOGLE OAUTH COLUMNS (idempotent for existing databases)
+-- ============================================
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS oauth_provider VARCHAR(50) DEFAULT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS oauth_sub VARCHAR(255) DEFAULT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth_sub ON users (oauth_sub) WHERE oauth_sub IS NOT NULL;
+
+-- ============================================
+-- WEBHOOK SUBSCRIPTIONS (Auto-regeneration)
+-- ============================================
+CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+    integration_type integration_type NOT NULL,
+    ticket_id VARCHAR(100) NOT NULL,
+    ticket_title TEXT,
+    generation_id VARCHAR(36),
+    content_hash VARCHAR(64),
+    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    last_triggered_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, team_id, integration_type, ticket_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_subs_user ON webhook_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_subs_team ON webhook_subscriptions(team_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_subs_ticket ON webhook_subscriptions(integration_type, ticket_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_subs_active ON webhook_subscriptions(is_active);
+
+DROP TRIGGER IF EXISTS update_webhook_subscriptions_updated_at ON webhook_subscriptions;
+CREATE TRIGGER update_webhook_subscriptions_updated_at BEFORE UPDATE ON webhook_subscriptions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
 -- UPDATED_AT TRIGGER FUNCTION
 -- ============================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -257,7 +296,7 @@ CREATE TRIGGER update_workspace_context_updated_at BEFORE UPDATE ON user_workspa
 -- Password: 'admin123' (hashed with bcrypt)
 -- INSERT INTO users (email, username, password_hash, full_name, is_active)
 -- VALUES (
---     'admin@tickettotest.ai',
+--     'admin@QA Copilot.ai',
 --     'admin',
 --     '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5eDzs6pLKqFRW',
 --     'System Administrator',
