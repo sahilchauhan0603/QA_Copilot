@@ -195,13 +195,9 @@ const TeamManagement = ({ onCancel }) => {
     // Skip if role hasn't changed
     if (oldRole === newRole) return;
 
-    // Confirm role change, especially for admin demotion
-    if (oldRole === "admin") {
-      setRoleChangeData({ userId, newRole, member, oldRole });
-      setShowRoleChangeConfirm(true);
-    } else {
-      await executeRoleChange(userId, newRole, member, oldRole);
-    }
+    // Always confirm before applying any role change
+    setRoleChangeData({ userId, newRole, member, oldRole });
+    setShowRoleChangeConfirm(true);
   };
 
   const executeRoleChange = async (userId, newRole, member, oldRole) => {
