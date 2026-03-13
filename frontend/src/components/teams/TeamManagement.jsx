@@ -23,6 +23,7 @@ import useAuthStore from "../../store/authStore";
 
 const TeamManagement = ({ onCancel }) => {
   const {
+    user,
     fetchWorkspaces,
     getActiveWorkspaceDetails,
     workspaces,
@@ -54,6 +55,7 @@ const TeamManagement = ({ onCancel }) => {
   const [pendingInvitations, setPendingInvitations] = useState([]);
   const [memberSearch, setMemberSearch] = useState("");
   const [memberRoleFilter, setMemberRoleFilter] = useState("all");
+  const [updatingRoleUserId, setUpdatingRoleUserId] = useState(null);
 
   // Fetch pending invitations whenever active team workspace changes (admin only)
   useEffect(() => {
@@ -182,6 +184,11 @@ const TeamManagement = ({ onCancel }) => {
   };
 
   const handleUpdateRole = async (userId, newRole) => {
+    if (!isAdmin) {
+      toast.error("Only admins can change member roles");
+      return;
+    }
+
     const member = teamMembers.find((m) => m.user_id === userId);
     const oldRole = member?.role;
 
@@ -199,6 +206,7 @@ const TeamManagement = ({ onCancel }) => {
 
   const executeRoleChange = async (userId, newRole, member, oldRole) => {
     setIsLoading(true);
+    setUpdatingRoleUserId(userId);
     try {
       await teamAPI.updateMemberRole(selectedTeam, userId, newRole);
       const memberName = member?.full_name || member?.username || "Member";
@@ -212,6 +220,7 @@ const TeamManagement = ({ onCancel }) => {
       await loadTeamMembers(selectedTeam);
     } finally {
       setIsLoading(false);
+      setUpdatingRoleUserId(null);
     }
   };
 
@@ -309,7 +318,7 @@ const TeamManagement = ({ onCancel }) => {
     }
   };
 
-  const isAdmin = currentUserRole === "admin";
+  const isAdmin = activeWorkspace?.role === "admin" || currentUserRole === "admin";
 
   // Show create form if in personal workspace
   const isPersonalWorkspace = activeWorkspace?.type === "personal";
@@ -621,6 +630,7 @@ const TeamManagement = ({ onCancel }) => {
                           onChange={(e) =>
                             handleUpdateRole(member.user_id, e.target.value)
                           }
+                          disabled={updatingRoleUserId === member.user_id}
                           className="appearance-none text-black w-full pl-3 pr-9 py-2 rounded-lg text-sm cursor-pointer font-medium border border-gray-300 bg-white shadow-sm hover:border-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
                         >
                           <option value="admin">Admin</option>
@@ -649,8 +659,9 @@ const TeamManagement = ({ onCancel }) => {
                     {isAdmin && (
                       <button
                         onClick={() => handleRemoveMember(member.user_id)}
+                        disabled={member.user_id === user?.id}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                        title="Remove member"
+                        title={member.user_id === user?.id ? "You cannot remove yourself from here" : "Remove member"}
                         aria-label="Remove member"
                       >
                         <Trash2 size={18} />
