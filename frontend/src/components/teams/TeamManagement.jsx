@@ -333,7 +333,7 @@ const TeamManagement = ({ onCancel }) => {
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center justify-center gap-2 shadow-md transition-all text-sm sm:text-base w-full sm:w-auto"
             >
               <Pencil size={16} />
-              <span>Edit Team</span>
+              <span>Edit Team Info</span>
             </button>
           )}
           {activeWorkspace?.type === "team" && activeWorkspace?.role === "admin" ? (
