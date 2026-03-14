@@ -55,6 +55,7 @@ const TeamManagement = ({ onCancel }) => {
   const [pendingInvitations, setPendingInvitations] = useState([]);
   const [memberSearch, setMemberSearch] = useState("");
   const [memberRoleFilter, setMemberRoleFilter] = useState("all");
+  const [editingRoleFor, setEditingRoleFor] = useState(null);
   const [updatingRoleUserId, setUpdatingRoleUserId] = useState(null);
 
   // Fetch pending invitations whenever active team workspace changes (admin only)
@@ -620,24 +621,52 @@ const TeamManagement = ({ onCancel }) => {
                   </div>
                   <div className="flex items-center gap-3 sm:flex-shrink-0">
                     {isAdmin ? (
-                      <div className="relative w-full sm:w-[170px]">
-                        <select
-                          value={member.role}
-                          onChange={(e) =>
-                            handleUpdateRole(member.user_id, e.target.value)
-                          }
-                          disabled={updatingRoleUserId === member.user_id}
-                          className="appearance-none text-black w-full pl-3 pr-9 py-2 rounded-lg text-sm cursor-pointer font-medium border border-gray-300 bg-white shadow-sm hover:border-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
-                        >
-                          <option value="admin">Admin</option>
-                          <option value="qa_lead">QA Lead</option>
-                          <option value="qa_member">QA Member</option>
-                        </select>
-                        <ChevronDown
-                          size={16}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
-                        />
-                      </div>
+                      editingRoleFor === member.user_id ? (
+                        <div className="relative w-full sm:w-[170px]">
+                          <select
+                            value={member.role}
+                            autoFocus
+                            onChange={(e) => {
+                              setEditingRoleFor(null);
+                              handleUpdateRole(member.user_id, e.target.value);
+                            }}
+                            onBlur={() => setEditingRoleFor(null)}
+                            disabled={updatingRoleUserId === member.user_id}
+                            className="appearance-none text-black w-full pl-3 pr-9 py-2 rounded-lg text-sm cursor-pointer font-medium border border-primary-400 bg-white shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="qa_lead">QA Lead</option>
+                            <option value="qa_member">QA Member</option>
+                          </select>
+                          <ChevronDown
+                            size={16}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
+                              member.role === "admin"
+                                ? "bg-purple-100 text-purple-800"
+                                : member.role === "qa_lead"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            <Shield size={12} className="inline mr-1" />
+                            {member.role.replace("_", " ").toUpperCase()}
+                          </span>
+                          <button
+                            onClick={() => setEditingRoleFor(member.user_id)}
+                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors flex-shrink-0"
+                            title="Edit role"
+                            aria-label="Edit member role"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </div>
+                      )
                     ) : (
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
