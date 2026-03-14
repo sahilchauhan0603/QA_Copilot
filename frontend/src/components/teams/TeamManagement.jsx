@@ -503,8 +503,8 @@ const TeamManagement = ({ onCancel }) => {
 
           <button
             onClick={() => loadTeamMembers(activeWorkspace.id)}
-            className="mt-4 btn-primary text-sm flex items-center justify-center gap-2 w-full sm:w-auto"
-            disabled={isLoading}
+            className="mt-4 btn-primary text-sm flex items-center justify-center gap-2 w-full sm:w-auto disabled:bg-blue-300 disabled:text-blue-100 disabled:cursor-not-allowed"
+            disabled={isLoading || !!selectedTeam}
           >
             {isLoading ? (
               <>
