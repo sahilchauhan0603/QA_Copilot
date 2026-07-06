@@ -1,187 +1,199 @@
-# QA Copilot - Deployment Guide
+<div align="center">
 
-Simple deployment guide using **100% free services**:
-- **Database**: Supabase (500MB free)
-- **Backend**: Render (Free tier)
-- **Frontend**: Render (Free tier)
+# 🚀 QA Copilot — Deployment Guide
+
+**Deploy the full stack in ~15 minutes using 100% free-tier services.**
+
+| Layer | Service | Free Tier |
+|---|---|---|
+| 🗄️ Database | [Supabase](https://supabase.com) | 500 MB |
+| ⚙️ Backend | [Render](https://render.com) | Free Web Service |
+| 🖥️ Frontend | [Render](https://render.com) | Free Static Site |
+
+</div>
 
 ---
 
-## Quick Setup (15 minutes)
+## ✅ Prerequisites
 
-### Prerequisites
 - GitHub account (code must be in a repo)
 - [Supabase](https://supabase.com) account
 - [Render](https://render.com) account
-- [Google Gemini API Key](https://makersuite.google.com/app/apikey)
+- [Google Gemini API key](https://makersuite.google.com/app/apikey)
 
 ---
 
-## Step 1: Database (Supabase) - 3 minutes
+## Step 1 — Database Setup (Supabase) · ~3 min
 
-1. **Create Supabase Account**
-   - Go to [supabase.com](https://supabase.com) → Sign in with GitHub
-
-2. **Create New Project**
-   - Click **"New Project"**
+1. Go to [supabase.com](https://supabase.com) → **Sign in with GitHub**
+2. **New Project** →
    - **Name**: `qa-copilot`
-   - **Database Password**: Create strong password (save it!)
-   - **Region**: Choose closest to you
+   - **Database Password**: create a strong one and **save it**
+   - **Region**: closest to you
    - **Plan**: Free
-   - Click **"Create new project"** (wait ~2 mins)
-
-3. **Get Database URL**
-   - Settings → Database → **Connection string** section
-   - Under "Type", select **URI**
-   - Under "Method", select **Connection pooling** (NOT Direct connection)
-   - You'll see a URL like:
+   - Click **Create new project** (~2 min provisioning)
+3. Get your connection string:
+   - **Settings → Database → Connection string**
+   - **Type**: `URI` · **Method**: `Connection pooling` (⚠️ not Direct connection)
+   - You'll get something like:
      ```
      postgresql://postgres.xxxxx:[YOUR-PASSWORD]@aws-0-us-east-1.pooler.supabase.com:6543/postgres
      ```
-   - Replace `[YOUR-PASSWORD]` with your actual password
-   - **Important**: Must use port **6543** (pooler) not 5432 for Render!
-   - **Save this URL** - you'll need it!
+   - Replace `[YOUR-PASSWORD]` with your real password
+   - ⚠️ **Must use port `6543`** (pooler), not `5432` — required for Render compatibility
+   - **Save this full URL** — you'll reuse it in Steps 2 and 3
 
-✅ Database ready!
+> ✅ **Checkpoint:** Database created and connection string saved.
 
 ---
 
-## Step 2: Run Migration (Locally) - 2 minutes
+## Step 2 — Run Migration Locally · ~2 min
 
-Run this from **your computer** to initialize the database:
+From your local machine, initialize the schema against your new Supabase database:
 
 ```powershell
-# In your project folder
+# Navigate to your project folder
 cd c:\THIS_DEVICE\VSCode\PROJECTS\QA_Copilot
 
-# Activate virtual environment
+# Activate your virtual environment
 .\venv\Scripts\Activate.ps1
 
-# Install dependencies (if not already installed)
+# Install dependencies (skip if already installed)
 pip install -r requirements.txt
 
-# Set DATABASE_URL (use your Supabase URL from Step 1)
+# Set the DATABASE_URL from Step 1
 $env:DATABASE_URL="postgresql://postgres.xxxxx:PASSWORD@aws-0-...supabase.com:6543/postgres"
 
-# Run migration
+# Run the migration
 python scripts/run_migration.py
 ```
 
-You should see: **"🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!"**
+Look for: **`🎉 ALL MIGRATIONS COMPLETED SUCCESSFULLY!`**
 
-✅ Database initialized!
-
----
-
-## Step 3: Backend (Render) - 8 minutes
-
-1. **Create Web Service**
-   - Go to [Render Dashboard](https://dashboard.render.com)
-   - Click **"New +"** → **"Web Service"**
-   - Connect your GitHub repository
-
-2. **Configure Service**
-   - **Name**: `qa-copilot-backend`
-   - **Region**: Same as Supabase (e.g., Oregon)
-   - **Branch**: `main`
-   - **Runtime**: Python 3
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `PYTHONPATH=backend gunicorn --workers 4 --bind 0.0.0.0:$PORT --timeout 120 api.server:app`
-   - **Instance Type**: Free
-
-3. **Add Environment Variables**
-   Click **"Advanced"** → Add these variables:
-
-   | Variable | Value | How to Get |
-   |----------|-------|------------|
-   | `DATABASE_URL` | Your Supabase URL | From Step 1 |
-   | `GOOGLE_API_KEY` | Your Gemini API key | [Get here](https://makersuite.google.com/app/apikey) |
-   | `FLASK_SECRET_KEY` | Random string | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-   | `JWT_SECRET_KEY` | Random string | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-   | `ENCRYPTION_KEY` | Fernet key | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
-   | `PYTHONPATH` | `backend` | Required — tells Python where to find backend packages |
-   | `LLM_MODEL` | `gemini-2.0-flash-exp` | |
-   | `LLM_TEMPERATURE` | `0.3` | |
-   | `FLASK_DEBUG` | `false` | |
-   | `SQL_ECHO` | `false` | |
-
-   **Optional (for email password reset):**
-   | Variable | Value |
-   |----------|-------|
-   | `SMTP_HOST` | `smtp.gmail.com` |
-   | `SMTP_PORT` | `587` |
-   | `SMTP_USER` | Your Gmail |
-   | `SMTP_PASSWORD` | Gmail app password |
-   | `FROM_EMAIL` | Your email |
-   | `FROM_NAME` | `QA Copilot` |
-
-4. **Deploy**
-   - Click **"Create Web Service"**
-   - Wait 5-10 minutes for first build
-   - Once live, your backend URL: `https://qa-copilot-backend.onrender.com`
-
-5. **Test Backend**
-   - Visit: `https://qa-copilot-backend.onrender.com/api/health`
-   - Should return: `{"status":"healthy"}`
-
-✅ Backend deployed!
+> ✅ **Checkpoint:** Database schema initialized.
 
 ---
 
-## Step 4: Frontend (Render) - 5 minutes
+## Step 3 — Backend Deployment (Render) · ~8 min
 
-1. **Create Static Site**
-   - Render Dashboard → **"New +"** → **"Static Site"**
-   - Connect same GitHub repository
+### 3.1 Create the Web Service
+- [Render Dashboard](https://dashboard.render.com) → **New +** → **Web Service**
+- Connect your GitHub repository
 
-2. **Configure Static Site**
-   - **Name**: `qa-copilot-frontend`
-   - **Branch**: `main`
-   - **Root Directory**: `frontend`
-   - **Build Command**: `npm install && npm run build`
-   - **Publish Directory**: `frontend/dist`
+### 3.2 Configure
+| Setting | Value |
+|---|---|
+| **Name** | `qa-copilot-backend` |
+| **Region** | Same as Supabase (e.g., Oregon) |
+| **Branch** | `main` |
+| **Runtime** | Python 3 |
+| **Build Command** | `pip install -r requirements.txt` |
+| **Start Command** | `PYTHONPATH=backend gunicorn --workers 4 --bind 0.0.0.0:$PORT --timeout 120 api.server:app` |
+| **Instance Type** | Free |
 
-3. **Add Environment Variable**
-   - Click **"Advanced"**
-   - Add variable:
-     - **Key**: `VITE_API_URL`
-     - **Value**: `https://qa-copilot-backend.onrender.com/api` (your backend URL)
+### 3.3 Environment Variables
 
-4. **Deploy**
-   - Click **"Create Static Site"**
-   - Wait 3-5 minutes
-   - Your frontend URL: `https://qa-copilot-frontend.onrender.com`
+**Required:**
 
-5. **Fix React Router** (Important!)
-   - Create file: `frontend/public/_redirects`
-   - Add this line:
-     ```
-     /*    /index.html   200
-     ```
-   - Commit and push to trigger redeploy
+| Variable | Value / How to Get |
+|---|---|
+| `DATABASE_URL` | Supabase URL from Step 1 |
+| `GOOGLE_API_KEY` | [Get here](https://makersuite.google.com/app/apikey) |
+| `FLASK_SECRET_KEY` | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `JWT_SECRET_KEY` | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `PYTHONPATH` | `backend` |
+| `LLM_MODEL` | `gemini-2.0-flash-exp` |
+| `LLM_TEMPERATURE` | `0.3` |
+| `FLASK_DEBUG` | `false` |
+| `SQL_ECHO` | `false` |
 
-✅ Frontend deployed!
+**Optional — only if using email-based password reset:**
+
+| Variable | Value |
+|---|---|
+| `SMTP_HOST` | `smtp.gmail.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_USER` | Your Gmail address |
+| `SMTP_PASSWORD` | Gmail app password |
+| `FROM_EMAIL` | Your email |
+| `FROM_NAME` | `QA Copilot` |
+
+### 3.4 Deploy & Verify
+- Click **Create Web Service** → first build takes 5–10 min
+- Backend URL: `https://qa-copilot-backend.onrender.com`
+- Test it: visit `https://qa-copilot-backend.onrender.com/api/health` → expect `{"status":"healthy"}`
+
+> ✅ **Checkpoint:** Backend live and responding to health checks.
 
 ---
 
-## Final Setup - Update Backend Email URL
+## Step 4 — Frontend Deployment (Render) · ~5 min
 
-1. **Go to Render Backend Settings**
-   - Find your backend service
-   - Environment → Add/Update:
-     - **Key**: `APP_URL`
-     - **Value**: `https://qa-copilot-frontend.onrender.com` (your frontend URL)
+### 4.1 Create the Static Site
+- Render Dashboard → **New +** → **Static Site**
+- Connect the same GitHub repository
 
-2. **Save** - Render will auto-redeploy
+### 4.2 Configure
+| Setting | Value |
+|---|---|
+| **Name** | `qa-copilot-frontend` |
+| **Branch** | `main` |
+| **Root Directory** | `frontend` |
+| **Build Command** | `npm install && npm run build` |
+| **Publish Directory** | `frontend/dist` |
+
+### 4.3 Environment Variable
+| Key | Value |
+|---|---|
+| `VITE_API_URL` | `https://qa-copilot-backend.onrender.com/api` (your backend URL) |
+
+### 4.4 Deploy
+- Click **Create Static Site** → live in 3–5 min
+- Frontend URL: `https://qa-copilot-frontend.onrender.com`
+
+### 4.5 Fix Client-Side Routing (Required)
+React Router needs a rewrite rule so page refreshes don't 404.
+
+Create `frontend/public/_redirects`:
+```
+/*    /index.html   200
+```
+Commit and push — this triggers a redeploy.
+
+> ✅ **Checkpoint:** Frontend live with working client-side routes.
+
+---
+
+## Step 5 — Connect Backend to Frontend
+
+Update the backend so password-reset emails and links point to your live frontend:
+
+- Backend service → **Environment** → add:
+
+| Key | Value |
+|---|---|
+| `APP_URL` | `https://qa-copilot-frontend.onrender.com` (your frontend URL) |
+
+Render will auto-redeploy after saving.
 
 ---
 
 ## 🎉 Deployment Complete!
 
-### Important Notes
-- **Free tier limitations**: Services sleep after 15 min inactivity (30s cold start)
-- **Auto-deploy**: Push to GitHub → Automatic deployment
-- **Logs**: View in Render dashboard
-- **Custom domain**: Can add in Render settings
+<div align="center">
 
----
+| Component | URL |
+|---|---|
+| 🖥️ Frontend | `https://qa-copilot-frontend.onrender.com` |
+| ⚙️ Backend | `https://qa-copilot-backend.onrender.com` |
+| 🗄️ Database | Supabase project dashboard |
+
+</div>
+
+### 📌 Good to Know
+
+- **Cold starts**: Free-tier services sleep after 15 min of inactivity (~30s to wake on next request)
+- **Auto-deploy**: Every push to `main` triggers a redeploy automatically
+- **Logs**: Available live in each service's Render dashboard
+- **Custom domains**: Can be added under each service's Render settings

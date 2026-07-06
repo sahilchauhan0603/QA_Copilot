@@ -18,6 +18,7 @@ import {
   Loader,
   GitBranch,
   Zap,
+  Target,
 } from 'lucide-react';
 
 const GenerationHistory = ({
@@ -183,6 +184,12 @@ const GenerationHistory = ({
                               Auto-Regenerated
                             </span>
                           )}
+                          {gen.generation_metadata?.coverage_hub?.summary?.coverage_percentage !== undefined && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                              <Target size={10} />
+                              Coverage {Math.round(gen.generation_metadata.coverage_hub.summary.coverage_percentage)}%
+                            </span>
+                          )}
                         </div>
                         <h4 className="text-sm font-medium text-gray-900 line-clamp-2">
                           {gen.ticket_title}
@@ -208,6 +215,12 @@ const GenerationHistory = ({
                         <ListChecks size={14} />
                         <span>{gen.total_test_cases} tests</span>
                       </div>
+                      {gen.generation_metadata?.coverage_hub?.summary?.coverage_percentage !== undefined && (
+                        <div className="flex items-center gap-1">
+                          <Target size={14} />
+                          <span>{Math.round(gen.generation_metadata.coverage_hub.summary.coverage_percentage)}% coverage</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1">
                         <Calendar size={14} />
                         <span>{new Date(gen.timestamp).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
@@ -307,6 +320,12 @@ const GenerationHistory = ({
                               <span className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs">
                                 <Zap size={10} />
                                 Auto-Regenerated
+                              </span>
+                            )}
+                            {gen.generation_metadata?.coverage_hub?.summary?.coverage_percentage !== undefined && (
+                              <span className="flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs">
+                                <Target size={10} />
+                                {Math.round(gen.generation_metadata.coverage_hub.summary.coverage_percentage)}% coverage
                               </span>
                             )}
                           </div>

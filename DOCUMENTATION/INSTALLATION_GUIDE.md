@@ -1,283 +1,250 @@
-# Installation & Setup Guide
+<div align="center">
 
-## Prerequisites
+# ⚙️ QA Copilot — Installation & Setup Guide
 
-- **Python 3.11+** - [Download](https://www.python.org/downloads/)
-- **Node.js 16+** - [Download](https://nodejs.org/)
-- **PostgreSQL 14+** - [Download](https://www.postgresql.org/download/)
-- **Google Gemini API Key** - [Get here](https://makersuite.google.com/app/apikey)
+**Get up and running locally in under 15 minutes.**
 
-**Verify installations:**
+</div>
+
+---
+
+## ✅ Prerequisites
+
+| Requirement | Version | Link |
+|---|---|---|
+| Python | 3.11+ | [Download](https://www.python.org/downloads/) |
+| Node.js | 16+ | [Download](https://nodejs.org/) |
+| PostgreSQL | 14+ | [Download](https://www.postgresql.org/download/) |
+| Google Gemini API Key | — | [Get here](https://makersuite.google.com/app/apikey) |
+
+**Verify:**
 ```powershell
-python --version    # Should be 3.11+
-node --version      # Should be 16+
-psql --version      # Should be 14+
+python --version    # 3.11+
+node --version      # 16+
+psql --version      # 14+
 ```
 
 ---
 
-## Installation Steps
+## 🛠️ Installation
 
-### 1. Clone & Navigate
+### 1. Navigate to Project
 ```powershell
 cd c:\THIS_DEVICE\VSCode\PROJECTS\QA_Copilot
 ```
 
-### 2. Setup Python Environment
+### 2. Python Environment
+> 💡 **Skip this step** — `.\scripts\start_backend.ps1` auto-creates the venv and installs dependencies on first run.
 
-> **Note:** You can skip this step entirely — `.\scripts\start_backend.ps1` automatically creates the virtual environment and installs all dependencies on first run.
+<details>
+<summary>Manual setup (optional)</summary>
 
-If you prefer to set it up manually:
 ```powershell
-# Create virtual environment
 python -m venv venv
-
-# Activate (Windows)
 .\venv\Scripts\Activate.ps1
-
-# Install dependencies
 pip install -r requirements.txt
 ```
+</details>
 
-### 3. Setup PostgreSQL Database
-
-**Create database:**
-
-> **Troubleshooting:** If you see `psql : The term 'psql' is not recognized as the name of a cmdlet, function, script file, or operable program`, PostgreSQL's `bin` folder isn't in your PATH. Fix it one of two ways:
->
-> **Option A — Add to PATH temporarily (for this session):**
-> ```powershell
-> $env:PATH += ";C:\Program Files\PostgreSQL\18\bin"
-> ```
-> **Option B — Use the full path directly:**
-> ```powershell
-> & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres
-> ```
-> Not sure which version? Run: `Get-ChildItem "C:\Program Files\PostgreSQL"`
+### 3. Database Setup
 
 ```powershell
-# Login to PostgreSQL
 psql -U postgres
-
-# Create database
 CREATE DATABASE qa_copilot;
-
-# Exit
 \q
 ```
 
-**Update connection string in `backend/.env`:**
-```env
-DATABASE_URL=postgresql://postgres:your_password@localhost:5432/qa_copilot
-```
+<details>
+<summary>⚠️ "psql not recognized"? Fix your PATH</summary>
 
-**Run migration:**
+```powershell
+# Option A — temporary, for this session
+$env:PATH += ";C:\Program Files\PostgreSQL\18\bin"
+
+# Option B — use the full path directly
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres
+```
+Not sure of your version? `Get-ChildItem "C:\Program Files\PostgreSQL"`
+</details>
+
+Then run the migration:
 ```powershell
 python scripts/run_migration.py
 ```
 
-### 4. Configure Environment Variables
+### 4. Environment Variables
 
-**Copy template:**
+Backend:
+
 ```powershell
 Copy-Item backend\.env.example backend\.env
 ```
 
-**Edit `backend/.env` with your credentials:**
+Edit `backend/.env`:
 ```env
-# Google Gemini API
-GOOGLE_API_KEY=your-gemini-api-key-here
+# Google Gemini AI
+GOOGLE_API_KEY=your-google-gemini-api-key
 LLM_MODEL=gemini-2.0-flash-exp
 LLM_TEMPERATURE=0.3
 
-# Database
+# Database Configuration (PostgreSQL)
 DATABASE_URL=postgresql://postgres:your_password@localhost:5432/qa_copilot
 
-# JWT Authentication
-JWT_SECRET_KEY=change-this-to-a-secure-random-string
+# Flask Configuration
+FLASK_SECRET_KEY=your-super-secret-key-min-32-characters
+FLASK_DEBUG=false
+API_PORT=5000
+
+# JWT Configuration
+JWT_SECRET_KEY=your-jwt-secret-key-min-32-characters
 JWT_EXPIRATION_HOURS=24
 
-# SMTP (Optional - for password reset)
+# Email Configuration (for password reset)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
-FROM_EMAIL=your-email@gmail.com
+FROM_EMAIL=noreply@yourdomain.com
+FROM_NAME=QA Copilot
 APP_URL=http://localhost:3000
+
+# Credential Encryption (AES-256 Fernet)
+ENCRYPTION_KEY=your-fernet-encryption-key-44-characters
+
+# SQL Echo (for debugging)
+SQL_ECHO=false
+
+# Supabase project URL + anon key (used for Google OAuth token verification)
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key_here
+
+# Webhook Monitoring (auto-regeneration on ticket updates)
+JIRA_WEBHOOK_SECRET=
+ADO_WEBHOOK_SECRET=
 ```
 
-**Generate secure JWT secret:**
+Generate a secure JWT secret:
 ```powershell
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-### 5. Setup Frontend
+Frontend:
 
+```powershell
+Copy-Item frontend\.env.example frontend\.env
+```
+
+Edit `frontend/.env` if needed:
+```env
+VITE_API_URL=http://localhost:5000/api
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+```
+
+### 5. Frontend
 ```powershell
 cd frontend
 npm install
 cd ..
 ```
 
-### 6. Start the Application
+### 6. Run
 
-**Terminal 1 - Backend:**
-```powershell
-.\scripts\start_backend.ps1
-```
+| Terminal | Command |
+|---|---|
+| 1 — Backend | `.\scripts\start_backend.ps1` |
+| 2 — Frontend | `.\scripts\start_frontend.ps1` |
 
-**Terminal 2 - Frontend:**
-```powershell
-.\scripts\start_frontend.ps1
-```
-
-**Access:** http://localhost:3000
+**Open:** [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## First-Time Setup
+## 🎬 First-Time Setup
 
-### Create Your Account
-1. Navigate to http://localhost:3000
-2. Click **Sign Up**
-3. Enter username, email, password
-4. Create your first team (optional)
-5. Start generating test cases!
+**Create your account:** Sign Up → username, email, password → optionally create a team → start generating tests.
 
-### Manage Your Profile
-Access your profile by clicking the avatar circle in the top-right navigation bar:
+**Manage your profile** (click your avatar, top-right nav):
 
-- **Upload a profile photo** — Hover over the avatar circle in the dropdown → click the camera icon → select an image (JPG, PNG, GIF, or WebP, max 2 MB)
-- **Edit your display name** — Hover over your name in the dropdown → click the pencil icon → type your new name → press **Enter** or click **Save**
-- **Edit your username** — Hover over your @username → click the pencil icon → type a new username → availability is checked in real-time (must be 3+ chars, alphanumeric/underscore only) → click **Save**
+| Action | How |
+|---|---|
+| 📷 Upload photo | Hover avatar → camera icon → choose image (JPG/PNG/GIF/WebP, max 2 MB) |
+| ✏️ Edit display name | Hover name → pencil icon → type → **Enter**/**Save** |
+| ✏️ Edit username | Hover @username → pencil icon → type (3+ chars, alphanumeric/underscore) → real-time availability check → **Save** |
 
-> Profile photos are stored as base64 in the database. Username changes are validated for uniqueness before saving.
+> Photos are stored as base64 in the database; usernames are validated for uniqueness before saving.
 
-### Configure Integrations (Optional)
+### 🔌 Configure Integrations (Optional)
 
-#### Jira Setup:
-1. Go to Settings → Integrations → Jira
-2. Enter Jira URL, Email, API Token (all fields required)
-3. Click **Save & Test Connection**
-4. Use Integration tab to fetch tickets
+All under **Settings → Integrations**:
 
-#### Azure DevOps Setup:
-1. Go to Settings → Integrations → Azure DevOps
-2. Enter Organization URL, PAT, Project Name (all fields required)
-3. Click **Save & Test Connection**
-4. Use Integration tab to fetch work items
-
-#### Xray Setup:
-1. Go to Settings → Integrations → Xray
-2. Enter Project Key (required)
-3. Click **Save**
-
-#### Zephyr Scale Setup:
-1. Go to Settings → Integrations → Zephyr
-2. Enter Zephyr Token and Project Key (both required)
-3. Click **Save**
-
-#### TestRail Setup:
-1. Go to Settings → Integrations → TestRail
-2. Enter TestRail URL, Email, API Key, Project ID (all fields required)
-3. Click **Save & Test Connection**
+| Tool | Required Fields | Action |
+|---|---|---|
+| **Jira** | URL, Email, API Token | Save & Test Connection |
+| **Azure DevOps** | Org URL, PAT, Project Name | Save & Test Connection |
+| **Xray** | Project Key | Save |
+| **Zephyr Scale** | Token, Project Key | Save |
+| **TestRail** | URL, Email, API Key, Project ID | Save & Test Connection |
 
 ---
 
-## Usage Guide
+## 📖 Usage Guide
 
 ### Generate Test Cases
 
-**Option 1: From Integration (Recommended)**
-1. Go to **Integration** tab
-2. Select Jira or Azure DevOps
-3. Enter ticket ID (e.g., `PROJ-123` or `12345`)
-4. Click **Fetch Ticket**
-5. *(Optional)* Upload screenshots or code/config files for deeper AI analysis
-6. Click **Generate Tests**
-7. Wait 4-5 minutes for AI agents to complete
-8. View results and download Excel
+| | **From Integration** (recommended) | **Manual Input** |
+|---|---|---|
+| 1 | Go to **Integration** tab | Go to **Create** tab |
+| 2 | Select Jira / Azure DevOps | Enter ticket details manually |
+| 3 | Enter ticket ID (`PROJ-123` or `12345`) → **Fetch Ticket** | — |
+| 4 | *(Optional)* Upload screenshots or code/config files | *(Optional)* Upload screenshots or code/config files |
+| 5 | **Generate Tests** → wait 4–5 min | **Generate Tests** |
+| 6 | View results → download Excel | View results → download Excel |
 
-**Option 2: Manual Input**
-1. Go to **Create** tab
-2. Enter ticket details manually
-3. *(Optional)* Upload screenshots or code/config files for deeper AI analysis
-4. Click **Generate Tests**
-5. View results and download Excel
+### 💻 Code-Aware Generation
 
-### Attach Files for Code-Aware Generation
+Both **Custom** and **Integration** tabs accept source/config file uploads — the AI derives test cases from real implementation logic, not just the ticket text.
 
-Both the **Custom** and **Integration** tabs support uploading source code or config files alongside your ticket. The AI agents read the files and derive test cases from the actual implementation.
+- **Supported types:** `.py` `.js` `.jsx` `.ts` `.tsx` `.java` `.cs` `.go` `.rb` `.php` `.html` `.css` `.json` `.yaml` `.yml` `.sql` `.md` `.txt` `.vue` `.kt` `.swift` `.cpp` `.c`
+- **Limits:** up to 3 files, 500 KB each (~1,500–2,000 lines is the sweet spot)
+- **How:** scroll to **Code / Config Files** below the screenshot uploader → drag & drop or click to upload → remove with ✕ → **Generate Test Cases**
 
-**Supported file types:** `.py`, `.js`, `.jsx`, `.ts`, `.tsx`, `.java`, `.cs`, `.go`, `.rb`, `.php`, `.html`, `.css`, `.json`, `.yaml`, `.yml`, `.sql`, `.md`, `.txt`, `.vue`, `.kt`, `.swift`, `.cpp`, `.c`
+> Agents identify functions, validation logic, error handling, and boundary conditions to ground tests in the actual code.
 
-**Limits:** up to **3 files**, max **500 KB each** (~1,500–2,000 lines is the recommended sweet spot)
+### 🔄 Sync Back to Tickets
+Detail view → **Sync** dropdown → **Full Sync** (Excel + comment) / **Attach Excel Only** / **Add Comment Only** → confirm.
 
-1. In the test generation form, scroll to the **Code / Config Files** section below the screenshot uploader
-2. Click the upload zone or drag and drop one or more files
-3. Files appear as a list with name and size — click ✕ to remove any
-4. Proceed to click **Generate Test Cases** as normal
+### 📤 Export to Test Management Tools
+Detail view → **Export to Test Tool** → pick **Xray** / **Zephyr Scale** / **TestRail** → name the suite/cycle (required for TestRail) → **Export**.
+Creates test steps, expected results, priority mapping, and links back to the source ticket.
 
-> The AI will analyze the uploaded code, identify functions, validation logic, error handling paths, and boundary conditions, and produce test cases that reference the actual implementation rather than just the ticket description.
+### 🛠️ Refine Generated Results
+Detail view → **Refine Results** (indigo) → choose:
 
-### Sync Back to Tickets
-1. After generation, open detail view
-2. Click **Sync** dropdown
-3. Choose:
-   - **Full Sync** - Excel + Comment
-   - **Attach Excel Only**
-   - **Add Comment Only**
-4. Confirm sync
+| Option | Effect |
+|---|---|
+| Regenerate Entire | Re-runs all agents (4–5 min) |
+| Minimize Test Cases | Removes redundant tests (−20–40%) |
+| Focus on Area | +5–10 tests for a specific area (e.g. "authentication") |
+| Add Edge Cases | Boundary/race conditions, special scenarios |
+| Increase Coverage | Targets identified coverage gaps |
+| Simplify Tests | Shorter, more readable test cases |
 
-### Export to Test Management Tools
-1. After generation, open detail view
-2. Click **Export to Test Tool** button
-3. Choose target tool:
-   - **Xray for Jira** - Creates Test Set and Test issues
-   - **Zephyr Scale** - Creates Test Cycle and Test Cases
-   - **TestRail** - Creates Test Suite and Cases
-4. Enter suite/cycle name (required for TestRail, optional for others)
-5. Click **Export**
-6. Test cases are created in your test management tool with:
-   - All test steps and expected results
-   - Priority mapping
-   - Links to source tickets (if available)
+> Every refinement creates a new generation — originals are preserved for comparison.
 
-### Refine Generated Results
-1. After generation, open detail view
-2. Click **Refine Results** button (indigo)
-3. Choose refinement type:
-   - **Regenerate Entire** - Run all AI agents again (4-5 min)
-   - **Minimize Test Cases** - Remove redundant tests, reduce by 20-40%
-   - **Focus on Area** - Generate 5-10 additional tests for a specific area (e.g., "authentication", "error handling")
-   - **Add Edge Cases** - Add boundary conditions, race conditions, special scenarios
-   - **Increase Coverage** - Generate tests to address identified coverage gaps
-   - **Simplify Tests** - Make test cases more concise and easier to read
-4. Wait for refinement to complete
-5. New refined generation appears in history
-6. Compare original vs refined versions
-
-**Note:** All refinements create new generations, so you can always compare before/after results.
-
-### View History
-- Go to **History** tab
-- View all previous generations
-- Click any row to view details
-- Download Excel from history
-- Compare original and refined versions
+### 🕘 History
+**History** tab → click any row for details → download Excel → compare original vs. refined versions.
 
 ---
 
-## Scripts Reference
+## 📜 Scripts Reference
 
-All utility scripts are in the `/scripts` folder:
+| Script | Purpose |
+|---|---|
+| `start_backend.ps1` | Start backend API (port 5000) |
+| `start_frontend.ps1` | Start frontend dev server (port 3000) |
+| `run_migration.py` | Run database migrations |
+| `clear_database.ps1` | ⚠️ Reset database (destructive) |
 
-- **`start_backend.ps1`** - Start backend API server (port 5000)
-- **`start_frontend.ps1`** - Start frontend React dev server (port 3000)
-- **`run_migration.py`** - Run database migrations
-- **`clear_database.ps1`** - Reset database (⚠️ destructive)
-
-**Usage:**
 ```powershell
 .\scripts\start_backend.ps1
 python scripts/run_migration.py
@@ -285,12 +252,16 @@ python scripts/run_migration.py
 
 ---
 
-## Performance Tips
+## ⚡ Performance Tips
 
-- Use `gemini-2.0-flash-exp` for faster generation (set in `backend/.env`)
+- Use `gemini-2.0-flash-exp` for faster generation (`backend/.env`)
 - Close unnecessary browser tabs during generation
-- Ensure stable internet connection (agents make multiple API calls)
+- Ensure a stable connection — agents make multiple sequential API calls
 
 ---
 
+<div align="center">
+
 **Built for QA teams to accelerate test case creation with AI** 🚀
+
+</div>

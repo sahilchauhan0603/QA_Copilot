@@ -1,10 +1,11 @@
 """
 Excel Test Case Exporter
-Generates professional Excel test case documents with 4 sheets:
+Generates professional Excel test case documents with 5 sheets:
   1. Summary        – Ticket info, test case statistics, generation metadata
   2. Test Cases     – Complete catalog (Test ID, Priority, Category, Title, Steps, Expected Results)
   3. QA Roadmap     – Test scenarios by category, coverage overview
   4. Coverage Analysis – Requirements coverage, identified gaps, clarification questions
+  5. RTM            – Requirements Traceability Matrix (Coverage Hub)
 """
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -40,6 +41,12 @@ class ExcelExporter:
         "P4": "87CEEB",  # Light Blue
     }
 
+    STATUS_COLORS = {
+        "full": "C6EFCE",
+        "partial": "FFEB9C",
+        "gap": "FFC7CE",
+    }
+
     def __init__(self):
         pass
 
@@ -51,6 +58,7 @@ class ExcelExporter:
         self._create_test_cases_sheet(wb, state)
         self._create_qa_roadmap_sheet(wb, state)
         self._create_coverage_sheet(wb, state)
+        self._create_rtm_sheet(wb, state)
 
         # Remove default empty sheet
         if "Sheet" in wb.sheetnames:
@@ -415,6 +423,94 @@ class ExcelExporter:
         # Column widths
         ws.column_dimensions["A"].width = 5
         ws.column_dimensions["B"].width = 100
+
+    # ═══════════════════════════════════════════════════════════
+    #  SHEET 5 – RTM (Requirements Traceability Matrix)
+    # ═══════════════════════════════════════════════════════════
+    def _create_rtm_sheet(self, wb: Workbook, state: dict):
+        ws = wb.create_sheet("RTM")
+
+        ws.merge_cells("A1:F1")
+        banner = ws["A1"]
+        banner.value = "Requirements Traceability Matrix — Coverage Hub"
+        banner.font = Font(size=14, bold=True, color="FFFFFF")
+        banner.fill = self.HEADER_FILL
+        banner.alignment = Alignment(horizontal="center")
+        for c in range(2, 7):
+            ws.cell(1, c).fill = self.HEADER_FILL
+
+        coverage_hub = state.get("coverage_hub") or {}
+        summary = coverage_hub.get("summary", {})
+        mappings = coverage_hub.get("requirement_mappings", [])
+        mvs = coverage_hub.get("minimum_viable_set", {})
+
+        row = 3
+        row = self._section_heading(ws, row, "Coverage Summary", 6)
+        summary_fields = [
+            ("Coverage Score", f"{summary.get('coverage_percentage', 'N/A')}% ({summary.get('coverage_grade', 'N/A')})"),
+            ("Requirements — Full", summary.get("requirements_full", 0)),
+            ("Requirements — Partial", summary.get("requirements_partial", 0)),
+            ("Requirements — Gap", summary.get("requirements_gap", 0)),
+            ("Total Test Cases", summary.get("total_test_cases", len(state.get("test_cases", [])))),
+            ("Minimum Viable Set", mvs.get("total_count", 0)),
+        ]
+        for label, value in summary_fields:
+            ws.cell(row, 1, label).font = Font(bold=True)
+            ws.cell(row, 2, value)
+            row += 1
+
+        row += 1
+        headers = [
+            "Req ID", "Requirement", "Coverage Status", "Mapped Test Cases",
+            "Test Priorities", "Notes"
+        ]
+        self._header_row(ws, headers, row)
+        row += 1
+
+        if mappings:
+            for mapping in mappings:
+                mapped = mapping.get("mapped_test_cases", [])
+                test_ids = ", ".join(t.get("test_case_id", "") for t in mapped) or "—"
+                priorities = ", ".join(
+                    sorted({t.get("priority", "") for t in mapped if t.get("priority")})
+                ) or "—"
+                status = mapping.get("coverage_status", "gap")
+                status_cell = ws.cell(row, 3, status.upper())
+                color = self.STATUS_COLORS.get(status, "FFFFFF")
+                status_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+                status_cell.alignment = Alignment(horizontal="center")
+
+                ws.cell(row, 1, mapping.get("requirement_id", "")).alignment = Alignment(horizontal="center")
+                ws.cell(row, 2, mapping.get("requirement_text", "")).alignment = Alignment(wrap_text=True, vertical="top")
+                ws.cell(row, 4, test_ids).alignment = Alignment(wrap_text=True, vertical="top")
+                ws.cell(row, 5, priorities).alignment = Alignment(horizontal="center")
+                ws.cell(row, 6, mapping.get("coverage_notes", "")).alignment = Alignment(wrap_text=True, vertical="top")
+                row += 1
+        else:
+            ws.cell(row, 2, "No requirement mappings available.")
+            row += 1
+
+        row += 1
+        row = self._section_heading(ws, row, f"Minimum Viable Test Set ({mvs.get('total_count', 0)})", 6)
+        mvs_cases = mvs.get("test_cases", [])
+        if mvs_cases:
+            for tc in mvs_cases:
+                ws.cell(row, 1, tc.get("test_case_id", ""))
+                ws.cell(row, 2, tc.get("title", "")).alignment = Alignment(wrap_text=True)
+                ws.cell(row, 3, tc.get("priority", "")).alignment = Alignment(horizontal="center")
+                ws.cell(row, 4, tc.get("category", ""))
+                row += 1
+        else:
+            ws.cell(row, 2, "No minimum viable set computed.")
+            row += 1
+
+        ws.column_dimensions["A"].width = 12
+        ws.column_dimensions["B"].width = 55
+        ws.column_dimensions["C"].width = 16
+        ws.column_dimensions["D"].width = 22
+        ws.column_dimensions["E"].width = 14
+        ws.column_dimensions["F"].width = 40
+        ws.freeze_panes = "A2"
 
 
 # ═══════════════════════════════════════════════════════════════

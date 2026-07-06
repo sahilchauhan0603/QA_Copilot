@@ -287,6 +287,12 @@ export const testGenAPI = {
     return response.data;
   },
 
+  /** Get the Coverage Hub for a generation */
+  getCoverageHub: async (generationId) => {
+    const response = await apiClient.get(`/test-generation/generations/${generationId}/coverage-hub`);
+    return response.data;
+  },
+
   /** Delete a generation */
   deleteGeneration: async (generationId) => {
     const response = await apiClient.delete(`/test-generation/generations/${generationId}`);

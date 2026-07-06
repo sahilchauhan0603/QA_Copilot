@@ -31,13 +31,32 @@ const badgeColorMap = {
   slate: 'bg-slate-100 text-slate-800',
 };
 
-const AccordionSection = ({ icon: Icon, title, count, color = 'blue', defaultOpen = false, children }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+const AccordionSection = ({
+  icon: Icon,
+  title,
+  count,
+  color = 'blue',
+  defaultOpen = false,
+  isOpen: controlledIsOpen,
+  onToggle,
+  children,
+}) => {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
+  const isControlled = controlledIsOpen !== undefined;
+  const isOpen = isControlled ? controlledIsOpen : uncontrolledOpen;
+
+  const handleToggle = () => {
+    if (onToggle) {
+      onToggle(!isOpen);
+      return;
+    }
+    setUncontrolledOpen(!isOpen);
+  };
 
   return (
     <div className={`border rounded-lg overflow-hidden ${isOpen ? colorMap[color] : 'border-gray-200 bg-white'}`}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
           isOpen ? '' : 'hover:bg-gray-50'
         }`}

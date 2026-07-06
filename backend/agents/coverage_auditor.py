@@ -69,7 +69,11 @@ class CoverageAuditorAgent:
         
         # Update state
         state["coverage_gaps"] = result.get("coverage_gaps", [])
-        
+        state["requirement_mappings"] = result.get("requirement_mappings", [])
+        state["coverage_score_label"] = result.get("coverage_score", "N/A")
+        if result.get("coverage_percentage") is not None:
+            state["coverage_percentage"] = result.get("coverage_percentage")
+
         # Add any additional clarification questions
         if result.get("additional_questions"):
             state["clarification_questions"].extend(result["additional_questions"])
@@ -77,7 +81,8 @@ class CoverageAuditorAgent:
         # Log action
         log_agent_action(state, self.name, "audited_coverage", {
             "gaps_found": len(state["coverage_gaps"]),
-            "coverage_score": result.get("coverage_score", "N/A")
+            "coverage_score": result.get("coverage_score", "N/A"),
+            "requirement_mappings": len(state["requirement_mappings"]),
         })
         
         return state
@@ -95,9 +100,24 @@ Return JSON:
 {
     "coverage_gaps": ["gap1", "gap2", ...],
     "coverage_score": "Excellent/Good/Fair/Poor",
+    "coverage_percentage": 85,
+    "requirement_mappings": [
+        {
+            "requirement_index": 0,
+            "coverage_status": "full|partial|gap",
+            "mapped_test_indices": [0, 2],
+            "coverage_notes": "Brief note on how requirements are covered",
+            "confidence": 0.9
+        }
+    ],
     "additional_questions": ["question1", "question2", ...] (optional),
     "recommendations": ["recommendation1", ...] (optional)
 }
+
+For requirement_mappings:
+- Map each requirement (by zero-based index) to test case indices from the sample titles list
+- Use "full" when comprehensively covered, "partial" when only some aspects covered, "gap" when untested
+- mapped_test_indices should reference test cases by their position in the generated list (0-based)
 
 Look for:
 - Untested requirements
@@ -133,9 +153,8 @@ Look for:
 Total: {len(test_cases)} test cases
 {chr(10).join(f"- {cat}: {count} test cases" for cat, count in tc_summary.items())}
 
-**Sample Test Case Titles:**
-{chr(10).join(f"- [{tc.get('priority')}] {tc.get('title')}" for tc in test_cases[:15])}
-{"... and more" if len(test_cases) > 15 else ""}
+**All Test Cases (index | priority | title):**
+{chr(10).join(f"- [{i}] [{tc.get('priority')}] {tc.get('title')}" for i, tc in enumerate(test_cases))}
 
 **Risk Areas Identified:**
 {chr(10).join(f"- {risk}" for risk in state.get('risk_areas', []))}

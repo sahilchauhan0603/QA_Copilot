@@ -57,6 +57,9 @@ class AgentState(TypedDict):
     # Generated Artifacts
     test_cases: Annotated[List[TestCase], operator.add]
     coverage_gaps: Annotated[List[str], operator.add]
+    requirement_mappings: List[Dict]
+    coverage_score_label: str
+    coverage_percentage: float
     clarification_questions: Annotated[List[str], operator.add]
     
     # Metadata
@@ -78,6 +81,9 @@ def create_initial_state(ticket_info: TicketInfo) -> AgentState:
         risk_areas=[],
         test_cases=[],
         coverage_gaps=[],
+        requirement_mappings=[],
+        coverage_score_label="",
+        coverage_percentage=0.0,
         clarification_questions=[],
         agent_logs=[],
         current_agent="",

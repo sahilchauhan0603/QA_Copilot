@@ -12,6 +12,7 @@ from sqlalchemy import and_, or_, desc, func
 
 from database.connection import DatabaseConnection
 from database.models import Generation, TestCase, CoverageGap
+from services.coverage_hub_service import CoverageHubService
 
 
 logger = logging.getLogger(__name__)
@@ -65,24 +66,7 @@ class DatabaseManager:
                     excel_file_path=excel_file_path,
                     status='completed',
                     total_test_cases=len(test_cases),
-                    generation_metadata={
-                        'qa_roadmap': state.get('qa_roadmap', {}),
-                        'clarification_questions': state.get('clarification_questions', []),
-                        'risk_areas': state.get('risk_areas', []),
-                        'extracted_requirements': state.get('extracted_requirements', []),
-                        'acceptance_criteria_gaps': state.get('acceptance_criteria_gaps', []),
-                        'impacted_modules': state.get('impacted_modules', []),
-                        'dependencies': state.get('dependencies', []),
-                        'processing_time': state.get('processing_time', 0),
-                        'priority': state.get('ticket_info', {}).get('priority', ''),
-                        'status': state.get('ticket_info', {}).get('status', ''),
-                        'source_integration': state.get('source_integration'),
-                        'refinement': state.get('refinement'),  # Add refinement metadata
-                        'webhook_auto_regen': state.get('webhook_auto_regen', False),
-                        'auto_regen_source': state.get('auto_regen_source'),
-                        'screenshot_count': state.get('screenshot_count', 0),
-                        'image_analysis': state.get('ticket_info', {}).get('image_analysis', ''),
-                    },
+                    generation_metadata={},
                     user_id=user_id,
                     team_id=team_id
                 )
@@ -93,6 +77,7 @@ class DatabaseManager:
                 generation_id = str(generation.id)
                 
                 # Create test cases
+                saved_test_cases = []
                 for test_case in test_cases:
                     tc = TestCase(
                         generation_id=generation.id,
@@ -105,6 +90,46 @@ class DatabaseManager:
                         test_data=test_case.get('test_data', '')
                     )
                     session.add(tc)
+                    saved_test_cases.append((test_case, tc))
+
+                session.flush()
+
+                # Build Coverage Hub with persisted test case IDs
+                test_cases_with_ids = []
+                for index, (original, tc_row) in enumerate(saved_test_cases):
+                    tc_dict = original.copy() if isinstance(original, dict) else dict(original)
+                    tc_dict['id'] = tc_row.id
+                    if not tc_dict.get('test_id'):
+                        tc_dict['test_id'] = f'TC-{index + 1}'
+                    test_cases_with_ids.append(tc_dict)
+
+                hub_state = dict(state)
+                hub_state['test_cases'] = test_cases_with_ids
+                coverage_hub = CoverageHubService.build_from_state(hub_state)
+
+                generation.generation_metadata = {
+                    **(generation.generation_metadata or {}),
+                    'qa_roadmap': state.get('qa_roadmap', {}),
+                    'clarification_questions': state.get('clarification_questions', []),
+                    'risk_areas': state.get('risk_areas', []),
+                    'extracted_requirements': state.get('extracted_requirements', []),
+                    'acceptance_criteria_gaps': state.get('acceptance_criteria_gaps', []),
+                    'impacted_modules': state.get('impacted_modules', []),
+                    'dependencies': state.get('dependencies', []),
+                    'processing_time': state.get('processing_time', 0),
+                    'priority': state.get('ticket_info', {}).get('priority', ''),
+                    'status': state.get('ticket_info', {}).get('status', ''),
+                    'source_integration': state.get('source_integration'),
+                    'refinement': state.get('refinement'),
+                    'webhook_auto_regen': state.get('webhook_auto_regen', False),
+                    'auto_regen_source': state.get('auto_regen_source'),
+                    'screenshot_count': state.get('screenshot_count', 0),
+                    'image_analysis': state.get('ticket_info', {}).get('image_analysis', ''),
+                    'requirement_mappings': state.get('requirement_mappings', []),
+                    'coverage_score_label': state.get('coverage_score_label', ''),
+                    'coverage_percentage': state.get('coverage_percentage'),
+                    'coverage_hub': coverage_hub,
+                }
                 
                 # Create coverage gaps
                 for gap in coverage_gaps:
@@ -229,6 +254,21 @@ class DatabaseManager:
                 
                 # Extract metadata
                 gen_metadata = generation.generation_metadata or {}
+                coverage_hub = gen_metadata.get('coverage_hub')
+                if not coverage_hub:
+                    coverage_hub = CoverageHubService.build_from_generation_data({
+                        'generation': generation.to_dict(),
+                        'test_cases': test_cases,
+                        'coverage_gaps': coverage_gaps,
+                        'qa_roadmap': gen_metadata.get('qa_roadmap', {}),
+                        'clarification_questions': gen_metadata.get('clarification_questions', []),
+                        'risk_areas': gen_metadata.get('risk_areas', []),
+                        'extracted_requirements': gen_metadata.get('extracted_requirements', []),
+                        'acceptance_criteria_gaps': gen_metadata.get('acceptance_criteria_gaps', []),
+                        'impacted_modules': gen_metadata.get('impacted_modules', []),
+                        'dependencies': gen_metadata.get('dependencies', []),
+                        'source_integration': gen_metadata.get('source_integration'),
+                    })
                 
                 return {
                     'generation': generation.to_dict(),
@@ -242,6 +282,7 @@ class DatabaseManager:
                     'impacted_modules': gen_metadata.get('impacted_modules', []),
                     'dependencies': gen_metadata.get('dependencies', []),
                     'source_integration': gen_metadata.get('source_integration'),
+                    'coverage_hub': coverage_hub,
                 }
                 
         except Exception as e:

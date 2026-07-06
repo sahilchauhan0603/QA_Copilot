@@ -28,10 +28,29 @@ from agents.state import TicketInfo
 from utils.rate_limiter import get_rate_limiter
 from utils.api_cache import get_api_cache
 from utils.excel_exporter import export_to_excel_bytes, get_excel_filename
+from services.coverage_hub_service import CoverageHubService
 
 logger = logging.getLogger(__name__)
 
 generation_bp = Blueprint('generation', __name__, url_prefix='/api/test-generation')
+
+
+def _can_access_generation(current_user, generation):
+    """Return True if user can read the generation."""
+    if generation['user_id'] == current_user['user_id']:
+        return True
+    if generation['team_id'] is not None:
+        return team_service.is_team_member(current_user['user_id'], generation['team_id'])
+    return False
+
+
+def _can_delete_generation(current_user, generation):
+    """Return True if user can delete the generation."""
+    if generation['user_id'] == current_user['user_id']:
+        return True
+    if generation['team_id'] is not None:
+        return team_service.is_team_admin(current_user['user_id'], generation['team_id'])
+    return False
 
 
 # ── SSE Progress ────────────────────────────────────────────────────
@@ -343,17 +362,40 @@ def get_generation(current_user, generation_id):
             return jsonify({'error': 'Generation not found'}), 404
 
         generation = generation_data['generation']
-        if generation['user_id'] != current_user['user_id']:
-            if generation['team_id'] is not None:
-                if not team_service.is_team_member(current_user['user_id'], generation['team_id']):
-                    return jsonify({'error': 'Access denied'}), 403
-            else:
-                return jsonify({'error': 'Access denied'}), 403
+        if not _can_access_generation(current_user, generation):
+            return jsonify({'error': 'Access denied'}), 403
 
         return jsonify(generation_data), 200
     except Exception as e:
         logger.error(f"Get generation error: {e}")
         return jsonify({'error': 'Failed to get generation'}), 500
+
+
+@generation_bp.route('/generations/<generation_id>/coverage-hub', methods=['GET'])
+@token_required
+def get_coverage_hub(current_user, generation_id):
+    try:
+        generation_data = db_manager.get_generation_by_id(generation_id)
+        if not generation_data:
+            return jsonify({'error': 'Generation not found'}), 404
+
+        generation = generation_data['generation']
+        if not _can_access_generation(current_user, generation):
+            return jsonify({'error': 'Access denied'}), 403
+
+        coverage_hub = generation_data.get('coverage_hub')
+        if not coverage_hub:
+            coverage_hub = CoverageHubService.build_from_generation_data(generation_data)
+
+        return jsonify({
+            'generation_id': generation_id,
+            'ticket_id': generation.get('ticket_id'),
+            'ticket_title': generation.get('ticket_title'),
+            'coverage_hub': coverage_hub,
+        }), 200
+    except Exception as e:
+        logger.error(f"Get coverage hub error: {e}")
+        return jsonify({'error': 'Failed to get coverage hub'}), 500
 
 
 @generation_bp.route('/generations/<generation_id>', methods=['DELETE'])
@@ -365,12 +407,8 @@ def delete_generation(current_user, generation_id):
             return jsonify({'error': 'Generation not found'}), 404
 
         generation = generation_data['generation']
-        if generation['user_id'] != current_user['user_id']:
-            if generation['team_id'] is not None:
-                if not team_service.is_team_admin(current_user['user_id'], generation['team_id']):
-                    return jsonify({'error': 'Access denied: Only the owner or team admin can delete'}), 403
-            else:
-                return jsonify({'error': 'Access denied'}), 403
+        if not _can_delete_generation(current_user, generation):
+            return jsonify({'error': 'Access denied: Only the owner or team admin can delete'}), 403
 
         success = db_manager.delete_generation(generation_id)
         if success:
@@ -403,14 +441,14 @@ def download_excel(current_user, generation_id):
             return jsonify({'error': 'Generation not found'}), 404
 
         generation = generation_data['generation']
-        if generation['user_id'] != current_user['user_id']:
-            if generation['team_id'] is not None:
-                if not team_service.is_team_member(current_user['user_id'], generation['team_id']):
-                    return jsonify({'error': 'Access denied'}), 403
-            else:
-                return jsonify({'error': 'Access denied'}), 403
+        if not _can_access_generation(current_user, generation):
+            return jsonify({'error': 'Access denied'}), 403
 
         meta = generation.get('metadata', {}) or {}
+        coverage_hub = generation_data.get('coverage_hub') or meta.get('coverage_hub')
+        if not coverage_hub:
+            coverage_hub = CoverageHubService.build_from_generation_data(generation_data)
+
         state = {
             'ticket_info': {
                 'ticket_id': generation['ticket_id'],
@@ -431,6 +469,7 @@ def download_excel(current_user, generation_id):
             'impacted_modules': generation_data.get('impacted_modules', []),
             'dependencies': generation_data.get('dependencies', []),
             'processing_time': meta.get('processing_time', 0),
+            'coverage_hub': coverage_hub,
         }
 
         excel_buffer = export_to_excel_bytes(state)

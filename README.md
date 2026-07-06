@@ -1,125 +1,184 @@
-| QA Copilot - Agentic Test Generation Platform | [Live Project](https://qa-copilot.onrender.com/login) |
-|:--|:--|
+<div align="center">
 
-> Transform Jira/Azure DevOps tickets into comprehensive test cases in 4-5 minutes using AI agents.
+# 🤖 QA Copilot
+### Agentic Test Generation Platform
+
+**Transform Jira/Azure DevOps tickets into comprehensive test cases in 4-5 minutes using AI agents.**
+
+[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Visit_App-2ea44f?style=for-the-badge)](https://qa-copilot.onrender.com/login)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black)](#)
+[![Flask](https://img.shields.io/badge/Flask-Backend-000000?style=flat-square&logo=flask&logoColor=white)](#)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=flat-square&logo=postgresql&logoColor=white)](#)
+[![LangGraph](https://img.shields.io/badge/LangGraph-Orchestration-orange?style=flat-square)](#)
+
+</div>
+
+---
+
+## 📚 Table of Contents
+
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [What You Get](#-what-you-get)
+- [Quick Start](#-for-viewers-to-quickstart)
+- [Agentic Architecture](#-agentic-architecture)
+- [Tech Stack](#️-tech-stack)
+- [Project Structure](#-project-structure)
+- [Business Impact](#-business-impact)
+- [Roadmap](#️-roadmap)
 
 ---
 
 ## 🎯 Overview
 
-**QA Copilot** is a production-ready web application that automates test case creation using five specialized AI agents orchestrated by LangGraph. Built with React, Flask, and PostgreSQL, it delivers enterprise-grade test generation with team collaboration features.
+**QA Copilot** is a production-ready web application that automates test case creation using **five specialized AI agents** orchestrated by LangGraph. Built with React, Flask, and PostgreSQL, it delivers enterprise-grade test generation with full team collaboration support — turning a 2–3 hour manual process into a 4–5 minute automated workflow.
 
-### Key Features
+---
 
-✅ **Intelligent Test Generation** - 5 AI agents analyze tickets and generate comprehensive test suites  
-✅ **File Attachment Analysis** - Upload code/config files (up to 3 × 500 KB) for AI to analyze and derive test cases from actual implementation  
-✅ **Live Integrations** - Direct Jira & Azure DevOps connectivity with sync capabilities  
-✅ **Test Management Export** - One-click export to Xray, Zephyr Scale, or TestRail  
-✅ **Refine Results** - 6 refinement options to optimize test cases (minimize, focus, edge cases, coverage, simplify, regenerate)  
-✅ **Team Collaboration** - Multi-user auth, role-based teams (Admin/QA Lead/QA Member), member search & filter, pending invitation management  
-✅ **User Profile Management** - Upload profile photo, edit display name and username with real-time uniqueness validation  
-✅ **Excel Export** - Professional 4-sheet Excel output (Summary, Test Cases, QA Roadmap, Coverage)  
-✅ **Version History** - PostgreSQL storage with audit trails and regeneration  
-✅ **Real-time Progress** - SSE-based live updates during generation  
-✅ **Password Reset** - Secure email-based password recovery  
-✅ **Sync to Tickets** - Attach Excel files and post comments directly to Jira/DevOps
-✅ **Webhook Monitoring** - Auto-regenerate test cases when Jira/Azure DevOps tickets are updated, with email notifications
+## ✨ Key Features
 
-### What You Get
+<table>
+<tr>
+<td width="50%" valign="top">
 
-1. **QA Execution Roadmap** - Categorized scenarios (Happy Path, Negative, Edge Cases, Regression)  
-2. **Detailed Test Cases** - Step-by-step instructions with expected results and test data  
-3. **Code-Aware Testing** - Upload source files and agents derive tests from actual implementation paths, validations, and error handling  
-4. **Coverage Analysis** - Gap identification with clarifying questions  
-5. **Refinement Options** - Minimize redundancy, focus on areas, add edge cases, increase coverage, or simplify  
-6. **Professional Excel Export** - Ready for Jira, Xray, Zephyr, or any test management tool  
-7. **Direct Export to Test Tools** - Export test cases directly to Xray, Zephyr Scale, or TestRail with one click
+**🧠 Intelligence & Generation**
+- Intelligent test generation via 5 coordinated AI agents
+- File attachment analysis (up to 3 × 500 KB) — derive tests from actual code/config
+- 6 refinement options: minimize, focus, edge cases, coverage, simplify, regenerate
+
+**🔗 Integrations**
+- Live Jira & Azure DevOps connectivity with sync
+- One-click export to Xray, Zephyr Scale, or TestRail
+- Sync results back to tickets via file attachments and comments
+
+</td>
+<td width="50%" valign="top">
+
+**👥 Collaboration & Management**
+- Multi-user auth with role-based teams (Admin / QA Lead / QA Member)
+- Member search, filtering, and pending invitation management
+- Profile management with photo upload and real-time username validation
+
+**⚙️ Platform & Reliability**
+- Professional 4-sheet Excel export (Summary, Test Cases, Roadmap, Coverage)
+- Version history with PostgreSQL audit trails
+- Real-time SSE progress updates
+- Secure email-based password reset
+- Webhook monitoring with auto-regeneration on ticket updates
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🎁 What You Get
+
+| # | Deliverable | Description |
+|---|-------------|-------------|
+| 1 | 🗺️ **QA Execution Roadmap** | Categorized scenarios — Happy Path, Negative, Edge Cases, Regression |
+| 2 | 📋 **Detailed Test Cases** | Step-by-step instructions with expected results and test data |
+| 3 | 💻 **Code-Aware Testing** | Tests derived from actual implementation paths, validations, and error handling |
+| 4 | 🔍 **Coverage Analysis** | Gap identification with clarifying questions |
+| 5 | 🛠️ **Refinement Options** | Minimize, focus, add edge cases, boost coverage, or simplify |
+| 6 | 📊 **Excel Export** | Polished, ready-to-share output for any test management tool |
+| 7 | 📤 **Direct Tool Export** | One-click export to Xray, Zephyr Scale, or TestRail |
 
 ---
 
 ## 📺 For Viewers to QuickStart
 
-**All necessary  materials are available in the [`DOCUMENTATION`](./DOCUMENTATION/) folder:**
+All necessary materials live in the [`DOCUMENTATION`](./DOCUMENTATION/) folder:
 
-- 🛠️ **Installation Instructions** - [Setup Guide](./DOCUMENTATION/INSTALLATION_GUIDE.md)
+| Resource | Link |
+|----------|------|
+| 🛠️ Installation Instructions | [Setup Guide](./DOCUMENTATION/INSTALLATION_GUIDE.md) |
 
 ---
 
 ## 🤖 Agentic Architecture
 
-Five specialized agents working autonomously in sequence:
+Five specialized agents work autonomously in sequence, each building on the last:
 
 ```
-┌─────────────────────┐
-│  Ticket Reader      │ ← Extracts requirements & identifies gaps
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│  Context Builder    │ ← Maps impacted modules & dependencies
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│  Test Strategist    │ ← Creates QA roadmap by category
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│  Test Generator     │ ← Generates detailed test cases
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│  Coverage Auditor   │ ← Validates coverage & finds gaps
-└──────────┬──────────┘
-           ↓
-      ┌────────┐
-      │  END   │
-      └────────┘
+ ┌───────────────────────┐
+ │   1. Ticket Reader     │  Extracts requirements & identifies gaps
+ └───────────┬───────────┘
+             │
+ ┌───────────▼───────────┐
+ │  2. Context Builder    │  Maps impacted modules & dependencies
+ └───────────┬───────────┘
+             │
+ ┌───────────▼───────────┐
+ │  3. Test Strategist    │  Creates QA roadmap by category
+ └───────────┬───────────┘
+             │
+ ┌───────────▼───────────┐
+ │  4. Test Generator     │  Generates detailed test cases
+ └───────────┬───────────┘
+             │
+ ┌───────────▼───────────┐
+ │  5. Coverage Auditor   │  Validates coverage & finds gaps
+ └───────────┬───────────┘
+             │
+          ┌──▼──┐
+          │ END │
+          └─────┘
 ```
 
-*(Sync Agent for auto-posting to Jira/ADO available - planned for integration)*
+> 🔮 *A Sync Agent for auto-posting to Jira/ADO is planned for future integration.*
 
 **Why This Is Truly Agentic:**
-- ✅ **Autonomous Decisions** - Each agent makes context-based decisions
-- ✅ **Goal-Driven** - Optimizes for complete test coverage
-- ✅ **Self-Correcting** - Coverage Auditor validates and improves
-- ✅ **Stateful Memory** - Agents build on previous outputs
-- ✅ **Adaptive** - Handles any ticket type (bug, feature, API change)
+
+| Trait | How It Shows Up |
+|-------|------------------|
+| ✅ **Autonomous Decisions** | Each agent makes context-based decisions independently |
+| 🎯 **Goal-Driven** | Optimizes continuously for complete test coverage |
+| 🔄 **Self-Correcting** | Coverage Auditor validates and improves prior output |
+| 🧠 **Stateful Memory** | Agents build on the outputs of those before them |
+| 🧩 **Adaptive** | Handles any ticket type — bug, feature, or API change |
 
 ---
 
 ## 🏗️ Tech Stack
 
-**Frontend:**
+<table>
+<tr><td valign="top" width="25%">
+
+**Frontend**
 - React 18 + Vite
 - Tailwind CSS
-- Zustand (state management)
+- Zustand
 - React Router
 - React Hot Toast
 
-**Backend:**
+</td><td valign="top" width="25%">
+
+**Backend**
 - Flask API
-- JWT Authentication (bcrypt + Flask-JWT-Extended)
+- JWT Auth (bcrypt + Flask-JWT-Extended)
 - Server-Sent Events (SSE)
 - Fernet AES-256 encryption
 
-**AI/Agents:**
-- LangGraph (state-based workflow)
+</td><td valign="top" width="25%">
+
+**AI / Agents**
+- LangGraph orchestration
 - Google Gemini 2.0 Flash
-- 5 specialized agents (Reader, Context Builder, Strategist, Generator, Auditor)
+- 5 specialized agents
 
-**Database:**
-- PostgreSQL (SQLAlchemy ORM)
-- JSONB for metadata storage
+</td><td valign="top" width="25%">
 
-**Integrations:**
-- Jira REST API (ticket fetching)
-- Azure DevOps API (ticket fetching)
-- Xray for Jira (test case export)
-- Zephyr Scale (test case export)
-- TestRail (test case export)
-- SMTP Email Service (password reset)
+**Data & Integrations**
+- PostgreSQL + SQLAlchemy ORM
+- JSONB metadata storage
+- Jira / Azure DevOps APIs
+- Xray, Zephyr, TestRail export
+- SMTP email service
+- openpyxl Excel generation
 
-**Export:**
-- openpyxl (in-memory Excel generation with 4 sheets)
+</td></tr>
+</table>
 
 ---
 
@@ -129,11 +188,10 @@ Five specialized agents working autonomously in sequence:
 QA_Copilot/
 ├── README.md
 ├── requirements.txt
-├── backend/                 # All backend Python code
-│   ├── .env                 # Environment variables (not committed)
-│   ├── .env.example         # Environment variable template
-│   ├── agents/              # AI agent system
-│   │   ├── __init__.py
+├── backend/                     # All backend Python code
+│   ├── .env                     # Environment variables (not committed)
+│   ├── .env.example             # Environment variable template
+│   ├── agents/                  # AI agent system
 │   │   ├── context_builder.py
 │   │   ├── coverage_auditor.py
 │   │   ├── orchestrator.py
@@ -143,38 +201,32 @@ QA_Copilot/
 │   │   ├── test_generator.py
 │   │   ├── test_strategy.py
 │   │   └── ticket_reader.py
-│   ├── api/                 # Flask REST API
-│   │   ├── __init__.py
+│   ├── api/                     # Flask REST API
+│   │   ├── server.py            # Minimal app entry-point
+│   │   ├── shared.py            # Shared services & state
 │   │   ├── decorators.py
-│   │   ├── server.py        # Minimal app entry-point
-│   │   ├── shared.py        # Shared services & state
 │   │   └── routes/
-│   │       ├── __init__.py      # Blueprint registration
-│   │       ├── auth.py          # /api/auth/* routes
-│   │       ├── generation.py    # /api/test-generation/* routes
-│   │       ├── integrations.py  # /api/integrations/* routes
-│   │       ├── teams.py         # /api/teams/* routes
-│   │       ├── test_management.py # /api/test-management/* routes
-│   │       └── workspaces.py    # /api/workspaces/* routes
-│   ├── services/            # Business logic services
-│   │   ├── __init__.py
+│   │       ├── auth.py              # /api/auth/*
+│   │       ├── generation.py        # /api/test-generation/*
+│   │       ├── integrations.py      # /api/integrations/*
+│   │       ├── teams.py             # /api/teams/*
+│   │       ├── test_management.py   # /api/test-management/*
+│   │       └── workspaces.py        # /api/workspaces/*
+│   ├── services/                # Business logic services
 │   │   ├── auth_service.py
 │   │   ├── encryption.py
 │   │   ├── integration_service.py
 │   │   ├── team_service.py
 │   │   ├── test_management_service.py
 │   │   └── workspace_service.py
-│   ├── database/            # PostgreSQL models & migrations
-│   │   ├── __init__.py
+│   ├── database/                # PostgreSQL models & migrations
 │   │   ├── auth_models.py
 │   │   ├── clear_database.sql
 │   │   ├── connection.py
 │   │   ├── db_manager.py
 │   │   ├── migration_schema.sql
-│   │   ├── models.py
-│   │   └── README.md
-│   ├── integrations/        # Ticket & Test Management connectors
-│   │   ├── __init__.py
+│   │   └── models.py
+│   ├── integrations/            # Ticket & Test Management connectors
 │   │   ├── azure_devops_integration.py
 │   │   ├── base.py
 │   │   ├── jira_integration.py
@@ -184,22 +236,20 @@ QA_Copilot/
 │   │   ├── xray_integration.py
 │   │   └── zephyr_integration.py
 │   └── utils/
-│       ├── __init__.py
 │       ├── api_cache.py
 │       ├── api_helper.py
 │       ├── email_service.py
 │       ├── excel_exporter.py
 │       └── rate_limiter.py
-├── frontend/                # React UI (Vite)
+├── frontend/                     # React UI (Vite)
+│   ├── .env                     # Environment variables (not committed)
+│   ├── .env.example             # Environment variable template
 │   ├── index.html
 │   ├── package.json
-│   ├── postcss.config.js
 │   ├── tailwind.config.js
 │   ├── vite.config.js
-│   ├── public/
 │   └── src/
 │       ├── App.jsx
-│       ├── index.css
 │       ├── main.jsx
 │       ├── components/
 │       │   ├── auth/
@@ -215,8 +265,7 @@ QA_Copilot/
 │   ├── DEPLOYMENT_GUIDE.md
 │   ├── INSTALLATION_GUIDE.md
 │   └── TEST_MANAGEMENT_INTEGRATION.md
-└── scripts/                 # Utility scripts
-    ├── README.md
+└── scripts/                      # Utility scripts
     ├── clear_database.ps1
     ├── run_migration.py
     ├── start_backend.ps1
@@ -228,18 +277,22 @@ QA_Copilot/
 ## 📊 Business Impact
 
 | Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Time per ticket | 2-3 hours | 4-5 minutes | **90% reduction** |
-| Test coverage | ~60% | ~90% | **+30%** |
-| Consistency | Variable | Standardized | **High** |
-| Junior QA ramp-up | Weeks | Days | **10x faster** |
+|:--|:--:|:--:|:--:|
+| ⏱️ Time per ticket | 2–3 hours | 4–5 minutes | 🚀 **90% reduction** |
+| ✅ Test coverage | ~60% | ~90% | 📈 **+30%** |
+| 🎯 Consistency | Variable | Standardized | ⭐ **High** |
+| 🧑‍💻 Junior QA ramp-up | Weeks | Days | ⚡ **10x faster** |
 
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] Web crawling feature to analyze websites and automatically generate test cases.
+- [ ] 🌐 Web crawling feature to analyze websites and automatically generate test cases
 
 ---
 
+<div align="center">
+
 **Built with ❤️ for QA teams everywhere**
+
+</div>
