@@ -37,6 +37,7 @@ import ExportMenu from "./ExportMenu";
 import RefineMenu from "./RefineMenu";
 import TestCaseList from "./TestCaseList";
 import CoverageHubPanel from "./CoverageHubPanel";
+import CoverageRing from "../common/CoverageRing";
 
 const DetailViewModal = ({
   selectedGeneration,
@@ -107,15 +108,18 @@ const DetailViewModal = ({
   // Check if ticket is already monitored on mount
   useEffect(() => {
     if (!sourceIntegration || !gen?.ticket_id) return;
-    webhookAPI.getSubscriptions().then((data) => {
-      const match = (data.subscriptions || []).find(
-        (s) =>
-          s.ticket_id === gen.ticket_id &&
-          s.integration_type === sourceIntegration &&
-          s.is_active
-      );
-      setMonitoring(!!match);
-    }).catch(() => setMonitoring(false));
+    webhookAPI
+      .getSubscriptions()
+      .then((data) => {
+        const match = (data.subscriptions || []).find(
+          (s) =>
+            s.ticket_id === gen.ticket_id &&
+            s.integration_type === sourceIntegration &&
+            s.is_active,
+        );
+        setMonitoring(!!match);
+      })
+      .catch(() => setMonitoring(false));
   }, [sourceIntegration, gen?.ticket_id]);
 
   const handleToggleMonitoring = async () => {
@@ -128,7 +132,7 @@ const DetailViewModal = ({
         const match = (data.subscriptions || []).find(
           (s) =>
             s.ticket_id === gen.ticket_id &&
-            s.integration_type === sourceIntegration
+            s.integration_type === sourceIntegration,
         );
         if (match) {
           await webhookAPI.updateSubscription(match.id, { is_active: false });
@@ -140,13 +144,13 @@ const DetailViewModal = ({
           sourceIntegration,
           gen.ticket_id,
           gen.ticket_title,
-          gen.id
+          gen.id,
         );
         setMonitoring(true);
         toast.success(`Now monitoring ${gen.ticket_id} for changes`);
       }
     } catch (err) {
-      toast.error('Failed to update monitoring');
+      toast.error("Failed to update monitoring");
     } finally {
       setMonitorLoading(false);
     }
@@ -173,11 +177,13 @@ const DetailViewModal = ({
       setSyncCancelFn(null);
 
       const successMessages = {
-        full:    `Synced to ${gen.ticket_id} successfully`,
-        attach:  `Excel attached to ${gen.ticket_id}`,
+        full: `Synced to ${gen.ticket_id} successfully`,
+        attach: `Excel attached to ${gen.ticket_id}`,
         comment: `Comment added to ${gen.ticket_id}`,
       };
-      toast.success(successMessages[action] ?? `Synced to ${gen.ticket_id} successfully`);
+      toast.success(
+        successMessages[action] ?? `Synced to ${gen.ticket_id} successfully`,
+      );
 
       // Close modal after successful sync
       setTimeout(() => {
@@ -251,90 +257,93 @@ const DetailViewModal = ({
 
   const sectionStats = [
     {
-      id: 'ticketOverview',
-      title: 'Ticket Overview',
-      value: (gen.ticket_description || gen.ticket_acceptance_criteria) ? 1 : 0,
-      detail: (gen.ticket_description || gen.ticket_acceptance_criteria) ? 'Open ticket context' : 'No ticket details',
-      color: 'slate',
+      id: "ticketOverview",
+      title: "Ticket Overview",
+      value: gen.ticket_description || gen.ticket_acceptance_criteria ? 1 : 0,
+      detail:
+        gen.ticket_description || gen.ticket_acceptance_criteria
+          ? "Open ticket context"
+          : "No ticket details",
+      color: "slate",
       icon: ClipboardList,
       active: !!(gen.ticket_description || gen.ticket_acceptance_criteria),
     },
     {
-      id: 'testCases',
-      title: 'Test Cases',
+      id: "testCases",
+      title: "Test Cases",
       value: testCases.length,
-      detail: 'Generated cases',
-      color: 'blue',
+      detail: "Generated cases",
+      color: "blue",
       icon: ListChecks,
       active: testCases.length > 0,
     },
     {
-      id: 'extractedRequirements',
-      title: 'Requirements',
+      id: "extractedRequirements",
+      title: "Requirements",
       value: extractedRequirements.length,
-      detail: 'Extracted from ticket',
-      color: 'green',
+      detail: "Extracted from ticket",
+      color: "green",
       icon: Target,
       active: extractedRequirements.length > 0,
     },
     {
-      id: 'coverageGaps',
-      title: 'Coverage Gaps',
+      id: "coverageGaps",
+      title: "Coverage Gaps",
       value: coverageGaps.length,
-      detail: 'Missing coverage',
-      color: 'yellow',
+      detail: "Missing coverage",
+      color: "yellow",
       icon: ShieldAlert,
       active: coverageGaps.length > 0,
     },
     {
-      id: 'riskAreas',
-      title: 'Risk Areas',
+      id: "riskAreas",
+      title: "Risk Areas",
       value: riskAreas.length,
-      detail: 'High-risk items',
-      color: 'red',
+      detail: "High-risk items",
+      color: "red",
       icon: ShieldAlert,
       active: riskAreas.length > 0,
     },
     {
-      id: 'clarificationQuestions',
-      title: 'Questions',
+      id: "clarificationQuestions",
+      title: "Questions",
       value: clarificationQuestions.length,
-      detail: 'Open questions',
-      color: 'purple',
+      detail: "Open questions",
+      color: "purple",
       icon: HelpCircle,
       active: clarificationQuestions.length > 0,
     },
     {
-      id: 'acceptanceCriteriaGaps',
-      title: 'AC Gaps',
+      id: "acceptanceCriteriaGaps",
+      title: "AC Gaps",
       value: acceptanceCriteriaGaps.length,
-      detail: 'Criteria missing',
-      color: 'orange',
+      detail: "Criteria missing",
+      color: "orange",
       icon: FileWarning,
       active: acceptanceCriteriaGaps.length > 0,
     },
     {
-      id: 'impactedModules',
-      title: 'Modules & Dependencies',
+      id: "impactedModules",
+      title: "Modules & Dependencies",
       value: (impactedModules.length || 0) + (dependencies.length || 0),
-      detail: 'Impacted areas',
-      color: 'indigo',
+      detail: "Impacted areas",
+      color: "indigo",
       icon: Boxes,
       active: impactedModules.length > 0 || dependencies.length > 0,
     },
     {
-      id: 'qaRoadmap',
-      title: 'QA Strategy',
+      id: "qaRoadmap",
+      title: "QA Strategy",
       value: Object.keys(qaRoadmap).length,
-      detail: 'Strategy groups',
-      color: 'purple',
+      detail: "Strategy groups",
+      color: "purple",
       icon: BookOpen,
       active: Object.keys(qaRoadmap).length > 0,
     },
   ];
 
   const scrollToSection = (sectionId) => {
-    if (sectionId === 'coverageHub') {
+    if (sectionId === "coverageHub") {
       setShowCoverageHub(true);
     }
 
@@ -345,8 +354,8 @@ const DetailViewModal = ({
 
     window.setTimeout(() => {
       sectionRefs.current[sectionId]?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
+        behavior: "smooth",
+        block: "start",
       });
     }, 50);
   };
@@ -359,7 +368,7 @@ const DetailViewModal = ({
   };
 
   const scrollToTop = () => {
-    contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleContentScroll = () => {
@@ -369,9 +378,9 @@ const DetailViewModal = ({
 
   const priorityBarColors = {
     P0: "bg-red-500",
-    P1: "bg-orange-500",
+    P1: "bg-orange-300",
     P2: "bg-yellow-500",
-    P3: "bg-green-500",
+    P3: "bg-green-400",
     P4: "bg-blue-400",
   };
 
@@ -461,13 +470,13 @@ const DetailViewModal = ({
                 disabled={monitorLoading || monitoring === null}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm ${
                   monitoring
-                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
+                    ? "bg-amber-500 hover:bg-amber-600 text-white"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
                 }`}
                 title={
                   monitoring
-                    ? 'Stop monitoring this ticket for changes'
-                    : 'Auto-regenerate tests when this ticket is updated'
+                    ? "Stop monitoring this ticket for changes"
+                    : "Auto-regenerate tests when this ticket is updated"
                 }
               >
                 {monitorLoading ? (
@@ -478,7 +487,7 @@ const DetailViewModal = ({
                   <BellOff size={14} />
                 )}
                 <span className="hidden sm:inline">
-                  {monitoring ? 'Monitoring' : 'Monitor'}
+                  {monitoring ? "Monitoring" : "Monitor"}
                 </span>
               </button>
             )}
@@ -505,14 +514,20 @@ const DetailViewModal = ({
               {sectionStats.map((stat) => {
                 const Icon = stat.icon;
                 const colorClasses = {
-                  blue: 'border-blue-200 hover:border-blue-300 hover:bg-blue-50 text-blue-700',
-                  green: 'border-green-200 hover:border-green-300 hover:bg-green-50 text-green-700',
-                  yellow: 'border-yellow-200 hover:border-yellow-300 hover:bg-yellow-50 text-yellow-700',
-                  red: 'border-red-200 hover:border-red-300 hover:bg-red-50 text-red-700',
-                  purple: 'border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-700',
-                  orange: 'border-orange-200 hover:border-orange-300 hover:bg-orange-50 text-orange-700',
-                  indigo: 'border-indigo-200 hover:border-indigo-300 hover:bg-indigo-50 text-indigo-700',
-                  slate: 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700',
+                  blue: "border-blue-200 hover:border-blue-300 hover:bg-blue-50 text-blue-700",
+                  green:
+                    "border-green-200 hover:border-green-300 hover:bg-green-50 text-green-700",
+                  yellow:
+                    "border-yellow-200 hover:border-yellow-300 hover:bg-yellow-50 text-yellow-700",
+                  red: "border-red-200 hover:border-red-300 hover:bg-red-50 text-red-700",
+                  purple:
+                    "border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-700",
+                  orange:
+                    "border-orange-200 hover:border-orange-300 hover:bg-orange-50 text-orange-700",
+                  indigo:
+                    "border-indigo-200 hover:border-indigo-300 hover:bg-indigo-50 text-indigo-700",
+                  slate:
+                    "border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700",
                 };
 
                 return (
@@ -520,7 +535,7 @@ const DetailViewModal = ({
                     key={stat.id}
                     type="button"
                     onClick={() => scrollToSection(stat.id)}
-                    className={`group w-full rounded-lg border bg-white px-4 py-3 text-left shadow-sm transition-all ${colorClasses[stat.color] || colorClasses.slate} ${stat.active ? '' : 'opacity-70'}`}
+                    className={`group w-full rounded-lg border bg-white px-4 py-3 text-left shadow-sm transition-all ${colorClasses[stat.color] || colorClasses.slate} ${stat.active ? "" : "opacity-70"}`}
                     title={`Jump to ${stat.title}`}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -529,10 +544,14 @@ const DetailViewModal = ({
                           <Icon size={13} className="shrink-0" />
                           <span className="truncate">{stat.title}</span>
                         </div>
-                        <div className={`mt-2 text-2xl font-bold ${stat.color === 'slate' ? 'text-gray-900' : ''}`}>
+                        <div
+                          className={`mt-2 text-2xl font-bold ${stat.color === "slate" ? "text-gray-900" : ""}`}
+                        >
                           {stat.value}
                         </div>
-                        <div className="mt-0.5 text-xs text-gray-500">{stat.detail}</div>
+                        <div className="mt-0.5 text-xs text-gray-500">
+                          {stat.detail}
+                        </div>
                       </div>
                       <div className="mt-1 text-[11px] font-medium uppercase tracking-wide text-gray-400 group-hover:text-gray-600">
                         Go
@@ -543,53 +562,6 @@ const DetailViewModal = ({
               })}
             </div>
           </div>
-
-          {coverageHub && (
-            <div
-              ref={(node) => { sectionRefs.current.coverageHub = node; }}
-              className="rounded-2xl border border-blue-200 bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600 p-3 sm:p-4 text-white shadow-lg shadow-blue-900/10"
-            >
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="max-w-2xl">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white/90">
-                    <Target size={12} />
-                    Coverage Spotlight
-                  </div>
-                  <h4 className="mt-2 text-base sm:text-lg font-bold leading-tight">
-                    Coverage, gaps, and the first run.
-                  </h4>
-                  <p className="mt-1 text-xs sm:text-sm text-white/80">
-                    {showCoverageHub
-                      ? 'Review traceability, gaps, and the minimum viable run below.'
-                      : 'Open the hub to view traceability, gaps, and the minimum viable run.'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="rounded-xl bg-white/15 px-3 py-2.5 text-center min-w-[104px]">
-                    <div className="text-xl text-black font-bold leading-none">
-                      {coverageSummary.coverage_percentage !== undefined
-                        ? `${Math.round(coverageSummary.coverage_percentage)}%`
-                        : 'N/A'}
-                    </div>
-                    <div className="text-xs text-black">Coverage</div>
-                  </div>
-                  <button
-                    onClick={() => setShowCoverageHub((prev) => !prev)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-sm font-semibold text-blue-700 shadow-md shadow-blue-950/20 transition-transform hover:-translate-y-0.5 hover:bg-blue-50"
-                  >
-                    {showCoverageHub ? <X size={16} /> : <Target size={16} />}
-                    {showCoverageHub ? 'Close' : 'Open Coverage Hub'}
-                  </button>
-                </div>
-              </div>
-
-              {showCoverageHub && (
-                <div className="mt-2 rounded-xl bg-white/10 border border-white/15 p-2.5 sm:p-3 backdrop-blur-sm">
-                  <CoverageHubPanel coverageHub={coverageHub} testCases={testCases} />
-                </div>
-              )}
-            </div>
-          )}
 
           {/* ─── Priority Breakdown Bar ─── */}
           {testCases.length > 0 && (
@@ -611,30 +583,97 @@ const DetailViewModal = ({
                     ))}
                 </div>
               </div>
-              <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100">
-                {Object.entries(priorityCounts)
-                  .sort()
-                  .map(([p, count]) => (
-                    <div
-                      key={p}
-                      className={`${priorityBarColors[p] || "bg-gray-400"} transition-all`}
-                      style={{ width: `${(count / testCases.length) * 100}%` }}
-                      title={`${p}: ${count} test cases`}
-                    />
-                  ))}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex h-2.5 flex-1 rounded-full overflow-hidden bg-gray-100">
+                  {Object.entries(priorityCounts)
+                    .sort()
+                    .map(([p, count]) => (
+                      <div
+                        key={p}
+                        className={`${priorityBarColors[p] || "bg-gray-400"} transition-all`}
+                        style={{
+                          width: `${(count / testCases.length) * 100}%`,
+                        }}
+                        title={`${p}: ${count} test cases`}
+                      />
+                    ))}
+                </div>
+                <span className="text-xs font-medium text-gray-500 whitespace-nowrap">
+                  {testCases.length} total test cases in this generation
+                </span>
               </div>
             </div>
           )}
 
+          {/* Coverage Hub Spotlight */}
+          {coverageHub && (
+            <div
+              ref={(node) => {
+                sectionRefs.current.coverageHub = node;
+              }}
+              className="rounded-2xl border border-indigo-100 bg-white p-4 sm:p-5 shadow-sm"
+            >
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-4">
+                  <CoverageRing
+                    percentage={coverageSummary.coverage_percentage ?? 0}
+                    size={64}
+                    strokeWidth={6}
+                    tone="indigo"
+                  />
+                  <div className="max-w-xl">
+                    <div className="inline-flex items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+                      <Target size={11} />
+                      Coverage Hub
+                    </div>
+                    <h4 className="mt-1.5 text-base sm:text-lg font-semibold leading-tight text-slate-900">
+                      Coverage, gaps, and the first run.
+                    </h4>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {showCoverageHub
+                        ? "Traceability, gaps, and the minimum viable run are shown below."
+                        : "Open the hub to view traceability, gaps, and the minimum viable run."}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowCoverageHub((prev) => !prev)}
+                  className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-indigo-200 bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 md:self-auto"
+                >
+                  {showCoverageHub ? <X size={16} /> : <Target size={16} />}
+                  {showCoverageHub ? "Close" : "Open Coverage Hub"}
+                </button>
+              </div>
+
+              {showCoverageHub && (
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  <CoverageHubPanel
+                    coverageHub={coverageHub}
+                    testCases={testCases}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ─── 1. Ticket Overview ─── */}
-          <div ref={(node) => { sectionRefs.current.ticketOverview = node; }}>
+          <div
+            ref={(node) => {
+              sectionRefs.current.ticketOverview = node;
+            }}
+          >
             <AccordionSection
               icon={ClipboardList}
               title="Ticket Overview"
               color="slate"
-              count={(gen.ticket_description || gen.ticket_acceptance_criteria) ? 1 : 0}
+              count={
+                gen.ticket_description || gen.ticket_acceptance_criteria ? 1 : 0
+              }
               isOpen={openSections.ticketOverview}
-              onToggle={(nextOpen) => updateSectionOpen('ticketOverview', nextOpen)}
+              onToggle={(nextOpen) =>
+                updateSectionOpen("ticketOverview", nextOpen)
+              }
             >
               <div className="space-y-3">
                 {gen.ticket_description ? (
@@ -659,7 +698,8 @@ const DetailViewModal = ({
                 ) : null}
                 {!gen.ticket_description && !gen.ticket_acceptance_criteria && (
                   <div className="rounded-lg border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-500">
-                    No ticket description or acceptance criteria was captured for this generation.
+                    No ticket description or acceptance criteria was captured
+                    for this generation.
                   </div>
                 )}
               </div>
@@ -667,14 +707,20 @@ const DetailViewModal = ({
           </div>
 
           {/* ─── 2. Extracted Requirements ─── */}
-          <div ref={(node) => { sectionRefs.current.extractedRequirements = node; }}>
+          <div
+            ref={(node) => {
+              sectionRefs.current.extractedRequirements = node;
+            }}
+          >
             <AccordionSection
               icon={Target}
               title="Extracted Requirements"
               count={extractedRequirements.length}
               color="green"
               isOpen={openSections.extractedRequirements}
-              onToggle={(nextOpen) => updateSectionOpen('extractedRequirements', nextOpen)}
+              onToggle={(nextOpen) =>
+                updateSectionOpen("extractedRequirements", nextOpen)
+              }
             >
               {extractedRequirements.length > 0 ? (
                 <div className="space-y-1.5">
@@ -697,14 +743,20 @@ const DetailViewModal = ({
           </div>
 
           {/* ─── 3. Acceptance Criteria Gaps ─── */}
-          <div ref={(node) => { sectionRefs.current.acceptanceCriteriaGaps = node; }}>
+          <div
+            ref={(node) => {
+              sectionRefs.current.acceptanceCriteriaGaps = node;
+            }}
+          >
             <AccordionSection
               icon={FileWarning}
               title="Acceptance Criteria Gaps"
               count={acceptanceCriteriaGaps.length}
               color="orange"
               isOpen={openSections.acceptanceCriteriaGaps}
-              onToggle={(nextOpen) => updateSectionOpen('acceptanceCriteriaGaps', nextOpen)}
+              onToggle={(nextOpen) =>
+                updateSectionOpen("acceptanceCriteriaGaps", nextOpen)
+              }
             >
               {acceptanceCriteriaGaps.length > 0 ? (
                 <div className="space-y-1.5">
@@ -727,16 +779,22 @@ const DetailViewModal = ({
           </div>
 
           {/* ─── 4. Impacted Modules & Dependencies ─── */}
-          <div ref={(node) => { sectionRefs.current.impactedModules = node; }}>
+          <div
+            ref={(node) => {
+              sectionRefs.current.impactedModules = node;
+            }}
+          >
             <AccordionSection
               icon={Boxes}
               title="Modules & Dependencies"
               count={(impactedModules.length || 0) + (dependencies.length || 0)}
               color="indigo"
               isOpen={openSections.impactedModules}
-              onToggle={(nextOpen) => updateSectionOpen('impactedModules', nextOpen)}
+              onToggle={(nextOpen) =>
+                updateSectionOpen("impactedModules", nextOpen)
+              }
             >
-              {(impactedModules.length > 0 || dependencies.length > 0) ? (
+              {impactedModules.length > 0 || dependencies.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {impactedModules.length > 0 && (
                     <div>
@@ -784,14 +842,18 @@ const DetailViewModal = ({
           </div>
 
           {/* ─── 5. QA Roadmap / Test Strategy ─── */}
-          <div ref={(node) => { sectionRefs.current.qaRoadmap = node; }}>
+          <div
+            ref={(node) => {
+              sectionRefs.current.qaRoadmap = node;
+            }}
+          >
             <AccordionSection
               icon={BookOpen}
               title="QA Roadmap / Test Strategy"
               count={Object.keys(qaRoadmap).length}
               color="purple"
               isOpen={openSections.qaRoadmap}
-              onToggle={(nextOpen) => updateSectionOpen('qaRoadmap', nextOpen)}
+              onToggle={(nextOpen) => updateSectionOpen("qaRoadmap", nextOpen)}
             >
               {Object.keys(qaRoadmap).length > 0 ? (
                 <div className="space-y-3">
@@ -807,12 +869,16 @@ const DetailViewModal = ({
                               key={i}
                               className="text-sm text-gray-700 flex items-start gap-2"
                             >
-                              <span className="text-purple-400 mt-0.5">&bull;</span>
+                              <span className="text-purple-400 mt-0.5">
+                                &bull;
+                              </span>
                               <span>{s}</span>
                             </div>
                           ))
                         ) : (
-                          <div className="text-sm text-gray-700">{String(scenarios)}</div>
+                          <div className="text-sm text-gray-700">
+                            {String(scenarios)}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -827,14 +893,18 @@ const DetailViewModal = ({
           </div>
 
           {/* ─── 6. Test Cases (with filters) ─── */}
-          <div ref={(node) => { sectionRefs.current.testCases = node; }}>
+          <div
+            ref={(node) => {
+              sectionRefs.current.testCases = node;
+            }}
+          >
             <AccordionSection
               icon={ListChecks}
               title="Test Cases"
               count={testCases.length}
               color="blue"
               isOpen={openSections.testCases}
-              onToggle={(nextOpen) => updateSectionOpen('testCases', nextOpen)}
+              onToggle={(nextOpen) => updateSectionOpen("testCases", nextOpen)}
             >
               {testCases.length > 0 ? (
                 <TestCaseList testCases={testCases} />
@@ -847,14 +917,20 @@ const DetailViewModal = ({
           </div>
 
           {/* ─── 7. Coverage Gaps ─── */}
-          <div ref={(node) => { sectionRefs.current.coverageGaps = node; }}>
+          <div
+            ref={(node) => {
+              sectionRefs.current.coverageGaps = node;
+            }}
+          >
             <AccordionSection
               icon={ShieldAlert}
               title="Coverage Gaps"
               count={coverageGaps.length}
               color="yellow"
               isOpen={openSections.coverageGaps}
-              onToggle={(nextOpen) => updateSectionOpen('coverageGaps', nextOpen)}
+              onToggle={(nextOpen) =>
+                updateSectionOpen("coverageGaps", nextOpen)
+              }
             >
               {coverageGaps.length > 0 ? (
                 <div className="space-y-1.5">
@@ -877,14 +953,18 @@ const DetailViewModal = ({
           </div>
 
           {/* ─── 8. Risk Areas ─── */}
-          <div ref={(node) => { sectionRefs.current.riskAreas = node; }}>
+          <div
+            ref={(node) => {
+              sectionRefs.current.riskAreas = node;
+            }}
+          >
             <AccordionSection
               icon={ShieldAlert}
               title="Risk Areas"
               count={riskAreas.length}
               color="red"
               isOpen={openSections.riskAreas}
-              onToggle={(nextOpen) => updateSectionOpen('riskAreas', nextOpen)}
+              onToggle={(nextOpen) => updateSectionOpen("riskAreas", nextOpen)}
             >
               {riskAreas.length > 0 ? (
                 <div className="space-y-1.5">
@@ -907,14 +987,20 @@ const DetailViewModal = ({
           </div>
 
           {/* ─── 9. Clarification Questions ─── */}
-          <div ref={(node) => { sectionRefs.current.clarificationQuestions = node; }}>
+          <div
+            ref={(node) => {
+              sectionRefs.current.clarificationQuestions = node;
+            }}
+          >
             <AccordionSection
               icon={HelpCircle}
               title="Clarification Questions"
               count={clarificationQuestions.length}
               color="cyan"
               isOpen={openSections.clarificationQuestions}
-              onToggle={(nextOpen) => updateSectionOpen('clarificationQuestions', nextOpen)}
+              onToggle={(nextOpen) =>
+                updateSectionOpen("clarificationQuestions", nextOpen)
+              }
             >
               {clarificationQuestions.length > 0 ? (
                 <div className="space-y-1.5">
@@ -943,7 +1029,6 @@ const DetailViewModal = ({
             {testCases.length} test cases &middot;{" "}
             {Object.keys(qaRoadmap).length} strategy categories &middot;{" "}
             {coverageGaps.length} gaps identified
-
             {/* Sync badge */}
             <OperationStatusBadge
               active={!!syncing}
@@ -962,7 +1047,6 @@ const DetailViewModal = ({
               onCancel={syncing && !cancelingSync ? handleCancelSync : null}
               color="blue"
             />
-
             {/* Export badge */}
             <OperationStatusBadge
               active={exportBadge.active}
@@ -971,7 +1055,6 @@ const DetailViewModal = ({
               onCancel={exportBadge.onCancel}
               color="purple"
             />
-
             {/* Refine badge */}
             <OperationStatusBadge
               active={refineBadge.active}
