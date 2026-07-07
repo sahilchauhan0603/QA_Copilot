@@ -24,6 +24,7 @@ const TestGeneration = () => {
   const [totalGenerations, setTotalGenerations] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [statistics, setStatistics] = useState({});
+  const [statisticsLoading, setStatisticsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [selectedGeneration, setSelectedGeneration] = useState(null);
@@ -82,11 +83,14 @@ const TestGeneration = () => {
   }, [searchQuery, filterType]);
 
   const loadStatistics = useCallback(async () => {
+    setStatisticsLoading(true);
     try {
       const data = await testGenAPI.getStatistics();
       setStatistics(data);
     } catch {
       // silent
+    } finally {
+      setStatisticsLoading(false);
     }
   }, []);
 
@@ -271,7 +275,7 @@ const TestGeneration = () => {
   return (
     <div className="space-y-6">
       {/* ─── Statistics ─── */}
-      <StatisticsCards statistics={statistics} />
+      <StatisticsCards statistics={statistics} loading={statisticsLoading} />
 
 
       {/* ─── Generation Progress (always visible when generating) ─── */}

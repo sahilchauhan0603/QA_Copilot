@@ -8,6 +8,67 @@ import { FileText, Users, TestTube, TrendingUp, ArrowRight, Zap, Shield, Clock }
 import useAuthStore from '../store/authStore';
 import api from '../services/api/client';
 
+const formatGenerationStartDate = (value) => {
+  if (!value) return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  return formatter.format(date);
+};
+
+const LoadingDots = () => (
+  <span className="inline-flex items-end gap-1" role="status" aria-label="Loading statistics">
+    <span className="inline-block h-2 w-2 rounded-full bg-current animate-bounce [animation-delay:-0.3s]" />
+    <span className="inline-block h-2 w-2 rounded-full bg-current animate-bounce [animation-delay:-0.15s]" />
+    <span className="inline-block h-2 w-2 rounded-full bg-current animate-bounce" />
+  </span>
+);
+
+const PERIOD_LABELS = {
+  today: 'Today',
+  this_month: 'This Month',
+  previous_month: 'Previous Month',
+  this_year: 'This Year',
+  last_year: 'Last Year',
+};
+
+const periodOrder = ['today', 'this_month', 'previous_month', 'this_year', 'last_year'];
+
+const StatHoverPanel = ({ title, valueLabel, value, details, accentClassName }) => (
+  <div className="absolute left-0 top-full z-20 mt-3 w-full max-w-[21rem] opacity-0 translate-y-2 scale-95 transition duration-200 ease-out group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-100">
+    <div className={`rounded-xl border bg-white/95 p-3 shadow-2xl backdrop-blur ${accentClassName}`}>
+      <div className="text-sm font-semibold text-slate-900">{title}</div>
+      <div className="mt-1 text-xs text-slate-500">{valueLabel}: {value}</div>
+      <div className="mt-3 space-y-1.5">
+        {periodOrder.map((period) => {
+          const periodStats = details?.[period] || { generations: 0, test_cases: 0 };
+          const displayValue = title === 'Avg Tests/Generation'
+            ? periodStats.generations > 0
+              ? (periodStats.test_cases / periodStats.generations).toFixed(1)
+              : '0.0'
+            : periodStats[valueLabel === 'Test Cases Generated' ? 'test_cases' : 'generations'];
+
+          return (
+            <div key={period} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-2.5 py-1.5">
+              <span className="text-xs font-medium text-slate-600">{PERIOD_LABELS[period]}</span>
+              <span className="text-xs font-semibold text-slate-900">
+                {displayValue}{title === 'Avg Tests/Generation' ? '' : ''}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+);
+
 const HomePage = () => {
   const { user, getActiveWorkspaceDetails } = useAuthStore();
   const activeWorkspace = getActiveWorkspaceDetails();
@@ -27,6 +88,17 @@ const HomePage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const generationStartLabel = formatGenerationStartDate(stats?.first_generation_at);
+  const generationStartSuffix = generationStartLabel ? `From ${generationStartLabel}` : null;
+  const timeBreakdown = stats?.time_breakdown || {};
+
+  const getPeriodAverage = (period) => {
+    const periodStats = timeBreakdown?.[period] || { generations: 0, test_cases: 0 };
+    if (!periodStats.generations) return '0.0';
+
+    return (periodStats.test_cases / periodStats.generations).toFixed(1);
   };
 
   return (
@@ -58,50 +130,80 @@ const HomePage = () => {
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="card bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
+        <div className="group relative card overflow-visible bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-lg">
               <FileText size={24} className="text-white" />
             </div>
             <div>
               <div className="text-2xl font-bold text-blue-900">
-                {loading ? '...' : stats?.total_test_cases || 0}
+                {loading ? <LoadingDots /> : stats?.total_test_cases || 0}
               </div>
               <div className="text-sm text-blue-700">Test Cases Generated</div>
+              {generationStartSuffix && (
+                <div className="text-xs text-blue-600 mt-1">{generationStartSuffix}</div>
+              )}
             </div>
           </div>
+          <StatHoverPanel
+            title="Test Cases Generated"
+            valueLabel="Test Cases Generated"
+            value={loading ? '...' : stats?.total_test_cases || 0}
+            details={timeBreakdown}
+            accentClassName="border-blue-100"
+          />
         </div>
 
-        <div className="card bg-gradient-to-br from-green-50 to-green-100 border border-green-200">
+        <div className="group relative card overflow-visible bg-gradient-to-br from-green-50 to-green-100 border border-green-200">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-green-600 rounded-lg">
               <TestTube size={24} className="text-white" />
             </div>
             <div>
               <div className="text-2xl font-bold text-green-900">
-                {loading ? '...' : stats?.total_generations || 0}
+                {loading ? <LoadingDots /> : stats?.total_generations || 0}
               </div>
               <div className="text-sm text-green-700">Total Generations</div>
+              {generationStartSuffix && (
+                <div className="text-xs text-green-600 mt-1">{generationStartSuffix}</div>
+              )}
             </div>
           </div>
+          <StatHoverPanel
+            title="Total Generations"
+            valueLabel="Total Generations"
+            value={loading ? '...' : stats?.total_generations || 0}
+            details={timeBreakdown}
+            accentClassName="border-green-100"
+          />
         </div>
 
-        <div className="card bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200">
+        <div className="group relative card overflow-visible bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-purple-600 rounded-lg">
               <TrendingUp size={24} className="text-white" />
             </div>
             <div>
               <div className="text-2xl font-bold text-purple-900">
-                {loading ? '...' : 
+                {loading ? <LoadingDots /> : 
                   stats?.total_test_cases && stats?.total_generations 
                     ? Math.round(stats.total_test_cases / stats.total_generations) 
                     : 0
                 }
               </div>
               <div className="text-sm text-purple-700">Avg Tests/Generation</div>
+              {generationStartSuffix && (
+                <div className="text-xs text-purple-600 mt-1">{generationStartSuffix}</div>
+              )}
             </div>
           </div>
+          <StatHoverPanel
+            title="Avg Tests/Generation"
+            valueLabel="Avg Tests/Generation"
+            value={loading ? '...' : (stats?.total_test_cases && stats?.total_generations ? Math.round(stats.total_test_cases / stats.total_generations) : 0)}
+            details={timeBreakdown}
+            accentClassName="border-purple-100"
+          />
         </div>
 
         <div className="card bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200">

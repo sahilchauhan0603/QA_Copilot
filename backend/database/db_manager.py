@@ -5,7 +5,7 @@ Handles all database operations for persistent storage using PostgreSQL
 import os
 import uuid
 from typing import List, Dict, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
@@ -460,6 +460,51 @@ class DatabaseManager:
                 
                 # Total generations
                 total_generations = session.query(Generation).filter(workspace_filter).count()
+
+                # First generation timestamp
+                first_generation = session.query(func.min(Generation.timestamp)).filter(
+                    workspace_filter
+                ).scalar()
+
+                now = datetime.now(timezone.utc)
+                today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                if this_month_start.month == 1:
+                    previous_month_start = this_month_start.replace(year=this_month_start.year - 1, month=12)
+                else:
+                    previous_month_start = this_month_start.replace(month=this_month_start.month - 1)
+                this_year_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                last_year_start = this_year_start.replace(year=this_year_start.year - 1)
+
+                period_ranges = {
+                    'today': (today_start, now),
+                    'this_month': (this_month_start, now),
+                    'previous_month': (previous_month_start, this_month_start),
+                    'this_year': (this_year_start, now),
+                    'last_year': (last_year_start, this_year_start),
+                }
+
+                def count_generations_between(start_date, end_date):
+                    return session.query(func.count(Generation.id)).filter(
+                        workspace_filter,
+                        Generation.timestamp >= start_date,
+                        Generation.timestamp < end_date,
+                    ).scalar() or 0
+
+                def count_test_cases_between(start_date, end_date):
+                    return session.query(func.count(TestCase.id)).join(Generation).filter(
+                        workspace_filter,
+                        Generation.timestamp >= start_date,
+                        Generation.timestamp < end_date,
+                    ).scalar() or 0
+
+                time_breakdown = {
+                    period: {
+                        'generations': count_generations_between(start_date, end_date),
+                        'test_cases': count_test_cases_between(start_date, end_date),
+                    }
+                    for period, (start_date, end_date) in period_ranges.items()
+                }
                 
                 # Total test cases
                 total_test_cases = session.query(TestCase).join(Generation).filter(
@@ -492,6 +537,8 @@ class DatabaseManager:
                     'total_generations': total_generations,
                     'total_test_cases': total_test_cases,
                     'avg_test_cases': avg_test_cases,
+                    'first_generation_at': first_generation.isoformat() if first_generation else None,
+                    'time_breakdown': time_breakdown,
                     'by_priority': by_priority,
                     'by_category': by_category
                 }
